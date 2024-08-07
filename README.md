@@ -130,15 +130,15 @@ The memory consisteny checks will also be batched into 10 steps.
 ### Enable zero-knowledge
 
 To enable zero-knowlege simply change the type alias for the curve cycle to 
-`Bn256EngineZKPedersen`
+`ZKPallasEngine`
 
 Example: 
-`type E1 = PallasEngine;` becomes -> `type E1 = Bn256EngineZKPedersen;`
+`type E1 = PallasEngine;` becomes -> `type E1 = ZKPallasEngine;`
 
 ```rust
   use std::path::PathBuf;
   use zk_engine::nova::{
-    provider::{ipa_pc, Bn256EngineZKPedersen},
+    provider::{ipa_pc, ZKPallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::{
       snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
@@ -153,7 +153,7 @@ Example:
   };
 
   // Backend configs
-  type E1 = Bn256EngineZKPedersen;
+  type E1 = ZKPallasEngine;
   type EE1<E> = ipa_pc::EvaluationEngine<E>;
   type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
   type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
@@ -174,7 +174,7 @@ Example:
       .build();
     let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
-    // Bn256EngineZKPedersen get's used here
+    // ZKPallasEngine get's used here
     let (proof, public_values) = BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx)?;
     let result = proof.verify(public_values)?;
     Ok(assert!(result))
