@@ -134,7 +134,7 @@ Batched mode should be used when you have a large number of opcodes to prove (e.
 
 ### Enable zero-knowledge
 
-To enable zero-knowlege simply change the type alias for the curve cycle to 
+To enable zero-knowlege see below code snippet.
 `ZKPallasEngine`
 
 Example: 
