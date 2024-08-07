@@ -20,7 +20,8 @@ anyhow = "1.0"
 ```
 Run with:
 
-```sudo cargo +nightly run
+```
+sudo cargo +nightly run
 ```
 
 ### Default mode
