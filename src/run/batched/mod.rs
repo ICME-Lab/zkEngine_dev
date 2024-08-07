@@ -375,7 +375,7 @@ mod tests {
   use std::path::PathBuf;
 
   use nova::{
-    provider::{ipa_pc, PallasEngine},
+    provider::{ipa_pc, PallasEngine, ZKPallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::{
       snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
@@ -424,7 +424,10 @@ mod tests {
   #[test]
   fn test_zk_engine() -> anyhow::Result<()> {
     init_logger();
+    tracing::trace!("PallasEngine Curve Cycle");
     test_zk_engine_with::<PallasEngine, BS1<_>, S1<_>, S2<PallasEngine>>()?;
+    tracing::trace!("ZKPallasEngine Curve Cycle");
+    test_zk_engine_with::<ZKPallasEngine, BS1<_>, S1<_>, S2<ZKPallasEngine>>()?;
     Ok(())
   }
 }
