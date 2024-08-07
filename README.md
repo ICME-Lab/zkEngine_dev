@@ -65,7 +65,7 @@ Default mode runs one WASM opcode per each step of NIVC in execution proving and
     //
     // Get proof for verification and corresponding public values
     //
-    // Above type alias's get used here
+    // Above type alias's (for the backend config) get used here
     let (proof, public_values) = ZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx)?;
 
     // Verify proof
@@ -76,9 +76,7 @@ Default mode runs one WASM opcode per each step of NIVC in execution proving and
 
 ### Batched mode
 
-Batched mode should be used when you have a lot of opcodes to prove. (Ex: 10,000 opcodes).
-Batched mode will batch the opcodes into 10 steps, for example a 10,000 opcode WASM, when being proven each step of NIVC will prove 1,000 opcodes.
-The memory consisteny checks will also be batched into 10 steps.
+Batched mode should be used when you have a large number of opcodes to prove (e.g., 10,000 opcodes). In batched mode, the opcodes are divided into 10 steps. For example, a 10,000-opcode WASM will be proven in 10 steps, with each step of NIVC proving 1,000 opcodes. The memory consistency checks will also be batched into 10 steps.
 
 ```rust
   use std::path::PathBuf;
@@ -110,9 +108,16 @@ The memory consisteny checks will also be batched into 10 steps.
   {
     init_logger();
 
-    // Some WASM's require the function to invoke and the functions arguments
+    // Some WASM' modules require the function to invoke and it's functions arguments.
+    // The below code is an example of how to configure the WASM arguments for such cases.
+    //
+    // This WASM module (fib.wat) has a fib fn which will 
+    // produce the n'th number in the fibonacci sequence.
+    // The function we want to invoke has the following signature: 
+    //
+    // fib(n: i32) -> i32;
     // 
-    // You can specify both like so
+    // This means the higher the user input is for `n` the more opcodes will need to be proven
     let args = WASMArgsBuilder::default()
       .file_path(PathBuf::from("wasm/misc/fib.wat"))
       .invoke(Some(String::from("fib")))
@@ -165,9 +170,7 @@ Example:
   {
     init_logger();
 
-    // Some WASM's require the function to invoke and the functions arguments
-    // 
-    // You can specify both like so
+    // WASM Arguments
     let args = WASMArgsBuilder::default()
       .file_path(PathBuf::from("wasm/misc/fib.wat"))
       .invoke(Some(String::from("fib")))
