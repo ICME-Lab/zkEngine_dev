@@ -152,7 +152,7 @@ Example:
     utils::logging::init_logger,
   };
 
-  // Backend configs
+  // Configs to enable ZK
   type E1 = ZKPallasEngine;
   type EE1<E> = ipa_pc::EvaluationEngine<E>;
   type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
