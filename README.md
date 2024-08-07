@@ -18,8 +18,8 @@ zk-engine = { git = "https://github.com/ICME-Lab/zkEngine_dev", branch= "main" }
 Default mode runs one WASM opcode per each step of NIVC in execution proving and one memory read/write for each step in the MCC (which uses IVC)
 
 ```rust
-  // Imports
   use std::path::PathBuf;
+  // Backend imports
   use zk_engine::nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
@@ -81,8 +81,8 @@ Batched mode will batch the opcodes into 10 steps, for example a 10,000 opcode W
 The memory consisteny checks will also be batched into 10 steps.
 
 ```rust
-  // Imports
   use std::path::PathBuf;
+  // Backend imports
   use zk_engine::nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
@@ -137,6 +137,7 @@ Example:
 
 ```rust
   use std::path::PathBuf;
+  // Backend imports for ZK
   use zk_engine::nova::{
     provider::{ipa_pc, ZKPallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
