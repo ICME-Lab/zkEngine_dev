@@ -8,12 +8,9 @@ zkEngine is a zkWASM with a SuperNova backend
 
 ### Cargo
 
-Requires `arecibo` package for curves to prove on
-
 ```toml
 [dependencies]
 zk-engine = { git = "https://github.com/ICME-Lab/zkEngine_dev", branch= "main" }
-nova = { git = "https://github.com/wyattbenno777/arecibo", branch = "wyatt_dev", package = "arecibo" }
 ```
 
 ### Default mode
@@ -23,7 +20,7 @@ Default mode runs one WASM opcode per each step of NIVC in execution proving and
 ```rust
   // Imports
   use std::path::PathBuf;
-  use nova::{
+  use zk_engine::nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::{
@@ -86,7 +83,7 @@ The memory consisteny checks will also be batched into 10 steps.
 ```rust
   // Imports
   use std::path::PathBuf;
-  use nova::{
+  use zk_engine::nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::{
@@ -140,7 +137,7 @@ Example:
 
 ```rust
   use std::path::PathBuf;
-  use nova::{
+  use zk_engine::nova::{
     provider::{ipa_pc, Bn256EngineZKPedersen},
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::{
