@@ -2,7 +2,7 @@
 
 # zkEngine
 
-The zkEngine is an NIVC based zkWASM implementation based on the [SuperNova](https://eprint.iacr.org/2022/1758) proving scheme.
+The zkEngine is an (NIVC) zkWASM implementation based on the [SuperNova](https://eprint.iacr.org/2022/1758) proving scheme.
 It aims to be memory efficient and highly portable for constrained enviroments. With these traits it can be used for
 local verifiable compute and privacy on a large array of devices.
 
