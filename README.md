@@ -11,6 +11,11 @@ zkEngine is a zkWASM with a SuperNova backend
 ```toml
 [dependencies]
 zk-engine = { git = "https://github.com/ICME-Lab/zkEngine_dev", branch= "main" }
+anyhow = "1.0"
+```
+Run with:
+
+```sudo cargo +nightly run
 ```
 
 ### Default mode
@@ -66,7 +71,7 @@ Default mode runs one WASM opcode per each step of NIVC in execution proving and
     // Get proof for verification and corresponding public values
     //
     // Above type alias's (for the backend config) get used here
-    let (proof, public_values) = ZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx)?;
+    let (proof, public_values) = ZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
 
     // Verify proof
     let result = proof.verify(public_values)?;
@@ -126,7 +131,7 @@ Batched mode should be used when you have a large number of opcodes to prove (e.
     let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
     // Use `BatchedZKEProof` for batched proving
-    let (proof, public_values) = BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx)?;
+    let (proof, public_values) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
     let result = proof.verify(public_values)?;
     Ok(assert!(result))
   }
@@ -178,7 +183,7 @@ Example:
     let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
     // ZKPallasEngine get's used here
-    let (proof, public_values) = BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx)?;
+    let (proof, public_values) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
     let result = proof.verify(public_values)?;
     Ok(assert!(result))
   }
