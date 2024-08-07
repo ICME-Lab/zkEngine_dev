@@ -11,5 +11,8 @@ pub mod run;
 pub mod traits;
 pub mod utils;
 
-// rexport the wasi module
+// re-export the wasi module
 pub use wasmi_wasi::WasiCtx;
+
+// re-export `nova`
+pub use nova;
