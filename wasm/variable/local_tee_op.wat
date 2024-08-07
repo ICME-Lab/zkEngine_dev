@@ -1,0 +1,11 @@
+(module
+    (func (export "call")
+        (local i32 i64)
+        (i32.const 0)
+        (local.tee 0)
+        (drop)
+        (i64.const 0)
+        (local.tee 1)
+        (drop)
+    )
+)

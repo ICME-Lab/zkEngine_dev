@@ -1,0 +1,6 @@
+tab_spaces = 2
+max_width = 100
+comment_width = 100
+wrap_comments = true
+reorder_imports = true
+imports_granularity = "Crate"
