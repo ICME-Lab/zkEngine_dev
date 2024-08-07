@@ -12,7 +12,7 @@ Requires `arecibo` package for curves to prove on
 
 ```toml
 [dependencies]
-zk-engine = { git = "https://github.com/ICME-Lab/zkEngine", branch= "main" }
+zk-engine = { git = "https://github.com/ICME-Lab/zkEngine_dev", branch= "main" }
 nova = { git = "https://github.com/wyattbenno777/arecibo", branch = "wyatt_dev", package = "arecibo" }
 ```
 
