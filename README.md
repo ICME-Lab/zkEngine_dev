@@ -134,8 +134,7 @@ Batched mode should be used when you have a large number of opcodes to prove (e.
 
 ### Enable zero-knowledge
 
-To enable zero-knowlege see below code snippet.
-`ZKPallasEngine`
+To enable zero-knowlege see below code snippet on configaration.
 
 Example: 
 `type E1 = PallasEngine;` becomes -> `type E1 = ZKPallasEngine;`
