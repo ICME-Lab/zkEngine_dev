@@ -791,6 +791,70 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             mem_vec
         }
         StepInfo::CallIndirect { .. } => vec![],
+        StepInfo::F64ConvertI64 { value, result, .. } => mem_op_from_stack_only_step(
+            sp_before_execution,
+            eid,
+            emid,
+            &[*value as u64],
+            &[*result as u64],
+        ),
+        StepInfo::F64ConvertI32 { value, result, .. } => mem_op_from_stack_only_step(
+            sp_before_execution,
+            eid,
+            emid,
+            &[*value as u64],
+            &[*result as u64],
+        ),
+        StepInfo::F64BinOp {
+            left, right, value, ..
+        } => mem_op_from_stack_only_step(
+            sp_before_execution,
+            eid,
+            emid,
+            &[*right as u64, *left as u64],
+            &[*value as u64],
+        ),
+        StepInfo::F32BinOp {
+            left, right, value, ..
+        } => mem_op_from_stack_only_step(
+            sp_before_execution,
+            eid,
+            emid,
+            &[*right as u64, *left as u64],
+            &[*value as u64],
+        ),
+        StepInfo::F32Comp {
+            left, right, value, ..
+        } => mem_op_from_stack_only_step(
+            sp_before_execution,
+            eid,
+            emid,
+            &[*right as u32 as u64, *left as u32 as u64],
+            &[*value as u32 as u64],
+        ),
+        StepInfo::F64Comp {
+            left, right, value, ..
+        } => mem_op_from_stack_only_step(
+            sp_before_execution,
+            eid,
+            emid,
+            &[*right as u64, *left as u64],
+            &[*value as u32 as u64],
+        ),
+        StepInfo::F32DemoteF64 { value, result } => mem_op_from_stack_only_step(
+            sp_before_execution,
+            eid,
+            emid,
+            &[*value as u64],
+            &[*result as u64],
+        ),
+        StepInfo::F64PromoteF32 { value, result } => mem_op_from_stack_only_step(
+            sp_before_execution,
+            eid,
+            emid,
+            &[*value as u64],
+            &[*result as u64],
+        ),
         _ => unimplemented!("eid: {}, {:?}", event.eid, event.step_info),
     }
 }
