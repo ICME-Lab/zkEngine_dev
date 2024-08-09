@@ -12,6 +12,7 @@ pub mod traits;
 pub mod utils;
 
 // re-export the wasi module
+pub use wasmi::TraceSliceValues;
 pub use wasmi_wasi::WasiCtx;
 
 // re-export `nova`
