@@ -28,7 +28,7 @@ RUST_LOG=debug cargo +nightly run --release
 
 Default mode runs one WASM opcode per each step of NIVC in execution proving and one memory read/write for each step in the MCC (which uses IVC)
 
-```bsah
+```bash
 RUST_LOG=debug cargo +nightly run --example default
 ````
 
@@ -93,7 +93,7 @@ RUST_LOG=debug cargo +nightly run --example default
 
 Batched mode should be used when you have a large number of opcodes to prove (e.g., 10,000 opcodes). In batched mode, the opcodes are divided into 10 steps. For example, a 10,000-opcode WASM will be proven in 10 steps, with each step of NIVC proving 1,000 opcodes. The memory consistency checks will also be batched into 10 steps.
 
-```bsah
+```bash
 RUST_LOG=debug cargo +nightly run --example batched
 ````
 
@@ -158,7 +158,7 @@ To enable zero-knowlege see below code snippet on configaration.
 Example: 
 `type E1 = PallasEngine;` becomes -> `type E1 = ZKPallasEngine;`
 
-```bsah
+```bash
 RUST_LOG=debug cargo +nightly run --example zk
 ````
 
