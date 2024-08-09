@@ -1,17 +1,23 @@
-use std::path::PathBuf;
+use std::{cell::RefCell, collections::HashMap, path::PathBuf, rc::Rc};
 
+use super::batched::{BatchedZKEProof, BatchedZKEProofBuilder};
+use crate::{
+  args::{WASMArgsBuilder, WASMCtx},
+  traits::{
+    args::ZKWASMContext,
+    zkvm::{ZKVMBuilder, ZKVM},
+  },
+  utils::{logging::init_logger, memory::set_linear_addr},
+};
+use anyhow::anyhow;
 use nova::{
   provider::{ipa_pc, PallasEngine},
   spartan::{self, snark::RelaxedR1CSSNARK},
   traits::Dual,
 };
-use wasmi::TraceSliceValues;
-
-use super::batched::BatchedZKEProof;
-use crate::{
-  args::{WASMArgsBuilder, WASMCtx},
-  traits::zkvm::ZKVM,
-  utils::logging::init_logger,
+use wasmi::{
+  mtable::{AccessType, LocationType, MTable},
+  TraceSliceValues, Tracer,
 };
 
 // Curve cycle to use for proving
@@ -25,6 +31,48 @@ type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
 type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
 type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
 type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
+
+fn mock_mcc(tracer: Rc<RefCell<Tracer>>) -> anyhow::Result<()> {
+  let tracer = tracer.borrow();
+  let mtable = tracer.mtable();
+
+  let mut hash_map = HashMap::new();
+  let mut m_entries = mtable.entries().clone();
+
+  let mut mcc_map = HashMap::new();
+
+  for m_entry in m_entries.iter_mut() {
+    set_linear_addr(m_entry, &mut hash_map);
+    if m_entry.ltype != LocationType::Stack {
+      continue;
+    }
+    match m_entry.atype {
+      AccessType::Init => {
+        mcc_map.insert(m_entry.addr, m_entry.value);
+      }
+      AccessType::Write => {
+        mcc_map.insert(m_entry.addr, m_entry.value);
+      }
+      AccessType::Read => {
+        if !mcc_map.contains_key(&m_entry.addr)
+          || m_entry.value != *mcc_map.get(&m_entry.addr).unwrap()
+        {
+          println!("{:#?}", m_entry);
+          println!("addr: {}", m_entry.addr);
+          let value = mcc_map.get(&m_entry.addr);
+          println!("expected: {}, got: {:?}", m_entry.value, value);
+          println!("________________________________");
+          let etable = tracer.etable();
+          let entry = &etable.entries().to_vec()[m_entry.eid as usize - 1];
+
+          println!("{:#?}", entry);
+          return Err(anyhow!("Memory consistency check failed"));
+        }
+      }
+    }
+  }
+  Ok(())
+}
 
 #[test]
 fn test_gradient_boosting() -> anyhow::Result<()> {
@@ -53,6 +101,51 @@ fn test_gradient_boosting() -> anyhow::Result<()> {
   // Verify proof
   let result = proof.verify(public_values)?;
   Ok(assert!(result))
+}
+
+#[test]
+fn test_mock_mcc_gradient_boosting() -> anyhow::Result<()> {
+  init_logger();
+
+  // Configure the arguments needed for WASM execution
+  //
+  // Here we are configuring the path to the WASM file
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
+    .invoke(Some(String::from("_start")))
+    .trace_slice_values(TraceSliceValues::new(0, 1_000_000))
+    .build();
+
+  // Create a WASM execution context for proving.
+  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  let _ = BatchedZKEProofBuilder::<E1, BS1<E1>, S1<E1>, S2<E1>>::get_trace(&mut wasm_ctx)?;
+  let tracer = wasm_ctx.tracer()?;
+  mock_mcc(tracer.clone())?;
+
+  Ok(())
+}
+
+#[test]
+fn test_mock_mcc_local_set_op() -> anyhow::Result<()> {
+  init_logger();
+
+  // Configure the arguments needed for WASM execution
+  //
+  // Here we are configuring the path to the WASM file
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/variable/local_set_op.wat"))
+    .invoke(Some(String::from("call")))
+    .build();
+
+  // Create a WASM execution context for proving.
+  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  let _ = BatchedZKEProofBuilder::<E1, BS1<E1>, S1<E1>, S2<E1>>::get_trace(&mut wasm_ctx)?;
+  let tracer = wasm_ctx.tracer()?;
+  mock_mcc(tracer.clone())?;
+
+  Ok(())
 }
 
 mod k3 {
