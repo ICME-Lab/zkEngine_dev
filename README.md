@@ -21,7 +21,7 @@ anyhow = "1.0"
 Run with:
 
 ```
-RUST_LOG=debug cargo +nightly run
+RUST_LOG=debug cargo +nightly run --release
 ```
 
 ### Default mode
