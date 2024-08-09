@@ -46,6 +46,9 @@ fn mock_mcc(tracer: Rc<RefCell<Tracer>>) -> anyhow::Result<()> {
     if m_entry.ltype != LocationType::Stack {
       continue;
     }
+    if m_entry.addr == 147504 {
+      tracing::debug!("addr: {:#?}", m_entry);
+    }
     match m_entry.atype {
       AccessType::Init => {
         mcc_map.insert(m_entry.addr, m_entry.value);
