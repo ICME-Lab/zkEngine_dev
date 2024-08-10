@@ -1,17 +1,25 @@
-use std::path::PathBuf;
+use std::{ path::PathBuf};
+
+use super::batched::{BatchedZKEProof, };
+use crate::{
+  args::{WASMArgsBuilder, WASMCtx},
+
+  traits::{
+
+    zkvm::{ ZKVM},
+  },
+  utils::{logging::init_logger, },
+};
 
 use nova::{
   provider::{ipa_pc, PallasEngine},
   spartan::{self, snark::RelaxedR1CSSNARK},
   traits::Dual,
 };
-use wasmi::TraceSliceValues;
+use wasmi::{
 
-use super::batched::BatchedZKEProof;
-use crate::{
-  args::{WASMArgsBuilder, WASMCtx},
-  traits::zkvm::ZKVM,
-  utils::logging::init_logger,
+
+  TraceSliceValues,,
 };
 
 // Curve cycle to use for proving

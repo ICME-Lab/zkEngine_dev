@@ -62,7 +62,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  fn etable(&self) -> &ETable {
+  pub(crate) fn etable(&self) -> &ETable {
     &self.etable
   }
 }

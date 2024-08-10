@@ -347,9 +347,10 @@ impl<WA: ZKWASMArgs> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
       end
     };
 
+    let start_opcode = self.args().trace_slice_values().start();
+
     // Slice etable if necessary
-    let etable =
-      ETable::new(etable.entries()[self.args().trace_slice_values().start()..end_opcode].to_vec());
+    let etable = ETable::new(etable.entries()[start_opcode..end_opcode].to_vec());
     tracing::trace!("Execution trace: {:#?}", etable);
 
     // Execution trace

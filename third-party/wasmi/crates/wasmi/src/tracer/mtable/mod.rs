@@ -163,6 +163,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
                 });
                 *emid = (*emid).checked_add(1).unwrap();
             }
+
             ops
         }
         StepInfo::Drop { .. } => vec![],
@@ -224,8 +225,21 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
 
             ops
         }
-        StepInfo::CallInternal { .. } => {
-            vec![]
+        StepInfo::CallInternal { args } => {
+            let mut ops = vec![];
+            for i in 0..args.len() {
+                ops.push(MemoryTableEntry {
+                    eid,
+                    emid: *emid,
+                    addr: sp_before_execution.into_add(i).get_addr(),
+                    ltype: LocationType::Stack,
+                    atype: AccessType::Write,
+                    is_mutable: true,
+                    value: args[i].to_bits(),
+                });
+                *emid = (*emid).checked_add(1).unwrap();
+            }
+            ops
         }
         StepInfo::LocalGet { depth, value } => {
             let read = MemoryTableEntry {
@@ -522,13 +536,37 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             &[],
             &[event.allocated_memory_pages as u32 as u64],
         ),
-        StepInfo::MemoryGrow { grow_size, result } => mem_op_from_stack_only_step(
-            sp_before_execution,
-            eid,
-            emid,
-            &[*grow_size as u32 as u64],
-            &[*result as u32 as u64],
-        ),
+        StepInfo::MemoryGrow {
+            grow_size,
+            result,
+            current_pages,
+        } => {
+            let mut mem_vec = mem_op_from_stack_only_step(
+                sp_before_execution,
+                eid,
+                emid,
+                &[*grow_size as u32 as u64],
+                &[*result as u32 as u64],
+            );
+
+            let start = *current_pages as usize * 8192;
+
+            for i in start..(start + *grow_size as usize * 8192) {
+                let grow_mem = MemoryTableEntry {
+                    eid,
+                    emid: *emid,
+                    addr: i,
+                    ltype: LocationType::Heap,
+                    atype: AccessType::Init,
+                    is_mutable: true,
+                    value: 0,
+                };
+                mem_vec.push(grow_mem);
+                *emid = (*emid).checked_add(1).unwrap();
+            }
+
+            mem_vec
+        }
         StepInfo::Const32 { value } => {
             mem_op_from_stack_only_step(sp_before_execution, eid, emid, &[], &[*value as u64])
         }
@@ -539,7 +577,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             mem_op_from_stack_only_step(sp_before_execution, eid, emid, &[], &[*value as u64])
         }
         StepInfo::F64Const { value } => {
-            mem_op_from_stack_only_step(sp_before_execution, eid, emid, &[], &[*value as u64])
+            mem_op_from_stack_only_step(sp_before_execution, eid, emid, &[], &[*value])
         }
         StepInfo::I32BinShiftOp {
             left, right, value, ..
@@ -791,13 +829,9 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             mem_vec
         }
         StepInfo::CallIndirect { .. } => vec![],
-        StepInfo::F64ConvertI64 { value, result, .. } => mem_op_from_stack_only_step(
-            sp_before_execution,
-            eid,
-            emid,
-            &[*value as u64],
-            &[*result as u64],
-        ),
+        StepInfo::F64ConvertI64 { value, result, .. } => {
+            mem_op_from_stack_only_step(sp_before_execution, eid, emid, &[*value], &[*result])
+        }
         StepInfo::F64ConvertI32 { value, result, .. } => mem_op_from_stack_only_step(
             sp_before_execution,
             eid,

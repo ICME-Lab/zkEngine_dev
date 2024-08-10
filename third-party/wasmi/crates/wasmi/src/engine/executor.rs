@@ -611,7 +611,14 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
             Instruction::MemorySize => None,
             Instruction::MemoryGrow => {
-                Some(RunInstructionTracePre::GrowMemory(self.sp.last().into()))
+                let memory = self.cache.default_memory(self.ctx);
+                let memref = self.ctx.resolve_memory(&memory);
+                let size = memref.current_pages().into();
+
+                Some(RunInstructionTracePre::GrowMemory {
+                    grow_size: self.sp.last().into(),
+                    pages: size,
+                })
             }
             Instruction::ConstRef(_) => None,
             Instruction::Const32(_) => None,
@@ -747,8 +754,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instruction::F64Min
             | Instruction::F64Max
             | Instruction::F64Copysign => Some(RunInstructionTracePre::F64BinOp {
-                left: self.sp.nth_back(2).to_bits() as f64,
-                right: self.sp.nth_back(1).to_bits() as f64,
+                left: self.sp.nth_back(2).to_bits(),
+                right: self.sp.nth_back(1).to_bits(),
             }),
 
             Instruction::I32Ctz | Instruction::I32Clz | Instruction::I32Popcnt => {
@@ -839,12 +846,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 sign: false,
             }),
             Instruction::F64ConvertI64S => Some(RunInstructionTracePre::F64ConvertI64 {
-                value: i64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
 
             Instruction::F64ConvertI64U => Some(RunInstructionTracePre::F64ConvertI64 {
-                value: i64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
 
@@ -1014,12 +1021,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 }
             }
             // Similar to `BrIfNez` in proving context.
-            Instruction::BrAdjustIfNez(target) => {
-                if let RunInstructionTracePre::BrIfNez { condition } = pre_status.unwrap() {
-                    StepInfo::BrIfNez {
-                        condition,
-                        offset: target.to_i32() as u64,
-                    }
+            Instruction::BrAdjustIfNez(_) => {
+                if let RunInstructionTracePre::BrIfNez { .. } = pre_status.unwrap() {
+                    StepInfo::BrAdjustIfNez
                 } else {
                     unreachable!()
                 }
@@ -1288,10 +1292,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
             Instruction::MemorySize => StepInfo::MemorySize,
             Instruction::MemoryGrow => {
-                if let RunInstructionTracePre::GrowMemory(grow_size) = pre_status.unwrap() {
+                if let RunInstructionTracePre::GrowMemory { grow_size, pages } = pre_status.unwrap()
+                {
                     StepInfo::MemoryGrow {
-                        grow_size,
+                        grow_size: grow_size as i32,
                         result: self.sp.last().into(),
+                        current_pages: pages,
                     }
                 } else {
                     unreachable!()
@@ -1307,7 +1313,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 value: value as i64,
             },
             Instruction::F64Const32(value) => StepInfo::F64Const {
-                value: value.to_f64(),
+                value: UntypedValue::from(value.to_f64()).to_bits(),
             },
 
             Instruction::I32Eqz => {
@@ -2345,7 +2351,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Add,
                         left,
                         right,
-                        value: f64::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2357,7 +2363,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Sub,
                         left,
                         right,
-                        value: f64::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2369,7 +2375,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Mul,
                         left,
                         right,
-                        value: f64::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2381,7 +2387,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Div,
                         left,
                         right,
-                        value: f64::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2393,7 +2399,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Min,
                         left,
                         right,
-                        value: f64::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2405,7 +2411,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Max,
                         left,
                         right,
-                        value: f64::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2417,7 +2423,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Copysign,
                         left,
                         right,
-                        value: f64::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2844,11 +2850,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         resource_limiter: &'ctx mut ResourceLimiterRef<'ctx>,
     ) -> Result<WasmOutcome, TrapCode> {
         use Instruction as Instr;
+
         loop {
             // Check if we need to take a memory snapshot
             if let Some(tracer) = self.get_tracer_if_active() {
                 let mut tracer = tracer.borrow_mut();
                 let len = tracer.etable.entries().len();
+
                 if len == tracer.shard_start() {
                     let value_stack_json = serde_json::to_string(&self.value_stack).unwrap();
                     let digest = sha256::digest(&value_stack_json);
@@ -2896,6 +2904,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                                 self.execute_instruction_post(pre_status, &instruction_copy);
                             tracer.etable.push(pages, post_status, pre_sp);
                             let len = tracer.etable.entries().len();
+
                             if len == tracer.shard_end() {
                                 let value_stack_json =
                                     serde_json::to_string(&self.value_stack).unwrap();
