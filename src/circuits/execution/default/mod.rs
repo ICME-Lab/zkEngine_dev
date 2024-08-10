@@ -28,6 +28,7 @@ type C1<E1> = EtableROM<E1>;
 type KeyPair<E1, S1, S2> = (ProverKey<E1, S1, S2>, VerifierKey<E1, S1, S2>);
 
 /// A struct that contains public parameters for the SuperNova proving system.
+#[derive(Serialize, Deserialize)]
 pub struct ExecutionPublicParams<E1, S1, S2>
 where
   E1: CurveCycleEquipped,
@@ -38,6 +39,7 @@ where
   pub pp: SuperNovaPublicParams<E1>,
   /// Prover key and Verifier key for SuperNova
   // TODO: mark as #[serde(skip)] when serializing
+  #[serde(skip)]
   pub pk_and_vk: OnceCell<KeyPair<E1, S1, S2>>,
 }
 
