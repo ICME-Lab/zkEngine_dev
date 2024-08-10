@@ -9,5 +9,7 @@
           drop
           (local.get 1)
           drop
+          (local.get 0)
+          drop
       )
   )

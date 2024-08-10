@@ -16,6 +16,7 @@ pub enum StepInfo {
         condition: u64,
         offset: u64,
     },
+    BrAdjustIfNez,
     BrAdjust {
         offset: u64,
     },
@@ -82,6 +83,7 @@ pub enum StepInfo {
     MemoryGrow {
         grow_size: i32,
         result: i32,
+        current_pages: u32,
     },
 
     I32Const {
@@ -227,8 +229,8 @@ pub enum StepInfo {
     },
 
     F64ConvertI64 {
-        value: i64,
-        result: f64,
+        value: u64,
+        result: u64,
         sign: bool,
     },
 
@@ -264,7 +266,7 @@ pub enum StepInfo {
     },
 
     F64Const {
-        value: f64,
+        value: u64,
     },
     F32Comp {
         class: RelOp,
@@ -287,9 +289,9 @@ pub enum StepInfo {
 
     F64BinOp {
         class: BinOp,
-        left: f64,
-        right: f64,
-        value: f64,
+        left: u64,
+        right: u64,
+        value: u64,
     },
     MemoryFill {
         value: u64,

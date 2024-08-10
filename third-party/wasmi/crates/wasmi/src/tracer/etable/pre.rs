@@ -49,7 +49,10 @@ pub enum RunInstructionTracePre {
         pre_block_value1: Option<u64>,
         pre_block_value2: Option<u64>,
     },
-    GrowMemory(i32),
+    GrowMemory {
+        grow_size: u32,
+        pages: u32,
+    },
 
     I32BinOp {
         left: i32,
@@ -132,7 +135,7 @@ pub enum RunInstructionTracePre {
         sign: bool,
     },
     F64ConvertI64 {
-        value: i64,
+        value: u64,
         sign: bool,
     },
     I32ReinterpretF32 {
@@ -180,8 +183,8 @@ pub enum RunInstructionTracePre {
     },
 
     F64BinOp {
-        left: f64,
-        right: f64,
+        left: u64,
+        right: u64,
     },
     MemoryFill {
         offset: u64,
