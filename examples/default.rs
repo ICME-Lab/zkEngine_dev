@@ -5,10 +5,7 @@ use zk_engine::{
   nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::{
-      snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-      CurveCycleEquipped, Dual, Engine,
-    },
+    traits::Dual,
   },
   run::default::ZKEProof,
   traits::zkvm::ZKVM,

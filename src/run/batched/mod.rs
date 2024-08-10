@@ -33,6 +33,7 @@ use nova::traits::{
 use public_values::{MCCPublicValues, PublicValues};
 use wasmi::{etable::ETable, Tracer};
 use wasmi_wasi::WasiCtx;
+use wasmi::mtable::MTable;
 
 /// Type alias for public values produced by the proving system
 type PV<E1, BS1, S1, S2> = PublicValues<E1, BS1, S1, S2>;
@@ -65,7 +66,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  fn etable(&self) -> &ETable {
+  pub(crate) fn etable(&self) -> &ETable {
     &self.etable
   }
 }
@@ -148,11 +149,17 @@ where
     let tracer = tracer_binding.borrow();
     let imtable = tracer.imtable();
     let mtable = self.etable().mtable(imtable);
-    tracing::info!("memory trace length {}", mtable.entries().len());
+
+    //Setup MCC TODO:: find zkhack bug
+    let entries_slice = &mtable.entries()[..10.min(mtable.entries().len())];
+    let new_mtable = MTable::new(entries_slice.to_vec());
+
+    tracing::info!("memory trace length {}", new_mtable.entries().len());
 
     tracing::info!("Building lookup table for MCC...");
-    // Setup MCC
-    let (circuit_primaries, _, _) = Self::MCCProver::mcc_inputs(mtable)?;
+
+    let (circuit_primaries, _, _) = Self::MCCProver::mcc_inputs(new_mtable)?;
+    
 
     // Get public params
     let pp = public_params(circuit_primaries[0].clone(), TrivialCircuit::default())?;

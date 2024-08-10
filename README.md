@@ -28,8 +28,8 @@ RUST_LOG=debug cargo +nightly run --release
 
 Default mode runs one WASM opcode per each step of NIVC in execution proving and one memory read/write for each step in the MCC (which uses IVC)
 
-```bsah
-RUST_LOG=debug cargo +nightly run --example default
+```bash
+RUST_LOG=debug cargo +nightly run --release --example default
 ````
 
 ```rust
@@ -93,8 +93,8 @@ RUST_LOG=debug cargo +nightly run --example default
 
 Batched mode should be used when you have a large number of opcodes to prove (e.g., 10,000 opcodes). In batched mode, the opcodes are divided into 10 steps. For example, a 10,000-opcode WASM will be proven in 10 steps, with each step of NIVC proving 1,000 opcodes. The memory consistency checks will also be batched into 10 steps.
 
-```bsah
-RUST_LOG=debug cargo +nightly run --example batched
+```bash
+RUST_LOG=debug cargo +nightly run --release --example batched
 ````
 
 ```rust
@@ -158,8 +158,8 @@ To enable zero-knowlege see below code snippet on configaration.
 Example: 
 `type E1 = PallasEngine;` becomes -> `type E1 = ZKPallasEngine;`
 
-```bsah
-RUST_LOG=debug cargo +nightly run --example zk
+```bash
+RUST_LOG=debug cargo +nightly run --release --example zk
 ````
 
 ```rust
@@ -204,5 +204,70 @@ RUST_LOG=debug cargo +nightly run --example zk
     let (proof, public_values) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
     let result = proof.verify(public_values)?;
     Ok(assert!(result))
+  }
+  ```
+
+### ZKML example
+
+
+```bash
+RUST_LOG=debug cargo +nightly run --release --example zkml
+````
+
+```rust
+use std::path::PathBuf;
+use wasmi::TraceSliceValues;
+// Backend imports for ZK
+use zk_engine::{
+  args::{WASMArgsBuilder, WASMCtx},
+  nova::{
+    provider::{ipa_pc, ZKPallasEngine},
+    spartan::{self, snark::RelaxedR1CSSNARK},
+    traits::Dual,
+  },
+  run::batched::BatchedZKEProof,
+  traits::zkvm::ZKVM,
+  utils::logging::init_logger,
+};
+
+// Curve cycle to use for proving
+type E1 = ZKPallasEngine;
+// PCS used for final SNARK at the end of (N)IVC
+type EE1<E> = ipa_pc::EvaluationEngine<E>;
+// PCS on secondary curve
+type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
+
+// Spartan SNARKS used for compressing at then end of (N)IVC
+type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
+type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
+type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
+
+fn main() -> anyhow::Result<()> {
+  init_logger();
+
+  // Configure the arguments needed for WASM execution
+  //
+  // Here we are configuring the path to the WASM file
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
+    .invoke(Some(String::from("_start")))
+    .trace_slice_values(TraceSliceValues::new(0, 100_000))
+    .build();
+
+  // Create a WASM execution context for proving.
+  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  // Prove execution and run memory consistency checks
+  //
+  // Get proof for verification and corresponding public values
+  //
+  // Above type alias's (for the backend config) get used here
+  let (proof, public_values) =
+    BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+
+  // Verify proof
+  let result = proof.verify(public_values)?;
+  Ok(assert!(result))
+}
   }
   ```

@@ -1,18 +1,18 @@
 use std::path::PathBuf;
 
-use nova::{
-  provider::{ipa_pc, PallasEngine},
-  spartan::{self, snark::RelaxedR1CSSNARK},
-  traits::Dual,
-};
-use wasmi::TraceSliceValues;
-
 use super::batched::BatchedZKEProof;
 use crate::{
   args::{WASMArgsBuilder, WASMCtx},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
 };
+
+use nova::{
+  provider::{ipa_pc, PallasEngine},
+  spartan::{self, snark::RelaxedR1CSSNARK},
+  traits::Dual,
+};
+use wasmi::TraceSliceValues;
 
 // Curve cycle to use for proving
 type E1 = PallasEngine;
