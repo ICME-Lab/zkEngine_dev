@@ -251,7 +251,7 @@ fn main() -> anyhow::Result<()> {
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .invoke(Some(String::from("_start")))
-    .trace_slice_values(TraceSliceValues::new(0, 1_000_000))
+    .trace_slice_values(TraceSliceValues::new(0, 100_000))
     .build();
 
   // Create a WASM execution context for proving.
