@@ -5,6 +5,9 @@
 mod public_values;
 use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
+// TODO: remove `pub`
+pub use public_values::ExecutionPublicValues;
+
 use crate::{
   circuits::{
     execution::batched::{super_nova_public_params, BatchedExecutionProof, BatchedExecutionProver},
@@ -27,7 +30,7 @@ use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual, Engine,
 };
-use public_values::{ExecutionPublicValues, MCCPublicValues, PublicValues};
+use public_values::{MCCPublicValues, PublicValues};
 use wasmi::{etable::ETable, Tracer};
 use wasmi_wasi::WasiCtx;
 
@@ -308,7 +311,9 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  execution_proof: BatchedExecutionProof<E1, BS1, S2>,
+  /// Documentation
+  /// TODO: remove `pub`
+  pub execution_proof: BatchedExecutionProof<E1, BS1, S2>,
   _s1: PhantomData<S1>,
 }
 
@@ -319,7 +324,8 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  fn new(execution_proof: BatchedExecutionProof<E1, BS1, S2>) -> Self {
+  // TODO: remove `pub`?
+  pub fn new(execution_proof: BatchedExecutionProof<E1, BS1, S2>) -> Self {
     Self {
       execution_proof,
       _s1: PhantomData,

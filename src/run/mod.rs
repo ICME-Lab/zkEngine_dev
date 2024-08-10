@@ -1,6 +1,6 @@
 //! The run module contains the different run strategies that can be used to run the zkVM.
 
-use crate::traits::{args::ZKWASMContext, zkvm::ZKVM};
+use crate::traits::{args::ZKWASMContext, public_values::PublicValuesTrait, zkvm::ZKVM};
 use batched::{BatchedZKEExecutionProof, BatchedZKEProof};
 use default::{ZKEExecutionProof, ZKEProof};
 
@@ -56,6 +56,22 @@ pub fn prove_execution(ctx: &mut impl ZKWASMContext<WasiCtx>, batched: bool) -> 
     let _ = ZKEExecutionProof::<E1, BS1<_>, S1<_>, S2<E1>>::prove_wasm_execution(ctx)?;
   }
   Ok(())
+}
+
+/// Runs proving system on only execution trace
+pub fn prove_execution_batched(
+  ctx: &mut impl ZKWASMContext<WasiCtx>,
+) -> anyhow::Result<(String, String, String, String)> {
+  let (res1, res2) =
+    BatchedZKEExecutionProof::<E1, BS1<_>, S1<_>, S2<E1>>::prove_wasm_execution(ctx)?;
+
+  // TODO: no unwraps
+  Ok((
+    serde_json::to_string(&res1.execution_proof).unwrap(),
+    serde_json::to_string(&res2.execution_pp.pp).unwrap(),
+    serde_json::to_string(&res2.public_inputs).unwrap(),
+    serde_json::to_string(&res2.public_outputs).unwrap(),
+  ))
 }
 
 /// Runs proving system on execution trace and memory trace

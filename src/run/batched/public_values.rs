@@ -67,9 +67,10 @@ where
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  execution_pp: BatchedExecutionPublicParams<E1, BS1, S2>,
-  public_inputs: Vec<E1::Scalar>,
-  public_outputs: Vec<E1::Scalar>,
+  // TODO: remove `pub`s?
+  pub execution_pp: BatchedExecutionPublicParams<E1, BS1, S2>,
+  pub public_inputs: Vec<E1::Scalar>,
+  pub public_outputs: Vec<E1::Scalar>,
 }
 
 impl<E1, BS1, S2> ExecutionPublicValues<E1, BS1, S2>
