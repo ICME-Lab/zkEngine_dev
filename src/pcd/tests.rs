@@ -20,7 +20,7 @@ fn mock_build_rom(_execution_trace: &[StepInfo]) {}
 fn mock_prove_shard(wasm_ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Receipt> {
   // Get the execution trace of Wasm module
   let tracer = wasm_ctx.tracer()?;
-  let etable = wasm_ctx.build_execution_trace()?;
+  let (etable, _) = wasm_ctx.build_execution_trace()?;
   let sharded_execution_trace = etable.plain_execution_trace();
 
   // Build ROM: constrains the sequence of execution order for the opcodes
@@ -78,7 +78,7 @@ fn test_connect_shards() -> anyhow::Result<()> {
   let mut wasm_ctx = WASMCtx::new_from_file(wasm_args.clone())?;
 
   // Mock the lead node which first runs an estimate on WASM
-  let etable = wasm_ctx.build_execution_trace()?;
+  let (etable, _) = wasm_ctx.build_execution_trace()?;
 
   // Length used to determine which start and end opcodes each shard gets
   let execution_trace_len = etable.entries().len();

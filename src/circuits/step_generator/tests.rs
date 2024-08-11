@@ -41,7 +41,7 @@ fn test_wasm_circuit() -> anyhow::Result<()> {
     .build();
 
   let mut wasm_ctx = WASMCtx::new_from_file(wasm_args)?;
-  let etable = wasm_ctx.build_execution_trace()?;
+  let (etable, _) = wasm_ctx.build_execution_trace()?;
   println!("amount of opcodes {:?}", etable.entries().len());
   let etable_entries = etable.entries().clone();
 

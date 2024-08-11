@@ -53,6 +53,7 @@ where
   execution_public_values: Option<ExecutionPublicValues<E1, BS1, S2>>,
   mcc_proof: Option<MCCProof<E1, S1, S2>>,
   mcc_public_values: Option<MCCPublicValues<E1, S1, S2>>,
+  wasm_func_res: Box<[wasmi::Value]>,
 }
 
 impl<E1, BS1, S1, S2> ZKEProofBuilder<E1, BS1, S1, S2>
@@ -80,7 +81,7 @@ where
   type ZKVM = ZKEProof<E1, BS1, S1, S2>;
 
   fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self> {
-    let etable = ctx.build_execution_trace()?;
+    let (etable, wasm_func_res) = ctx.build_execution_trace()?;
     let tracer = ctx.tracer()?;
 
     Ok(Self {
@@ -90,6 +91,7 @@ where
       execution_public_values: None,
       mcc_proof: None,
       mcc_public_values: None,
+      wasm_func_res,
     })
   }
 
@@ -173,7 +175,13 @@ where
     Ok(self)
   }
 
-  fn build(self) -> anyhow::Result<(ZKEProof<E1, BS1, S1, S2>, PV<E1, BS1, S1, S2>)> {
+  fn build(
+    self,
+  ) -> anyhow::Result<(
+    ZKEProof<E1, BS1, S1, S2>,
+    PV<E1, BS1, S1, S2>,
+    Box<[wasmi::Value]>,
+  )> {
     // Validate that all proofs and public values are present
     let execution_proof = self
       .execution_proof
@@ -193,7 +201,7 @@ where
     let public_values = PublicValues::new(execution_public_values, mcc_public_values);
     let proof = ZKEProof::new(execution_proof, mcc_proof);
 
-    Ok((proof, public_values))
+    Ok((proof, public_values, self.wasm_func_res))
   }
 }
 
@@ -234,7 +242,7 @@ where
 {
   fn prove_wasm(
     ctx: &mut impl ZKWASMContext<WasiCtx>,
-  ) -> anyhow::Result<(Self, PV<E1, BS1, S1, S2>)> {
+  ) -> anyhow::Result<(Self, PV<E1, BS1, S1, S2>, Box<[wasmi::Value]>)> {
     ZKEProofBuilder::get_trace(ctx)?
       .prove_execution()?
       .mcc()?
@@ -410,7 +418,7 @@ mod tests {
 
     let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
-    let (proof, public_values) = ZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx)?;
+    let (proof, public_values, _) = ZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx)?;
     let result = proof.verify(public_values)?;
     Ok(assert!(result))
   }

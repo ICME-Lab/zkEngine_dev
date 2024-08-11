@@ -30,7 +30,7 @@ pub fn prove_shard(
   should_stop: impl Fn() -> bool,
 ) -> Result<String, ProvingError> {
   // Get the execution trace of Wasm module
-  let etable = wasm_ctx.build_execution_trace().map_err(|_| {
+  let (etable, _) = wasm_ctx.build_execution_trace().map_err(|_| {
     ProvingError::WasmError(String::from("failed to parse WASM and get execution trace"))
   })?;
   let execution_trace = etable.plain_execution_trace();

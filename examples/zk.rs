@@ -32,8 +32,9 @@ fn main() -> anyhow::Result<()> {
   let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
   // ZKPallasEngine get's used here
-  let (proof, public_values) =
+  let (proof, public_values, _) =
     BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+
   let result = proof.verify(public_values)?;
   Ok(assert!(result))
 }

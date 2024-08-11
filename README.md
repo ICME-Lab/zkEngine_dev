@@ -81,7 +81,7 @@ RUST_LOG=debug cargo +nightly run --release --example default
     // Get proof for verification and corresponding public values
     //
     // Above type alias's (for the backend config) get used here
-    let (proof, public_values) = ZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+    let (proof, public_values, _) = ZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
 
     // Verify proof
     let result = proof.verify(public_values)?;
@@ -145,7 +145,7 @@ RUST_LOG=debug cargo +nightly run --release --example batched
     let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
     // Use `BatchedZKEProof` for batched proving
-    let (proof, public_values) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+    let (proof, public_values, _) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
     let result = proof.verify(public_values)?;
     Ok(assert!(result))
   }
@@ -201,7 +201,7 @@ RUST_LOG=debug cargo +nightly run --release --example zk
     let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
     // ZKPallasEngine get's used here
-    let (proof, public_values) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+    let (proof, public_values, _) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
     let result = proof.verify(public_values)?;
     Ok(assert!(result))
   }
@@ -262,7 +262,7 @@ fn main() -> anyhow::Result<()> {
   // Get proof for verification and corresponding public values
   //
   // Above type alias's (for the backend config) get used here
-  let (proof, public_values) =
+  let (proof, public_values, _) =
     BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
 
   // Verify proof

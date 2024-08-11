@@ -44,7 +44,7 @@ pub trait ZKWASMContext<T> {
   fn tracer(&self) -> anyhow::Result<Rc<RefCell<Tracer>>>;
 
   /// builds and returns a struct that contains the execution trace.
-  fn build_execution_trace(&mut self) -> anyhow::Result<ETable>;
+  fn build_execution_trace(&mut self) -> anyhow::Result<(ETable, Box<[wasmi::Value]>)>;
 
   /// Get the args needed to run the WASM module.
   fn args(&self) -> &dyn ZKWASMArgs;

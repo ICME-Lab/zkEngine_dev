@@ -47,7 +47,7 @@ fn test_gradient_boosting() -> anyhow::Result<()> {
   // Get proof for verification and corresponding public values
   //
   // Above type alias's (for the backend config) get used here
-  let (proof, public_values) =
+  let (proof, public_values, _) =
     BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
 
   // Verify proof

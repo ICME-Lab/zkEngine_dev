@@ -23,7 +23,7 @@ where
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
   // Get execution trace
-  let etable = wasm_ctx.build_execution_trace()?;
+  let (etable, _) = wasm_ctx.build_execution_trace()?;
 
   // Batch execution trace in batched
   let (execution_trace, rom) = batch_execution_trace(&etable)?;
@@ -76,7 +76,7 @@ mod tests {
     let mut wasm_ctx = WASMCtx::new_from_file(args.clone())?;
     let mut cloned_wasm_ctx = WASMCtx::new_from_file(args)?;
 
-    let (_, public_values) =
+    let (_, public_values, _) =
       BatchedZKEProof::<E1, BS1<_>, S1<_>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
     let digest = public_values.digest();
 

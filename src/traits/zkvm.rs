@@ -11,7 +11,9 @@ where
   Self: Sized,
 {
   /// A method that produces a zkSNARK for the WASM, with some public values.
-  fn prove_wasm(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<(Self, PV)>;
+  fn prove_wasm(
+    ctx: &mut impl ZKWASMContext<WasiCtx>,
+  ) -> anyhow::Result<(Self, PV, Box<[wasmi::Value]>)>;
 
   /// A method that verifies the zkSNARK for the WASM, with some public values.
   fn verify(self, public_values: PV) -> anyhow::Result<bool>;
@@ -41,5 +43,5 @@ where
   fn mcc(self) -> anyhow::Result<Self>;
 
   /// A method that builds the zkVM proof.
-  fn build(self) -> anyhow::Result<(Self::ZKVM, PV)>;
+  fn build(self) -> anyhow::Result<(Self::ZKVM, PV, Box<[wasmi::Value]>)>;
 }

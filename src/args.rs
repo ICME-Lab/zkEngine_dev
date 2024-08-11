@@ -290,7 +290,7 @@ impl<WA: ZKWASMArgs> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
   }
 
   /// Build and retrive the execution trace
-  fn build_execution_trace(&mut self) -> anyhow::Result<ETable> {
+  fn build_execution_trace(&mut self) -> anyhow::Result<(ETable, Box<[wasmi::Value]>)> {
     // WASM function name to invoke
     let fn_name = self.args().invoke();
 
@@ -354,6 +354,6 @@ impl<WA: ZKWASMArgs> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
     tracing::trace!("Execution trace: {:#?}", etable);
 
     // Execution trace
-    Ok(etable)
+    Ok((etable, func_results))
   }
 }
