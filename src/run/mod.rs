@@ -1,6 +1,6 @@
 //! The run module contains the different run strategies that can be used to run the zkVM.
 
-use crate::traits::{args::ZKWASMContext, public_values::PublicValuesTrait, zkvm::ZKVM};
+use crate::traits::{args::ZKWASMContext, zkvm::ZKVM};
 use batched::{BatchedZKEExecutionProof, BatchedZKEProof};
 use default::{ZKEExecutionProof, ZKEProof};
 

@@ -1,7 +1,7 @@
 //! Default implementation of ZKVM for SuperNova and MCC circuits
 //!
 //! This run method runs one opcode per step in the zkVM.
-mod public_values;
+pub mod public_values;
 use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
 use crate::{

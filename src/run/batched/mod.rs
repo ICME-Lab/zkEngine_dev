@@ -2,7 +2,7 @@
 //!
 //! Batched execution is a technique that allows the zkVM to execute multiple instructions in a
 //! single step.
-mod public_values;
+pub mod public_values;
 use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
 // TODO: remove `pub`
@@ -31,9 +31,8 @@ use nova::traits::{
   CurveCycleEquipped, Dual, Engine,
 };
 use public_values::{MCCPublicValues, PublicValues};
-use wasmi::{etable::ETable, Tracer};
+use wasmi::{etable::ETable, mtable::MTable, Tracer};
 use wasmi_wasi::WasiCtx;
-use wasmi::mtable::MTable;
 
 /// Type alias for public values produced by the proving system
 type PV<E1, BS1, S1, S2> = PublicValues<E1, BS1, S1, S2>;
@@ -159,7 +158,6 @@ where
     tracing::info!("Building lookup table for MCC...");
 
     let (circuit_primaries, _, _) = Self::MCCProver::mcc_inputs(new_mtable)?;
-    
 
     // Get public params
     let pp = public_params(circuit_primaries[0].clone(), TrivialCircuit::default())?;
