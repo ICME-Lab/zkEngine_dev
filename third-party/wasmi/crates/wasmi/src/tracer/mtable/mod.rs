@@ -679,13 +679,9 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             &[*result as u64],
         ),
         StepInfo::I32SignExtendI8 { value, result }
-        | StepInfo::I32SignExtendI16 { value, result } => mem_op_from_stack_only_step(
-            sp_before_execution,
-            eid,
-            emid,
-            &[*value as u32 as u64],
-            &[*result as u32 as u64],
-        ),
+        | StepInfo::I32SignExtendI16 { value, result } => {
+            mem_op_from_stack_only_step(sp_before_execution, eid, emid, &[*value], &[*result])
+        }
         StepInfo::I64SignExtendI8 { value, result }
         | StepInfo::I64SignExtendI16 { value, result }
         | StepInfo::I64SignExtendI32 { value, result } => mem_op_from_stack_only_step(

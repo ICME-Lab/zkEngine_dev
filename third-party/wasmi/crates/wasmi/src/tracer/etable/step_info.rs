@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use wasmi_core::UntypedValue;
 
 use crate::mtable::{MemoryReadSize, MemoryStoreSize, VarType};
 
@@ -168,66 +167,66 @@ pub enum StepInfo {
         result: i32,
     },
     I64ExtendI32 {
-        value: i32,
+        value: u64,
         result: i64,
         sign: bool,
     },
     I32SignExtendI8 {
-        value: i32,
-        result: i32,
+        value: u64,
+        result: u64,
     },
     I32SignExtendI16 {
-        value: i32,
-        result: i32,
+        value: u64,
+        result: u64,
     },
     I64SignExtendI8 {
-        value: i64,
-        result: i64,
+        value: u64,
+        result: u64,
     },
     I64SignExtendI16 {
-        value: i64,
-        result: i64,
+        value: u64,
+        result: u64,
     },
     I64SignExtendI32 {
-        value: i64,
-        result: i64,
+        value: u64,
+        result: u64,
     },
     I32TruncF32 {
-        value: f32,
+        value: u64,
         result: i32,
         sign: bool,
     },
     I32TruncF64 {
-        value: f64,
+        value: u64,
         result: i32,
         sign: bool,
     },
     I64TruncF32 {
-        value: f32,
+        value: u64,
         result: i64,
         sign: bool,
     },
     I64TruncF64 {
-        value: f64,
+        value: u64,
         result: i64,
         sign: bool,
     },
 
     F32ConvertI32 {
-        value: i32,
-        result: f32,
+        value: u64,
+        result: u64,
         sign: bool,
     },
 
     F32ConvertI64 {
-        value: i64,
-        result: f32,
+        value: u64,
+        result: u64,
         sign: bool,
     },
 
     F64ConvertI32 {
-        value: i32,
-        result: f64,
+        value: u64,
+        result: u64,
         sign: bool,
     },
 
@@ -238,34 +237,34 @@ pub enum StepInfo {
     },
 
     I32ReinterpretF32 {
-        value: f32,
+        value: u64,
         result: i32,
     },
     I64ReinterpretF64 {
-        value: f64,
+        value: u64,
         result: i64,
     },
     F32ReinterpretI32 {
         value: i32,
-        result: f32,
+        result: u64,
     },
 
     F64ReinterpretI64 {
         value: i64,
-        result: f64,
+        result: u64,
     },
 
     F32DemoteF64 {
-        value: f64,
-        result: f32,
+        value: u64,
+        result: u64,
     },
     F64PromoteF32 {
-        value: f32,
-        result: f64,
+        value: u64,
+        result: u64,
     },
 
     F32Const {
-        value: f32,
+        value: u64,
     },
 
     F64Const {
@@ -273,21 +272,21 @@ pub enum StepInfo {
     },
     F32Comp {
         class: RelOp,
-        left: f32,
-        right: f32,
+        left: u64,
+        right: u64,
         value: bool,
     },
     F64Comp {
         class: RelOp,
-        left: f64,
-        right: f64,
+        left: u64,
+        right: u64,
         value: bool,
     },
     F32BinOp {
         class: BinOp,
-        left: f32,
-        right: f32,
-        value: f32,
+        left: u64,
+        right: u64,
+        value: u64,
     },
 
     F64BinOp {

@@ -325,6 +325,43 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
 
             Instruction::CallInternal(_) => None,
+            Instruction::Call(func_idx) => {
+                let func = self.cache.get_func(self.ctx, func_idx);
+                let mut args = vec![];
+                match self.ctx.resolve_func(&func) {
+                    FuncEntity::Wasm(wasm_func) => {
+                        println!("reset");
+
+                        let len_locals = self.code_map.header(wasm_func.func_body()).len_locals();
+                        for _ in 0..len_locals {
+                            args.push(0);
+                        }
+                    }
+
+                    FuncEntity::Host(host_func) => {
+                        let func_type = self.ctx.resolve_func_type(host_func.ty_dedup());
+
+                        let len_inputs = func_type.params().len();
+                        let len_outputs = func_type.results().len();
+
+                        let delta = if len_outputs > len_inputs {
+                            // Note: We have to save the delta of values pushed
+                            //       so that we can drop them in case the host
+                            //       function fails to execute properly.
+                            let delta = len_outputs - len_inputs;
+                            delta
+                        } else {
+                            0
+                        };
+
+                        for _ in 0..delta {
+                            args.push(0);
+                        }
+                    }
+                }
+
+                Some(RunInstructionTracePre::Call { args })
+            }
             Instruction::CallIndirect(idx) => {
                 Some(RunInstructionTracePre::CallIndirect { idx: idx.to_u32() })
             }
@@ -663,8 +700,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instruction::F32Gt
             | Instruction::F32Le
             | Instruction::F32Ge => Some(RunInstructionTracePre::F32Comp {
-                left: self.sp.nth_back(2).to_bits() as f32,
-                right: self.sp.nth_back(1).to_bits() as f32,
+                left: self.sp.nth_back(2).to_bits(),
+                right: self.sp.nth_back(1).to_bits(),
             }),
 
             Instruction::F64Eq
@@ -673,8 +710,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instruction::F64Gt
             | Instruction::F64Le
             | Instruction::F64Ge => Some(RunInstructionTracePre::F64Comp {
-                left: self.sp.nth_back(2).to_bits() as f64,
-                right: self.sp.nth_back(1).to_bits() as f64,
+                left: self.sp.nth_back(2).to_bits(),
+                right: self.sp.nth_back(1).to_bits(),
             }),
 
             Instruction::I32Add
@@ -743,8 +780,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instruction::F32Min
             | Instruction::F32Max
             | Instruction::F32Copysign => Some(RunInstructionTracePre::F32BinOp {
-                left: self.sp.nth_back(2).to_bits() as f32,
-                right: self.sp.nth_back(1).to_bits() as f32,
+                left: self.sp.nth_back(2).to_bits(),
+                right: self.sp.nth_back(1).to_bits(),
             }),
 
             Instruction::F64Add
@@ -776,73 +813,73 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }),
 
             Instruction::I32TruncF32S => Some(RunInstructionTracePre::I32TruncF32 {
-                value: f32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
 
             Instruction::I32TruncF32U => Some(RunInstructionTracePre::I32TruncF32 {
-                value: f32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
             Instruction::I32TruncF64S => Some(RunInstructionTracePre::I32TruncF64 {
-                value: f64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
 
             Instruction::I32TruncF64U => Some(RunInstructionTracePre::I32TruncF64 {
-                value: f64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
 
             Instruction::I64TruncF32S => Some(RunInstructionTracePre::I64TruncF32 {
-                value: f32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
 
             Instruction::I64TruncF32U => Some(RunInstructionTracePre::I64TruncF32 {
-                value: f32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
             Instruction::I64TruncF64S => Some(RunInstructionTracePre::I64TruncF64 {
-                value: f64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
 
             Instruction::I64TruncF64U => Some(RunInstructionTracePre::I64TruncF64 {
-                value: f64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
 
             Instruction::F32ConvertI32S => Some(RunInstructionTracePre::F32ConvertI32 {
-                value: i32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
 
             Instruction::F32ConvertI32U => Some(RunInstructionTracePre::F32ConvertI32 {
-                value: i32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
             Instruction::F32ConvertI64S => Some(RunInstructionTracePre::F32ConvertI64 {
-                value: i64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
 
             Instruction::F32ConvertI64U => Some(RunInstructionTracePre::F32ConvertI64 {
-                value: i64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
 
             Instruction::F32DemoteF64 => Some(RunInstructionTracePre::F32DemoteF64 {
-                value: f64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
             }),
 
             Instruction::F64ConvertI32S => Some(RunInstructionTracePre::F64ConvertI32 {
-                value: i32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
 
             Instruction::F64ConvertI32U => Some(RunInstructionTracePre::F64ConvertI32 {
-                value: i32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
             Instruction::F64ConvertI64S => Some(RunInstructionTracePre::F64ConvertI64 {
@@ -856,31 +893,31 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }),
 
             Instruction::F64PromoteF32 => Some(RunInstructionTracePre::F64PromoteF32 {
-                value: f32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
             }),
 
             Instruction::I64ExtendI32U => Some(RunInstructionTracePre::I64ExtendI32 {
-                value: i32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: false,
             }),
             Instruction::I64ExtendI32S => Some(RunInstructionTracePre::I64ExtendI32 {
-                value: i32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
                 sign: true,
             }),
             Instruction::I32Extend8S => Some(RunInstructionTracePre::I32SignExtendI8 {
-                value: i32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
             }),
             Instruction::I32Extend16S => Some(RunInstructionTracePre::I32SignExtendI16 {
-                value: i32::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
             }),
             Instruction::I64Extend8S => Some(RunInstructionTracePre::I64SignExtendI8 {
-                value: i64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
             }),
             Instruction::I64Extend16S => Some(RunInstructionTracePre::I64SignExtendI16 {
-                value: i64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
             }),
             Instruction::I64Extend32S => Some(RunInstructionTracePre::I64SignExtendI32 {
-                value: i64::from(self.sp.last()),
+                value: self.sp.last().to_bits(),
             }),
             Instruction::MemoryFill => {
                 let size = self.sp.nth_back(1).to_bits();
@@ -1041,8 +1078,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instruction::CallInternal(compiled_func) => {
                 let len = self.code_map.header(compiled_func).len_locals();
                 let mut args = Vec::new();
-                for i in 1..len {
-                    args.push(self.sp.nth_back(i));
+                for _ in 0..len {
+                    args.push(0);
                 }
 
                 StepInfo::CallInternal { args }
@@ -2266,7 +2303,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Add,
                         left,
                         right,
-                        value: f32::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2278,7 +2315,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Sub,
                         left,
                         right,
-                        value: f32::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2290,7 +2327,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Mul,
                         left,
                         right,
-                        value: f32::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2302,7 +2339,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Div,
                         left,
                         right,
-                        value: f32::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2314,7 +2351,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Min,
                         left,
                         right,
-                        value: f32::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2326,7 +2363,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Max,
                         left,
                         right,
-                        value: f32::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2338,7 +2375,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         class: BinOp::Copysign,
                         left,
                         right,
-                        value: f32::from(self.sp.last()),
+                        value: self.sp.last().to_bits(),
                     }
                 } else {
                     unreachable!()
@@ -2836,6 +2873,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     unreachable!()
                 }
             }
+            Instruction::Call(_) => {
+                if let RunInstructionTracePre::Call { args } = pre_status.unwrap() {
+                    StepInfo::Call { args }
+                } else {
+                    unreachable!()
+                }
+            }
             _ => {
                 println!("{:?}", instruction);
                 unimplemented!()
@@ -2900,8 +2944,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     if self.tracer.is_some() {
                         if let Some(tracer) = self.get_tracer_if_active() {
                             let mut tracer = tracer.borrow_mut();
-                            let post_status =
-                                self.execute_instruction_post(pre_status, &instruction_copy);
+                            let post_status = self
+                                .execute_instruction_post(pre_status.clone(), &instruction_copy);
                             tracer.etable.push(pages, post_status, pre_sp);
                             let len = tracer.etable.entries().len();
 
@@ -2962,7 +3006,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     forward_call!(self.visit_return_call_indirect(func_type))
                 }
                 Instr::CallInternal(compiled_func) => self.visit_call_internal(compiled_func)?,
-                Instr::Call(func) => forward_call!(self.visit_call(func)),
+                Instr::Call(func) => {
+                    trace_post!();
+                    forward_call!(self.visit_call(func))
+                }
                 Instr::CallIndirect(func_type) => {
                     forward_call!(self.visit_call_indirect(func_type))
                 }
