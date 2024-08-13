@@ -36,6 +36,10 @@ pub enum StepInfo {
     Call {
         args: Vec<u64>,
     },
+    CallHost {
+        zero_writes: usize,
+        post_values: Vec<(u64, usize)>,
+    },
     CallIndirect {
         func_index: u32,
     },

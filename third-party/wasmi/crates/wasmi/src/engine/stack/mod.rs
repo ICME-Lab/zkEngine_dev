@@ -8,6 +8,7 @@ pub use self::{
 use crate::{
     core::UntypedValue,
     engine::{code_map::CodeMap, func_types::FuncTypeRegistry, FuncParams},
+    etable::step_info::StepInfo,
     func::{HostFuncEntity, WasmFuncEntity},
     AsContext,
     Instance,
@@ -248,6 +249,10 @@ impl Stack {
         let (input_types, output_types) = func_types
             .resolve_func_type(host_func.ty_dedup())
             .params_results();
+
+        // Stack pointer before the call for tracing
+        let pre_sp = self.values.stack_ptr().clone();
+
         // In case the host function returns more values than it takes
         // we are required to extend the value stack.
         let len_inputs = input_types.len();
@@ -264,6 +269,11 @@ impl Stack {
         } else {
             0
         };
+
+        // Values needed for tracing
+        let zero_writes = delta;
+        let mut post_values = vec![];
+
         let params_results = FuncParams::new(
             self.values.peek_as_slice_mut(max_inout),
             len_inputs,
@@ -294,6 +304,24 @@ impl Stack {
             let delta = len_inputs - len_outputs;
             self.values.drop(delta);
         }
+
+        // Trace post values
+        let post_sp = self.values.stack_ptr();
+
+        for i in 1..=len_outputs {
+            let value = post_sp.nth_back(i);
+            post_values.push((value.to_bits(), post_sp.into_sub(i).get_addr()))
+        }
+
+        let step_info = StepInfo::CallHost {
+            zero_writes,
+            post_values,
+        };
+
+        let mut tracer = tracer.borrow_mut();
+
+        tracer.etable.push(0, step_info, pre_sp);
+
         // At this point the host function has been called and has directly
         // written its results into the value stack so that the last entries
         // in the value stack are the result values of the host function call.

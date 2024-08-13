@@ -330,34 +330,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 let mut args = vec![];
                 match self.ctx.resolve_func(&func) {
                     FuncEntity::Wasm(wasm_func) => {
-                        println!("reset");
-
                         let len_locals = self.code_map.header(wasm_func.func_body()).len_locals();
                         for _ in 0..len_locals {
                             args.push(0);
                         }
                     }
 
-                    FuncEntity::Host(host_func) => {
-                        let func_type = self.ctx.resolve_func_type(host_func.ty_dedup());
-
-                        let len_inputs = func_type.params().len();
-                        let len_outputs = func_type.results().len();
-
-                        let delta = if len_outputs > len_inputs {
-                            // Note: We have to save the delta of values pushed
-                            //       so that we can drop them in case the host
-                            //       function fails to execute properly.
-                            let delta = len_outputs - len_inputs;
-                            delta
-                        } else {
-                            0
-                        };
-
-                        for _ in 0..delta {
-                            args.push(0);
-                        }
-                    }
+                    _ => {}
                 }
 
                 Some(RunInstructionTracePre::Call { args })

@@ -841,6 +841,39 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             mem_vec
         }
         StepInfo::CallIndirect { .. } => vec![],
+        StepInfo::CallHost {
+            zero_writes,
+            post_values,
+        } => {
+            let mut ops = vec![];
+            for i in 0..*zero_writes {
+                ops.push(MemoryTableEntry {
+                    eid,
+                    emid: *emid,
+                    addr: sp_before_execution.into_add(i).get_addr(),
+                    ltype: LocationType::Stack,
+                    atype: AccessType::Write,
+                    is_mutable: true,
+                    value: 0,
+                });
+                *emid = (*emid).checked_add(1).unwrap();
+            }
+
+            for (post_value, addr) in post_values.iter() {
+                ops.push(MemoryTableEntry {
+                    eid,
+                    emid: *emid,
+                    addr: *addr,
+                    ltype: LocationType::Stack,
+                    atype: AccessType::Write,
+                    is_mutable: true,
+                    value: *post_value,
+                });
+
+                *emid = (*emid).checked_add(1).unwrap();
+            }
+            ops
+        }
         StepInfo::F64ConvertI64 { value, result, .. } => {
             mem_op_from_stack_only_step(sp_before_execution, eid, emid, &[*value], &[*result])
         }
