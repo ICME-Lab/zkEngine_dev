@@ -33,7 +33,8 @@ type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
 type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
 
 fn get_etentry_from_eid(execution_trace: &[ETEntry], eid: u32) -> &ETEntry {
-  &execution_trace[eid as usize - 1]
+  let delta = if eid == 0 { 0 } else { 1 };
+  &execution_trace[eid as usize - delta]
 }
 
 fn mock_mcc(
@@ -65,7 +66,7 @@ fn mock_mcc(
         // debug_addr_vec.push((m_entry.clone(), etentry));
         tracing::debug!("m_entry: {:#?}", m_entry);
         tracing::debug!(
-          "m_entry: {:#?}",
+          "entry: {:#?}",
           get_etentry_from_eid(etable_entries, m_entry.eid)
         );
         tracing::debug!("----------------------------------------------------------------------------------------------------------------------------------------------------------------");

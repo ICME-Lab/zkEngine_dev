@@ -298,6 +298,7 @@ impl Stack {
                 self.values.drop(delta);
                 error
             })?;
+
         // If the host functions returns fewer results than it receives parameters
         // the value stack needs to be shrinked for the delta.
         if len_outputs < len_inputs {
@@ -308,7 +309,7 @@ impl Stack {
         // Trace post values
         let post_sp = self.values.stack_ptr();
 
-        for i in 1..=len_outputs {
+        for i in 1..=max_inout {
             let value = post_sp.nth_back(i);
             post_values.push((value.to_bits(), post_sp.into_sub(i).get_addr()))
         }

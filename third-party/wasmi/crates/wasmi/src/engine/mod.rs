@@ -1210,6 +1210,7 @@ impl<'engine> EngineExecutor<'engine> {
                         &self.res.func_types,
                         tracer.clone(),
                     );
+
                     if self.stack.frames.peek().is_some() {
                         // Case: There is a frame on the call stack.
                         //

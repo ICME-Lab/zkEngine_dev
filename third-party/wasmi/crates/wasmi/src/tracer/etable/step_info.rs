@@ -40,6 +40,9 @@ pub enum StepInfo {
         zero_writes: usize,
         post_values: Vec<(u64, usize)>,
     },
+    CallHostMemory {
+        post_heap_values: Vec<(u64, usize)>,
+    },
     CallIndirect {
         func_index: u32,
     },

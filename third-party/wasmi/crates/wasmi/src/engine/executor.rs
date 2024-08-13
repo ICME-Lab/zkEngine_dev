@@ -2885,6 +2885,36 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     let digest = sha256::digest(&value_stack_json);
                     tracer.set_memory_snapshot_input(ImageID::new(digest));
                 }
+
+                if len != 0 {
+                    if let StepInfo::CallHost {
+                        zero_writes: _,
+                        post_values: _,
+                    } = &tracer.etable.entries().last().unwrap().step_info
+                    {
+                        let memory = self.cache.default_memory(self.ctx);
+                        let memref = self.ctx.resolve_memory(&memory);
+
+                        let pages: u32 = self
+                            .ctx
+                            .resolve_memory(self.cache.default_memory(self.ctx))
+                            .current_pages()
+                            .into();
+
+                        let mut updated_values = vec![];
+
+                        for i in 0..(pages * 8192) {
+                            let mut buf = [0u8; 8];
+                            memref.read(i as usize * 8, &mut buf).unwrap();
+                            updated_values.push((u64::from_le_bytes(buf), i as usize));
+                        }
+                        let step_info = StepInfo::CallHostMemory {
+                            post_heap_values: updated_values,
+                        };
+
+                        tracer.etable.push(0, step_info, self.sp.clone());
+                    }
+                }
             }
 
             let instruction = unsafe { &*self.ip.ptr };
