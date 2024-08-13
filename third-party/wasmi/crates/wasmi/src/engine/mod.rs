@@ -1203,11 +1203,12 @@ impl<'engine> EngineExecutor<'engine> {
                         FuncEntity::Wasm(_) => unreachable!("`func` must be a host function"),
                         FuncEntity::Host(host_func) => *host_func,
                     };
-                    let result = self.stack.call_host(
+                    let result = self.stack.call_host_with_trace(
                         ctx.as_context_mut(),
                         host_func,
                         Some(&instance),
                         &self.res.func_types,
+                        tracer.clone(),
                     );
                     if self.stack.frames.peek().is_some() {
                         // Case: There is a frame on the call stack.
