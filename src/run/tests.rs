@@ -1,18 +1,24 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
-use super::batched::BatchedZKEProof;
+use super::batched::{BatchedZKEProof, BatchedZKEProofBuilder};
 use crate::{
   args::{WASMArgsBuilder, WASMCtx},
-  traits::zkvm::ZKVM,
-  utils::logging::init_logger,
+  traits::zkvm::{ZKVMBuilder, ZKVM},
+  utils::{logging::init_logger, memory::set_linear_addr},
 };
 
+use crate::traits::args::ZKWASMContext;
+use anyhow::anyhow;
 use nova::{
   provider::{ipa_pc, PallasEngine},
   spartan::{self, snark::RelaxedR1CSSNARK},
   traits::Dual,
 };
-use wasmi::TraceSliceValues;
+use wasmi::{
+  etable::{ETEntry, ETable},
+  mtable::{AccessType, LocationType, MTable},
+  TraceSliceValues,
+};
 
 // Curve cycle to use for proving
 type E1 = PallasEngine;
@@ -25,6 +31,186 @@ type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
 type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
 type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
 type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
+
+fn get_etentry_from_eid(execution_trace: &[ETEntry], eid: u32) -> &ETEntry {
+  &execution_trace[eid as usize - 1]
+}
+
+fn mock_mcc(
+  mtable: MTable,
+  etable: &ETable,
+  ltype: Option<LocationType>,
+  debug_addr: Option<usize>,
+) -> anyhow::Result<()> {
+  let mut hash_map = HashMap::new();
+  let mut m_entries = mtable.entries().clone();
+  let etable_entries = etable.entries();
+
+  tracing::info!("memory trace length {}", m_entries.len());
+
+  let mut mcc_map = HashMap::new();
+  // let mut debug_addr_vec = vec![];
+  for m_entry in m_entries.iter_mut() {
+    set_linear_addr(m_entry, &mut hash_map);
+
+    if let Some(ltype) = ltype {
+      if m_entry.ltype != ltype {
+        continue;
+      }
+    }
+
+    if let Some(debug_addr) = debug_addr {
+      if m_entry.addr == debug_addr {
+        // let etentry = get_etentry_from_eid(etable_entries, m_entry.eid);
+        // debug_addr_vec.push((m_entry.clone(), etentry));
+        tracing::debug!("m_entry: {:#?}", m_entry);
+        tracing::debug!(
+          "m_entry: {:#?}",
+          get_etentry_from_eid(etable_entries, m_entry.eid)
+        );
+        tracing::debug!("----------------------------------------------------------------------------------------------------------------------------------------------------------------");
+      }
+    }
+
+    match m_entry.atype {
+      AccessType::Init => {
+        mcc_map.insert(m_entry.addr, m_entry.value);
+      }
+      AccessType::Write => {
+        mcc_map.insert(m_entry.addr, m_entry.value);
+      }
+      AccessType::Read => {
+        if !mcc_map.contains_key(&m_entry.addr)
+          || m_entry.value != *mcc_map.get(&m_entry.addr).unwrap()
+        {
+          println!("addr: {:#?}", m_entry.addr);
+          let value = mcc_map.get(&m_entry.addr);
+          println!("execution trace says: {}", m_entry.value);
+          println!("lookup table disagrees: {:#?}", value);
+
+          println!("----------------------------------------------------------------------------------------------------------------------------------------------------------------");
+          println!("m_entry: {:#?}", m_entry);
+          println!("{:#?}", get_etentry_from_eid(etable_entries, m_entry.eid));
+          return Err(anyhow!("Memory consistency check failed"));
+        }
+      }
+    }
+  }
+  Ok(())
+}
+
+#[test]
+fn test_zk_ads_mock_mcc() -> anyhow::Result<()> {
+  init_logger();
+
+  let input_x = "200.05";
+  let input_y = "-30.0";
+
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/zk_ads.wasm"))
+    .invoke(Some(String::from("is_user_close_enough")))
+    .func_args(vec![
+      String::from("0"),
+      String::from(input_x),
+      String::from(input_y),
+    ])
+    .build();
+
+  // Create a WASM execution context for proving.
+  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  // Prove execution and run memory consistency checks
+  //
+  // Get proof for verification and corresponding public values
+  //
+  // Above type alias's (for the backend config) get used here
+  let proof_builder =
+    BatchedZKEProofBuilder::<E1, BS1<E1>, S1<E1>, S2<E1>>::get_trace(&mut wasm_ctx)?;
+
+  // Get etable
+  let etable = proof_builder.etable();
+
+  // Get imtable
+  let tracer = wasm_ctx.tracer()?;
+  let tracer_binding = tracer.borrow();
+  let imtable = tracer_binding.imtable();
+
+  // Get mtable
+  let mtable = etable.mtable(imtable);
+
+  mock_mcc(mtable, etable, None, None)?;
+  Ok(())
+}
+
+#[test]
+fn test_gradient_boosting_mock_mcc() -> anyhow::Result<()> {
+  init_logger();
+
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
+    .invoke(Some(String::from("_start")))
+    .build();
+
+  // Create a WASM execution context for proving.
+  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  // Prove execution and run memory consistency checks
+  //
+  // Get proof for verification and corresponding public values
+  //
+  // Above type alias's (for the backend config) get used here
+  let proof_builder =
+    BatchedZKEProofBuilder::<E1, BS1<E1>, S1<E1>, S2<E1>>::get_trace(&mut wasm_ctx)?;
+
+  // Get etable
+  let etable = proof_builder.etable();
+
+  // Get imtable
+  let tracer = wasm_ctx.tracer()?;
+  let tracer_binding = tracer.borrow();
+  let imtable = tracer_binding.imtable();
+
+  // Get mtable
+  let mtable = etable.mtable(imtable);
+
+  mock_mcc(mtable, etable, None, None)?;
+  Ok(())
+}
+
+#[test]
+fn test_tee_local_mock_mcc() -> anyhow::Result<()> {
+  init_logger();
+
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/variable/local_set_op.wat"))
+    .invoke(Some(String::from("call")))
+    .build();
+
+  // Create a WASM execution context for proving.
+  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  // Prove execution and run memory consistency checks
+  //
+  // Get proof for verification and corresponding public values
+  //
+  // Above type alias's (for the backend config) get used here
+  let proof_builder =
+    BatchedZKEProofBuilder::<E1, BS1<E1>, S1<E1>, S2<E1>>::get_trace(&mut wasm_ctx)?;
+
+  // Get etable
+  let etable = proof_builder.etable();
+
+  // Get imtable
+  let tracer = wasm_ctx.tracer()?;
+  let tracer_binding = tracer.borrow();
+  let imtable = tracer_binding.imtable();
+
+  // Get mtable
+  let mtable = etable.mtable(imtable);
+
+  mock_mcc(mtable, etable, None, None)?;
+  Ok(())
+}
 
 #[test]
 fn test_gradient_boosting() -> anyhow::Result<()> {
