@@ -235,7 +235,23 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
                     ltype: LocationType::Stack,
                     atype: AccessType::Write,
                     is_mutable: true,
-                    value: args[i].to_bits(),
+                    value: args[i],
+                });
+                *emid = (*emid).checked_add(1).unwrap();
+            }
+            ops
+        }
+        StepInfo::Call { args } => {
+            let mut ops = vec![];
+            for i in 0..args.len() {
+                ops.push(MemoryTableEntry {
+                    eid,
+                    emid: *emid,
+                    addr: sp_before_execution.into_add(i).get_addr(),
+                    ltype: LocationType::Stack,
+                    atype: AccessType::Write,
+                    is_mutable: true,
+                    value: args[i],
                 });
                 *emid = (*emid).checked_add(1).unwrap();
             }

@@ -32,7 +32,10 @@ pub enum StepInfo {
         result: u64,
     },
     CallInternal {
-        args: Vec<UntypedValue>,
+        args: Vec<u64>,
+    },
+    Call {
+        args: Vec<u64>,
     },
     CallIndirect {
         func_index: u32,

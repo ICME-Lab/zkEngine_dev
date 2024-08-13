@@ -3,7 +3,7 @@ use wasmi_core::UntypedValue;
 
 use crate::mtable::{MemoryReadSize, MemoryStoreSize, VarType};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum RunInstructionTracePre {
     BrIfEqz {
         condition: u64,
@@ -18,8 +18,8 @@ pub enum RunInstructionTracePre {
         drop: u32,
         keep_values: Vec<u64>,
     },
-    CallInternal {
-        args: Vec<UntypedValue>,
+    Call {
+        args: Vec<u64>,
     },
     CallIndirect {
         idx: u32,
