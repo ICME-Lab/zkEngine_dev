@@ -31,7 +31,7 @@ use nova::traits::{
   CurveCycleEquipped, Dual, Engine,
 };
 use public_values::{MCCPublicValues, PublicValues};
-use wasmi::{etable::ETable, mtable::MTable, Tracer};
+use wasmi::{etable::ETable, Tracer};
 use wasmi_wasi::WasiCtx;
 
 /// Type alias for public values produced by the proving system
