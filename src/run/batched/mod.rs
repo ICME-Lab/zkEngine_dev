@@ -150,16 +150,11 @@ where
     let tracer = tracer_binding.borrow();
     let imtable = tracer.imtable();
     let mtable = self.etable().mtable(imtable);
+    tracing::info!("memory trace length {}", mtable.entries().len());
 
-    //Setup MCC TODO:: find zkhack bug
-    let entries_slice = &mtable.entries()[..10.min(mtable.entries().len())];
-    let new_mtable = MTable::new(entries_slice.to_vec());
-
-    tracing::info!("memory trace length {}", new_mtable.entries().len());
-
+    //Setup MCC
     tracing::info!("Building lookup table for MCC...");
-
-    let (circuit_primaries, _, _) = Self::MCCProver::mcc_inputs(new_mtable)?;
+    let (circuit_primaries, _, _) = Self::MCCProver::mcc_inputs(mtable)?;
 
     // Get public params
     let pp = public_params(circuit_primaries[0].clone(), TrivialCircuit::default())?;

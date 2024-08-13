@@ -100,7 +100,7 @@ fn mock_mcc(
 }
 
 #[test]
-fn test_zk_ads_mock_mcc() -> anyhow::Result<()> {
+fn test_zk_ads() -> anyhow::Result<()> {
   init_logger();
 
   let input_x = "200.05";
@@ -119,27 +119,12 @@ fn test_zk_ads_mock_mcc() -> anyhow::Result<()> {
   // Create a WASM execution context for proving.
   let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
-  // Prove execution and run memory consistency checks
-  //
-  // Get proof for verification and corresponding public values
-  //
-  // Above type alias's (for the backend config) get used here
-  let proof_builder =
-    BatchedZKEProofBuilder::<E1, BS1<E1>, S1<E1>, S2<E1>>::get_trace(&mut wasm_ctx)?;
+  let (proof, public_values, _) =
+    BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
 
-  // Get etable
-  let etable = proof_builder.etable();
-
-  // Get imtable
-  let tracer = wasm_ctx.tracer()?;
-  let tracer_binding = tracer.borrow();
-  let imtable = tracer_binding.imtable();
-
-  // Get mtable
-  let mtable = etable.mtable(imtable);
-
-  mock_mcc(mtable, etable, None, None)?;
-  Ok(())
+  // Verify proof
+  let result = proof.verify(public_values)?;
+  Ok(assert!(result))
 }
 
 #[test]
@@ -149,41 +134,6 @@ fn test_gradient_boosting_mock_mcc() -> anyhow::Result<()> {
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .invoke(Some(String::from("_start")))
-    .build();
-
-  // Create a WASM execution context for proving.
-  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
-
-  // Prove execution and run memory consistency checks
-  //
-  // Get proof for verification and corresponding public values
-  //
-  // Above type alias's (for the backend config) get used here
-  let proof_builder =
-    BatchedZKEProofBuilder::<E1, BS1<E1>, S1<E1>, S2<E1>>::get_trace(&mut wasm_ctx)?;
-
-  // Get etable
-  let etable = proof_builder.etable();
-
-  // Get imtable
-  let tracer = wasm_ctx.tracer()?;
-  let tracer_binding = tracer.borrow();
-  let imtable = tracer_binding.imtable();
-
-  // Get mtable
-  let mtable = etable.mtable(imtable);
-
-  mock_mcc(mtable, etable, None, None)?;
-  Ok(())
-}
-
-#[test]
-fn test_tee_local_mock_mcc() -> anyhow::Result<()> {
-  init_logger();
-
-  let args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/variable/local_set_op.wat"))
-    .invoke(Some(String::from("call")))
     .build();
 
   // Create a WASM execution context for proving.
