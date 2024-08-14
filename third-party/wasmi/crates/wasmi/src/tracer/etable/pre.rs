@@ -3,7 +3,7 @@ use wasmi_core::UntypedValue;
 
 use crate::mtable::{MemoryReadSize, MemoryStoreSize, VarType};
 
-#[derive(Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum RunInstructionTracePre {
     BrIfEqz {
         condition: u64,
@@ -18,8 +18,8 @@ pub enum RunInstructionTracePre {
         drop: u32,
         keep_values: Vec<u64>,
     },
-    CallInternal {
-        args: Vec<UntypedValue>,
+    Call {
+        args: Vec<u64>,
     },
     CallIndirect {
         idx: u32,
@@ -83,55 +83,55 @@ pub enum RunInstructionTracePre {
         value: i64,
     },
     I64ExtendI32 {
-        value: i32,
+        value: u64,
         sign: bool,
     },
     I32SignExtendI8 {
-        value: i32,
+        value: u64,
     },
     I32SignExtendI16 {
-        value: i32,
+        value: u64,
     },
     I64SignExtendI8 {
-        value: i64,
+        value: u64,
     },
     I64SignExtendI16 {
-        value: i64,
+        value: u64,
     },
     I64SignExtendI32 {
-        value: i64,
+        value: u64,
     },
 
     I32TruncF32 {
-        value: f32,
+        value: u64,
         sign: bool,
     },
 
     I32TruncF64 {
-        value: f64,
+        value: u64,
         sign: bool,
     },
 
     I64TruncF32 {
-        value: f32,
+        value: u64,
         sign: bool,
     },
 
     I64TruncF64 {
-        value: f64,
+        value: u64,
         sign: bool,
     },
 
     F32ConvertI32 {
-        value: i32,
+        value: u64,
         sign: bool,
     },
     F32ConvertI64 {
-        value: i64,
+        value: u64,
         sign: bool,
     },
     F64ConvertI32 {
-        value: i32,
+        value: u64,
         sign: bool,
     },
     F64ConvertI64 {
@@ -139,22 +139,22 @@ pub enum RunInstructionTracePre {
         sign: bool,
     },
     I32ReinterpretF32 {
-        value: f32,
+        value: u64,
     },
     I64ReinterpretF64 {
-        value: f64,
+        value: u64,
     },
     F32ReinterpretI32 {
-        value: i32,
+        value: u64,
     },
     F64ReinterpretI64 {
-        value: i64,
+        value: u64,
     },
     F32DemoteF64 {
-        value: f64,
+        value: u64,
     },
     F64PromoteF32 {
-        value: f32,
+        value: u64,
     },
     UnaryOp {
         operand: u64,
@@ -168,18 +168,18 @@ pub enum RunInstructionTracePre {
     },
 
     F32Comp {
-        left: f32,
-        right: f32,
+        left: u64,
+        right: u64,
     },
 
     F64Comp {
-        left: f64,
-        right: f64,
+        left: u64,
+        right: u64,
     },
 
     F32BinOp {
-        left: f32,
-        right: f32,
+        left: u64,
+        right: u64,
     },
 
     F64BinOp {

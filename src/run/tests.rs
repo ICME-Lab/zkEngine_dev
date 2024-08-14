@@ -12,7 +12,6 @@ use nova::{
   spartan::{self, snark::RelaxedR1CSSNARK},
   traits::Dual,
 };
-use wasmi::TraceSliceValues;
 
 // Curve cycle to use for proving
 type E1 = PallasEngine;
@@ -27,6 +26,34 @@ type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
 type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
 
 #[test]
+fn test_zk_ads() -> anyhow::Result<()> {
+  init_logger();
+
+  let input_x = "200.05";
+  let input_y = "-30.0";
+
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/zk_ads.wasm"))
+    .invoke(Some(String::from("is_user_close_enough")))
+    .func_args(vec![
+      String::from("0"),
+      String::from(input_x),
+      String::from(input_y),
+    ])
+    .build();
+
+  // Create a WASM execution context for proving.
+  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  let (proof, public_values, _) =
+    BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+
+  // Verify proof
+  let result = proof.verify(public_values)?;
+  Ok(assert!(result))
+}
+
+#[test]
 fn test_gradient_boosting() -> anyhow::Result<()> {
   init_logger();
 
@@ -36,7 +63,6 @@ fn test_gradient_boosting() -> anyhow::Result<()> {
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .invoke(Some(String::from("_start")))
-    .trace_slice_values(TraceSliceValues::new(0, 1_000_000))
     .build();
 
   // Create a WASM execution context for proving.
