@@ -17,10 +17,5 @@ pub mod utils;
 pub use wasmi::TraceSliceValues;
 pub use wasmi_wasi::WasiCtx;
 
-// TODO: remove these
-pub use circuits::execution::batched::{BatchedExecutionProof, BatchedExecutionPublicParams};
-pub use nova::supernova::PublicParams as SuperNovaPublicParams;
-pub use run::batched::ExecutionPublicValues;
-
 // re-export `nova`
 pub use nova;

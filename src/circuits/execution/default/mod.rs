@@ -38,7 +38,6 @@ where
   /// Public params for SuperNova.
   pub pp: SuperNovaPublicParams<E1>,
   /// Prover key and Verifier key for SuperNova
-  // TODO: mark as #[serde(skip)] when serializing
   #[serde(skip)]
   pub pk_and_vk: OnceCell<KeyPair<E1, S1, S2>>,
 }

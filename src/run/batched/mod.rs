@@ -5,8 +5,7 @@
 pub mod public_values;
 use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
-// TODO: remove `pub`
-pub use public_values::ExecutionPublicValues;
+use public_values::ExecutionPublicValues;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -325,9 +324,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  /// Documentation
-  /// TODO: remove `pub`
-  pub execution_proof: BatchedExecutionProof<E1, BS1, S2>,
+  execution_proof: BatchedExecutionProof<E1, BS1, S2>,
   _s1: PhantomData<S1>,
 }
 
@@ -338,8 +335,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  // TODO: remove `pub`?
-  pub fn new(execution_proof: BatchedExecutionProof<E1, BS1, S2>) -> Self {
+  fn new(execution_proof: BatchedExecutionProof<E1, BS1, S2>) -> Self {
     Self {
       execution_proof,
       _s1: PhantomData,
