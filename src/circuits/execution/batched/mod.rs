@@ -29,6 +29,7 @@ type KeyPair<E1, S1, S2> = (ProverKey<E1, S1, S2>, VerifierKey<E1, S1, S2>);
 
 /// A struct that contains public parameters for the SuperNova proving system.
 #[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct BatchedExecutionPublicParams<E1, S1, S2>
 where
   E1: CurveCycleEquipped,

@@ -7,6 +7,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
 // TODO: remove `pub`
 pub use public_values::ExecutionPublicValues;
+use serde::{Deserialize, Serialize};
 
 use crate::{
   circuits::{
@@ -42,6 +43,7 @@ type ExecutionProofOutput<E1, BS1, S1, S2> = (
   BatchedZKEExecutionProof<E1, BS1, S1, S2>,
   ExecutionPublicValues<E1, BS1, S2>,
 );
+
 /// A helper struct to construct a valid zkVM proof, which has a execution proof and a MCC proof.
 pub struct BatchedZKEProofBuilder<E1, BS1, S1, S2>
 where
@@ -210,6 +212,8 @@ where
 }
 
 /// A proof that testifies the correctness of the WASM execution.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(bound = "")]
 pub struct BatchedZKEProof<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
@@ -312,6 +316,8 @@ where
   }
 }
 /// A proof that testifies the correct execution of a WASM program
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(bound = "")]
 pub struct BatchedZKEExecutionProof<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
