@@ -1,9 +1,7 @@
 //! This library implements zkEngine, a zkWASM with a SuperNova backend.
 #![feature(macro_metavar_expr, concat_idents)]
 #![allow(non_snake_case)]
-
-// TODO: uncomment
-// #![deny(missing_docs)]
+#![deny(missing_docs)]
 
 pub mod args;
 mod circuits;

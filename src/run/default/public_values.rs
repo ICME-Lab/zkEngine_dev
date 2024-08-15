@@ -1,3 +1,4 @@
+//! This module holds the data structures of the public values produced by zkEngine.
 use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual,
@@ -9,6 +10,7 @@ use crate::{
   traits::public_values::{PublicValuesTrait, ZKVMPublicValues},
 };
 
+/// Public values used for proving MCC
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct MCCPublicValues<E1, S1, S2>
@@ -28,6 +30,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
+  /// Create a new instance of MCCPublicValues
   pub fn new(
     mcc_pp: MCCPublicParams<E1, S1, S2>,
     public_inputs: &[E1::Scalar],
@@ -62,6 +65,7 @@ where
   }
 }
 
+/// Public values used for execution proving
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ExecutionPublicValues<E1, BS1, S2>
@@ -81,6 +85,7 @@ where
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
+  /// Create a new instance of `ExecutionPublicValues`
   pub fn new(
     execution_pp: ExecutionPublicParams<E1, BS1, S2>,
     public_inputs: &[E1::Scalar],
@@ -115,6 +120,7 @@ where
   }
 }
 
+/// Public values for zkEngine
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct PublicValues<E1, BS1, S1, S2>
@@ -135,6 +141,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
+  /// Create a new instance of `PublicValues`
   pub fn new(
     execution: ExecutionPublicValues<E1, BS1, S2>,
     mcc: MCCPublicValues<E1, S1, S2>,
