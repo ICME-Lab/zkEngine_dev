@@ -6,7 +6,7 @@ use zk_engine::{
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::Dual,
   },
-  run::default::{public_values::PublicValues, ZKEProof},
+  run::batched::{public_values::BatchedPublicValues, BatchedZKEProof},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
 };
@@ -19,7 +19,7 @@ type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
 type S1 = RelaxedR1CSSNARK<E1, EE1>;
 type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
 
-type ZKEngine = ZKEProof<E1, BS1, S1, S2>;
+type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/misc/fib.wat"))
     .invoke(Some(String::from("fib")))
-    .func_args(vec![String::from("10")]) // This will generate 16,000 + opcodes
+    .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
   let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
@@ -48,8 +48,9 @@ fn main() -> anyhow::Result<()> {
   let public_values_str = serde_json::to_string(&public_values)?;
 
   // Deserialize the proof and public values
-  let proof: ZKEProof<E1, BS1, S1, S2> = serde_json::from_str(&proof_str)?;
-  let public_values: PublicValues<E1, BS1, S1, S2> = serde_json::from_str(&public_values_str)?;
+  let proof: BatchedZKEProof<E1, BS1, S1, S2> = serde_json::from_str(&proof_str)?;
+  let public_values: BatchedPublicValues<E1, BS1, S1, S2> =
+    serde_json::from_str(&public_values_str)?;
 
   // Verify the proof
   let result = proof.verify(public_values)?;

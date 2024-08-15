@@ -2,12 +2,15 @@ use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
   circuits::{execution::default::ExecutionPublicParams, mcc::default::MCCPublicParams},
   traits::public_values::{PublicValuesTrait, ZKVMPublicValues},
 };
 
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct MCCPublicValues<E1, S1, S2>
 where
   E1: CurveCycleEquipped,
@@ -59,6 +62,8 @@ where
   }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct ExecutionPublicValues<E1, BS1, S2>
 where
   E1: CurveCycleEquipped,
@@ -110,6 +115,8 @@ where
   }
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct PublicValues<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
