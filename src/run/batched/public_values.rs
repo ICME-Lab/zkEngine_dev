@@ -119,7 +119,7 @@ where
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct PublicValues<E1, BS1, S1, S2>
+pub struct BatchedPublicValues<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
@@ -130,7 +130,7 @@ where
   mcc: MCCPublicValues<E1, S1, S2>,
 }
 
-impl<E1, BS1, S1, S2> PublicValues<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> BatchedPublicValues<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
@@ -149,7 +149,7 @@ where
   }
 }
 
-impl<E1, BS1, S1, S2> ZKVMPublicValues<E1> for PublicValues<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> ZKVMPublicValues<E1> for BatchedPublicValues<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,

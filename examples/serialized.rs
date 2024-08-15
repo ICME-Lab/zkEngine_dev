@@ -1,35 +1,25 @@
-#![allow(unused)]
-
 use std::path::PathBuf;
-// Backend imports
-use serde::Deserialize;
 use zk_engine::{
   args::{WASMArgsBuilder, WASMCtx},
   nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::{
-      snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-      CurveCycleEquipped, Dual, Engine,
-    },
+    traits::Dual,
   },
-  run::{
-    batched::{BatchedZKEExecutionProof, BatchedZKEProof},
-    prove_execution_batched,
-  },
+  run::batched::{public_values::BatchedPublicValues, BatchedZKEProof},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
-  BatchedExecutionProof, BatchedExecutionPublicParams, ExecutionPublicValues,
-  SuperNovaPublicParams,
 };
 
 // Backend configs
 type E1 = PallasEngine;
-type EE1<E> = ipa_pc::EvaluationEngine<E>;
-type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
-type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
-type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
+type EE1 = ipa_pc::EvaluationEngine<E1>;
+type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
+type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
+type S1 = RelaxedR1CSSNARK<E1, EE1>;
+type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
+
+type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
@@ -51,19 +41,18 @@ fn main() -> anyhow::Result<()> {
     .build();
   let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
-  // json-serialized proof and public values
-  let (proof, pp, po, pi) = prove_execution_batched(&mut wasm_ctx)?;
+  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut wasm_ctx)?;
 
-  // deserialize proof and public parameters
-  let proof: BatchedExecutionProof<E1, BS1<E1>, S2<E1>> = serde_json::from_str(&proof).unwrap();
-  let pp: SuperNovaPublicParams<E1> = serde_json::from_str(&pp).unwrap();
-  let po: Vec<<PallasEngine as Engine>::Scalar> = serde_json::from_str(&po).unwrap();
-  let pi: Vec<<PallasEngine as Engine>::Scalar> = serde_json::from_str(&pi).unwrap();
+  // Serialize the proof and public values
+  let proof_str = serde_json::to_string(&proof)?;
+  let public_values_str = serde_json::to_string(&public_values)?;
 
-  let proof = BatchedZKEExecutionProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::new(proof);
-  let public_params = BatchedExecutionPublicParams::<E1, BS1<E1>, S2<E1>>::from(pp);
-  let public_values = ExecutionPublicValues::new(public_params, &po, &pi);
+  // Deserialize the proof and public values
+  let proof: BatchedZKEProof<E1, BS1, S1, S2> = serde_json::from_str(&proof_str)?;
+  let public_values: BatchedPublicValues<E1, BS1, S1, S2> =
+    serde_json::from_str(&public_values_str)?;
 
-  let result = proof.verify_wasm_execution(public_values)?;
+  // Verify the proof
+  let result = proof.verify(public_values)?;
   Ok(assert!(result))
 }

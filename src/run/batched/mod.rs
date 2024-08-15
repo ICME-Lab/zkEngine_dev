@@ -30,12 +30,12 @@ use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual, Engine,
 };
-use public_values::{MCCPublicValues, PublicValues};
+use public_values::{BatchedPublicValues, MCCPublicValues};
 use wasmi::{etable::ETable, Tracer};
 use wasmi_wasi::WasiCtx;
 
 /// Type alias for public values produced by the proving system
-type PV<E1, BS1, S1, S2> = PublicValues<E1, BS1, S1, S2>;
+type PV<E1, BS1, S1, S2> = BatchedPublicValues<E1, BS1, S1, S2>;
 
 /// Execution proof output
 type ExecutionProofOutput<E1, BS1, S1, S2> = (
@@ -203,7 +203,7 @@ where
       .ok_or(anyhow!("Execution public values not found"))?;
 
     // Return proof and public values
-    let public_values = PublicValues::new(execution_public_values, mcc_public_values);
+    let public_values = BatchedPublicValues::new(execution_public_values, mcc_public_values);
     let proof = BatchedZKEProof::new(execution_proof, mcc_proof);
 
     Ok((proof, public_values, self.wasm_func_results))
