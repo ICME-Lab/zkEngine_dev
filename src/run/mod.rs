@@ -58,22 +58,6 @@ pub fn prove_execution(ctx: &mut impl ZKWASMContext<WasiCtx>, batched: bool) -> 
   Ok(())
 }
 
-/// Runs proving system on only execution trace
-pub fn prove_execution_batched(
-  ctx: &mut impl ZKWASMContext<WasiCtx>,
-) -> anyhow::Result<(String, String, String, String)> {
-  let (res1, res2) =
-    BatchedZKEExecutionProof::<E1, BS1<_>, S1<_>, S2<E1>>::prove_wasm_execution(ctx)?;
-
-  // TODO: no unwraps
-  Ok((
-    serde_json::to_string(&res1.execution_proof).unwrap(),
-    serde_json::to_string(&res2.execution_pp.pp).unwrap(),
-    serde_json::to_string(&res2.public_inputs).unwrap(),
-    serde_json::to_string(&res2.public_outputs).unwrap(),
-  ))
-}
-
 /// Runs proving system on execution trace and memory trace
 fn prove_mcc_and_execution(
   ctx: &mut impl ZKWASMContext<WasiCtx>,

@@ -1,7 +1,9 @@
+//! This module holds the data structures of the public values produced by the batched zkEngine.
 use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual,
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
   circuits::{
@@ -10,6 +12,9 @@ use crate::{
   traits::public_values::{PublicValuesTrait, ZKVMPublicValues},
 };
 
+/// Public values used for proving batched MCC
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct MCCPublicValues<E1, S1, S2>
 where
   E1: CurveCycleEquipped,
@@ -27,6 +32,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
+  /// Create a new instance of MCCPublicValues
   pub fn new(
     mcc_pp: BatchedMCCPublicParams<E1, S1, S2>,
     public_inputs: &[E1::Scalar],
@@ -61,16 +67,18 @@ where
   }
 }
 
+/// Public values used for batched execution proving
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct ExecutionPublicValues<E1, BS1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  // TODO: remove `pub`s?
-  pub execution_pp: BatchedExecutionPublicParams<E1, BS1, S2>,
-  pub public_inputs: Vec<E1::Scalar>,
-  pub public_outputs: Vec<E1::Scalar>,
+  execution_pp: BatchedExecutionPublicParams<E1, BS1, S2>,
+  public_inputs: Vec<E1::Scalar>,
+  public_outputs: Vec<E1::Scalar>,
 }
 
 impl<E1, BS1, S2> ExecutionPublicValues<E1, BS1, S2>
@@ -79,6 +87,7 @@ where
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
+  /// Create a new instance of `ExecutionPublicValues`
   pub fn new(
     execution_pp: BatchedExecutionPublicParams<E1, BS1, S2>,
     public_inputs: &[E1::Scalar],
@@ -113,7 +122,10 @@ where
   }
 }
 
-pub struct PublicValues<E1, BS1, S1, S2>
+/// Public values for the batched zkEngine
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct BatchedPublicValues<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
@@ -124,13 +136,14 @@ where
   mcc: MCCPublicValues<E1, S1, S2>,
 }
 
-impl<E1, BS1, S1, S2> PublicValues<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> BatchedPublicValues<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
+  /// Create a new instance of `BatchedPublicValues`
   pub fn new(
     execution: ExecutionPublicValues<E1, BS1, S2>,
     mcc: MCCPublicValues<E1, S1, S2>,
@@ -138,12 +151,13 @@ where
     Self { execution, mcc }
   }
 
+  /// Get the hash of Public Parameters for execution proving
   pub fn digest(&self) -> E1::Scalar {
     self.execution.execution_pp.digest()
   }
 }
 
-impl<E1, BS1, S1, S2> ZKVMPublicValues<E1> for PublicValues<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> ZKVMPublicValues<E1> for BatchedPublicValues<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,

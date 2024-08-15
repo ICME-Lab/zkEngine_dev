@@ -1,10 +1,9 @@
-use nova::provider::PallasEngine;
 use std::path::PathBuf;
-// Backend imports for ZK
+
 use zk_engine::{
   args::{WASMArgsBuilder, WASMCtx},
   nova::{
-    provider::ipa_pc,
+    provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::Dual,
   },
@@ -28,22 +27,22 @@ type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
 fn main() -> anyhow::Result<()> {
   init_logger();
 
-  // Configure the arguments needed for WASM execution
-  //
-  // Here we are configuring the path to the WASM file
+  let input_x = "200.05";
+  let input_y = "-30.0";
+
   let args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
-    .invoke(Some(String::from("_start")))
+    .file_path(PathBuf::from("wasm/zk_ads.wasm"))
+    .invoke(Some(String::from("is_user_close_enough")))
+    .func_args(vec![
+      String::from("0"),
+      String::from(input_x),
+      String::from(input_y),
+    ])
     .build();
 
   // Create a WASM execution context for proving.
   let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
-  // Prove execution and run memory consistency checks
-  //
-  // Get proof for verification and corresponding public values
-  //
-  // Above type alias's (for the backend config) get used here
   let (proof, public_values, _) =
     BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
 

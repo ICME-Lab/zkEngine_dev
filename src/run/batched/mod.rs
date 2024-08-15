@@ -5,8 +5,8 @@
 pub mod public_values;
 use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
-// TODO: remove `pub`
-pub use public_values::ExecutionPublicValues;
+use public_values::ExecutionPublicValues;
+use serde::{Deserialize, Serialize};
 
 use crate::{
   circuits::{
@@ -30,18 +30,19 @@ use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual, Engine,
 };
-use public_values::{MCCPublicValues, PublicValues};
+use public_values::{BatchedPublicValues, MCCPublicValues};
 use wasmi::{etable::ETable, Tracer};
 use wasmi_wasi::WasiCtx;
 
 /// Type alias for public values produced by the proving system
-type PV<E1, BS1, S1, S2> = PublicValues<E1, BS1, S1, S2>;
+type PV<E1, BS1, S1, S2> = BatchedPublicValues<E1, BS1, S1, S2>;
 
 /// Execution proof output
 type ExecutionProofOutput<E1, BS1, S1, S2> = (
   BatchedZKEExecutionProof<E1, BS1, S1, S2>,
   ExecutionPublicValues<E1, BS1, S2>,
 );
+
 /// A helper struct to construct a valid zkVM proof, which has a execution proof and a MCC proof.
 pub struct BatchedZKEProofBuilder<E1, BS1, S1, S2>
 where
@@ -202,7 +203,7 @@ where
       .ok_or(anyhow!("Execution public values not found"))?;
 
     // Return proof and public values
-    let public_values = PublicValues::new(execution_public_values, mcc_public_values);
+    let public_values = BatchedPublicValues::new(execution_public_values, mcc_public_values);
     let proof = BatchedZKEProof::new(execution_proof, mcc_proof);
 
     Ok((proof, public_values, self.wasm_func_results))
@@ -210,6 +211,8 @@ where
 }
 
 /// A proof that testifies the correctness of the WASM execution.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(bound = "")]
 pub struct BatchedZKEProof<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
@@ -312,6 +315,8 @@ where
   }
 }
 /// A proof that testifies the correct execution of a WASM program
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(bound = "")]
 pub struct BatchedZKEExecutionProof<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
@@ -319,9 +324,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  /// Documentation
-  /// TODO: remove `pub`
-  pub execution_proof: BatchedExecutionProof<E1, BS1, S2>,
+  execution_proof: BatchedExecutionProof<E1, BS1, S2>,
   _s1: PhantomData<S1>,
 }
 
@@ -332,8 +335,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  // TODO: remove `pub`?
-  pub fn new(execution_proof: BatchedExecutionProof<E1, BS1, S2>) -> Self {
+  fn new(execution_proof: BatchedExecutionProof<E1, BS1, S2>) -> Self {
     Self {
       execution_proof,
       _s1: PhantomData,

@@ -27,6 +27,7 @@ use nova::traits::{
   CurveCycleEquipped, Dual, Engine,
 };
 use public_values::{ExecutionPublicValues, MCCPublicValues, PublicValues};
+use serde::{Deserialize, Serialize};
 use wasmi::{etable::ETable, Tracer};
 use wasmi_wasi::WasiCtx;
 
@@ -206,6 +207,8 @@ where
 }
 
 /// A proof that testifies the correct execution of a WASM program
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(bound = "")]
 pub struct ZKEProof<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
