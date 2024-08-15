@@ -1,10 +1,10 @@
+use nova::provider::PallasEngine;
 use std::path::PathBuf;
-use wasmi::TraceSliceValues;
 // Backend imports for ZK
 use zk_engine::{
   args::{WASMArgsBuilder, WASMCtx},
   nova::{
-    provider::{ipa_pc, ZKPallasEngine},
+    provider::ipa_pc,
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::Dual,
   },
@@ -14,7 +14,7 @@ use zk_engine::{
 };
 
 // Curve cycle to use for proving
-type E1 = ZKPallasEngine;
+type E1 = PallasEngine;
 // PCS used for final SNARK at the end of (N)IVC
 type EE1<E> = ipa_pc::EvaluationEngine<E>;
 // PCS on secondary curve
@@ -34,7 +34,6 @@ fn main() -> anyhow::Result<()> {
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .invoke(Some(String::from("_start")))
-    .trace_slice_values(TraceSliceValues::new(0, 100_000))
     .build();
 
   // Create a WASM execution context for proving.

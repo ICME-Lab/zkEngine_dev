@@ -37,7 +37,7 @@ fn main() -> anyhow::Result<()> {
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/misc/fib.wat"))
     .invoke(Some(String::from("fib")))
-    .func_args(vec![String::from("10")]) // This will generate 16,000 + opcodes
+    .func_args(vec![String::from("10")]) // This will generate 152 opcodes
     .build();
   let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
