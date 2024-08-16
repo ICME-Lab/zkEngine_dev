@@ -243,6 +243,39 @@ where
   S1: RelaxedR1CSSNARKTrait<E1> + Clone,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
+  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<()> {
+    let (etable, _) = ctx.build_execution_trace()?;
+    let tracer = ctx.tracer()?;
+
+    tracing::debug!("etable.len {}", etable.entries().len());
+    // Build ROM and corresponding tracer values
+    let (rom, tracer_values) = build_rom(&etable.plain_execution_trace());
+
+    // Build SuperNova non-uniform circuit for WASM opcodes
+    let etable_rom = EtableROM::<E1>::new(rom, tracer_values.to_vec());
+
+    // Get SuperNova public params and prove execution
+    let pp = super_nova_public_params::<_, BS1, S2>(&etable_rom)?;
+
+    tracing::info!("Proving MCC...");
+
+    // Get memory trace (memory table)
+    let tracer = tracer.borrow();
+    let imtable = tracer.imtable();
+    let mtable = etable.mtable(imtable);
+    tracing::info!("memory trace length {}", mtable.entries().len());
+
+    tracing::info!("Building lookup table for MCC...");
+    // Setup  MCC
+    let (circuit_primaries, final_table, expected_intermediate_gamma) =
+      MCCProver::<E1, S1, S2>::mcc_inputs(mtable);
+
+    // Get public params
+    let mcc_pp =
+      public_params::<_, S1, S2>(circuit_primaries[0].clone(), TrivialCircuit::default())?;
+
+    Ok(())
+  }
   fn prove_wasm(
     ctx: &mut impl ZKWASMContext<WasiCtx>,
   ) -> anyhow::Result<(Self, PV<E1, BS1, S1, S2>, Box<[wasmi::Value]>)> {

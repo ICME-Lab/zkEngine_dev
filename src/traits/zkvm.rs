@@ -10,6 +10,9 @@ pub trait ZKVM<E1: CurveCycleEquipped, PV: ZKVMPublicValues<E1>>
 where
   Self: Sized,
 {
+  /// Setup the public parameters for prover and verifier.
+  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<()>;
+
   /// A method that produces a zkSNARK for the WASM, with some public values.
   fn prove_wasm(
     ctx: &mut impl ZKWASMContext<WasiCtx>,

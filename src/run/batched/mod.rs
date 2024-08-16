@@ -250,6 +250,9 @@ where
   S1: RelaxedR1CSSNARKTrait<E1> + Clone,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
+  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<()> {
+    todo!()
+  }
   fn prove_wasm(
     ctx: &mut impl ZKWASMContext<WasiCtx>,
   ) -> anyhow::Result<(Self, PV<E1, BS1, S1, S2>, Box<[wasmi::Value]>)> {
