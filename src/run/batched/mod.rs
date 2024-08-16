@@ -155,14 +155,14 @@ where
 
     //Setup MCC
     tracing::info!("Building lookup table for MCC...");
-    let (circuit_primaries, _, _) = Self::MCCProver::mcc_inputs(mtable)?;
+    let primary_circuits = Self::MCCProver::mcc_inputs(mtable)?;
 
     // Get public params
-    let pp = public_params(circuit_primaries[0].clone(), TrivialCircuit::default())?;
+    let pp = public_params(primary_circuits[0].clone(), TrivialCircuit::default())?;
 
     // Prove MCC
     let (ivc_proof, z0_primary) =
-      <Self::MCCProver as Prover<E1>>::prove(&pp, vec![], circuit_primaries, None)?;
+      <Self::MCCProver as Prover<E1>>::prove(&pp, vec![], primary_circuits, None)?;
 
     // Get public output
     let zi = ivc_proof.zi_primary()?;

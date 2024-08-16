@@ -163,18 +163,17 @@ where
 
     tracing::info!("Building lookup table for MCC...");
     // Setup  MCC
-    let (circuit_primaries, final_table, expected_intermediate_gamma) =
-      Self::MCCProver::mcc_inputs(mtable);
+    let primary_circuits = Self::MCCProver::mcc_inputs(mtable);
 
     // Get public params
-    let pp = public_params(circuit_primaries[0].clone(), TrivialCircuit::default())?;
+    let pp = public_params(primary_circuits[0].clone(), TrivialCircuit::default())?;
 
     // Get init z for F
-    let z0 = Self::MCCProver::get_z0(&pp.pp.ck_primary, &final_table, expected_intermediate_gamma);
+    let z0 = vec![];
 
     // Prove MCC
     let (ivc_proof, z0_primary) =
-      <Self::MCCProver as Prover<E1>>::prove(&pp, z0, circuit_primaries, None)?;
+      <Self::MCCProver as Prover<E1>>::prove(&pp, z0, primary_circuits, None)?;
 
     // Get public output
     let zi = ivc_proof.zi_primary()?;
@@ -283,12 +282,11 @@ where
 
     tracing::info!("Building lookup table for MCC...");
     // Setup  MCC
-    let (circuit_primaries, final_table, expected_intermediate_gamma) =
-      MCCProver::<E1, S1, S2>::mcc_inputs(mtable);
+    let primary_circuits = MCCProver::<E1, S1, S2>::mcc_inputs(mtable);
 
     // Get public params
     let mcc_pp =
-      public_params::<_, S1, S2>(circuit_primaries[0].clone(), TrivialCircuit::default())?;
+      public_params::<_, S1, S2>(primary_circuits[0].clone(), TrivialCircuit::default())?;
 
     Ok(())
   }

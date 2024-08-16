@@ -260,7 +260,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  pub fn mcc_inputs(mtable: MTable) -> anyhow::Result<MCCInputs<E1>> {
+  pub fn mcc_inputs(mtable: MTable) -> anyhow::Result<C1<E1>> {
     let (init_table, memory_trace, last_addr) = create_lookup_table(mtable);
     let m_chunks = batch_memory_trace(memory_trace, last_addr)?;
     let initial_intermediate_gamma = <E1 as Engine>::Scalar::from(1);
@@ -294,7 +294,7 @@ where
       primary_circuits.push(circuit);
     }
 
-    Ok((primary_circuits, lookup, intermediate_gamma))
+    Ok(primary_circuits)
   }
 }
 
