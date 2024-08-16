@@ -258,7 +258,9 @@ where
   S1: RelaxedR1CSSNARKTrait<E1> + Clone,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<()> {
+  type PublicParams = ZKEPublicParams<E1, BS1, S1, S2>;
+
+  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams> {
     let (etable, _) = ctx.build_execution_trace()?;
     let tracer = ctx.tracer()?;
 
@@ -288,7 +290,10 @@ where
     let mcc_pp =
       public_params::<_, S1, S2>(primary_circuits[0].clone(), TrivialCircuit::default())?;
 
-    Ok(())
+    Ok(ZKEPublicParams {
+      execution_pp: pp,
+      mcc_pp,
+    })
   }
   fn prove_wasm(
     ctx: &mut impl ZKWASMContext<WasiCtx>,

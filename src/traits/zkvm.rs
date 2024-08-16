@@ -10,8 +10,11 @@ pub trait ZKVM<E1: CurveCycleEquipped, PV: ZKVMPublicValues<E1>>
 where
   Self: Sized,
 {
+  /// A type that represents the Public Parameters for the zkVM.
+  type PublicParams;
+
   /// Setup the public parameters for prover and verifier.
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<()>;
+  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams>;
 
   /// A method that produces a zkSNARK for the WASM, with some public values.
   fn prove_wasm(

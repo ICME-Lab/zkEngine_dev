@@ -10,8 +10,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
   circuits::{
-    execution::batched::{super_nova_public_params, BatchedExecutionProof, BatchedExecutionProver},
-    mcc::batched::{public_params, BatchedMCCProof, BatchedMCCProver},
+    execution::batched::{
+      super_nova_public_params, BatchedExecutionProof, BatchedExecutionProver,
+      BatchedExecutionPublicParams,
+    },
+    mcc::batched::{public_params, BatchedMCCProof, BatchedMCCProver, BatchedMCCPublicParams},
     supernova::batched_rom::BatchedROM,
   },
   traits::{
@@ -42,6 +45,20 @@ type ExecutionProofOutput<E1, BS1, S1, S2> = (
   BatchedZKEExecutionProof<E1, BS1, S1, S2>,
   ExecutionPublicValues<E1, BS1, S2>,
 );
+
+/// Contains the public parameters needed for proving/verifying
+///
+/// Contains public parameters for both the execution and MCC proofs
+pub struct BatchedZKEPublicParams<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
+{
+  execution_pp: BatchedExecutionPublicParams<E1, BS1, S2>,
+  mcc_pp: BatchedMCCPublicParams<E1, S1, S2>,
+}
 
 /// A helper struct to construct a valid zkVM proof, which has a execution proof and a MCC proof.
 pub struct BatchedZKEProofBuilder<E1, BS1, S1, S2>
@@ -250,7 +267,9 @@ where
   S1: RelaxedR1CSSNARKTrait<E1> + Clone,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<()> {
+  type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
+
+  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams> {
     todo!()
   }
   fn prove_wasm(
