@@ -231,7 +231,7 @@ use zk_engine::{
 };
 
 // Curve cycle to use for proving
-type E1 = ZKPallasEngine;
+type E1 = PallasEngine;
 // PCS used for final SNARK at the end of (N)IVC
 type EE1<E> = ipa_pc::EvaluationEngine<E>;
 // PCS on secondary curve
