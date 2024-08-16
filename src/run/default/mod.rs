@@ -6,8 +6,10 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
 use crate::{
   circuits::{
-    execution::default::{super_nova_public_params, ExecutionProof, ExecutionProver},
-    mcc::default::{public_params, MCCProof, MCCProver},
+    execution::default::{
+      super_nova_public_params, ExecutionProof, ExecutionProver, ExecutionPublicParams,
+    },
+    mcc::default::{public_params, MCCProof, MCCProver, MCCPublicParams},
     supernova::etable_rom::EtableROM,
   },
   traits::{
@@ -39,6 +41,20 @@ type ExecutionProofOutput<E1, BS1, S1, S2> = (
   ZKEExecutionProof<E1, BS1, S1, S2>,
   ExecutionPublicValues<E1, BS1, S2>,
 );
+
+/// Contains the public parameters needed for proving/verifying
+///
+/// Contains public parameters for both the execution and MCC proofs
+pub struct ZKEPublicParams<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
+{
+  execution_pp: ExecutionPublicParams<E1, BS1, S2>,
+  mcc_pp: MCCPublicParams<E1, S1, S2>,
+}
 
 /// A helper struct to construct a valid zkVM proof, which has a execution proof and a MCC proof.
 pub struct ZKEProofBuilder<E1, BS1, S1, S2>
