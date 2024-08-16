@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use zk_engine::{
   args::{WASMArgsBuilder, WASMCtx},
-  // Backend imports
+  // backend imports
   nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
