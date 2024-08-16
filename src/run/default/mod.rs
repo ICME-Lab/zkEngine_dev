@@ -45,6 +45,8 @@ type ExecutionProofOutput<E1, BS1, S1, S2> = (
 /// Contains the public parameters needed for proving/verifying
 ///
 /// Contains public parameters for both the execution and MCC proofs
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct ZKEPublicParams<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
