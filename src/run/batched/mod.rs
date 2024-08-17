@@ -24,7 +24,7 @@ use crate::{
     snark::RecursiveSNARKTrait,
     zkvm::{ZKVMBuilder, ZKVM},
   },
-  utils::{nivc::batch_execution_trace, pp},
+  utils::nivc::batch_execution_trace,
 };
 use anyhow::anyhow;
 use ff::Field;

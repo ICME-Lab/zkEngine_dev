@@ -3,8 +3,6 @@
 use nova::traits::CurveCycleEquipped;
 use wasmi_wasi::WasiCtx;
 
-use crate::utils::pp;
-
 use super::{args::ZKWASMContext, prover::Prover, public_values::ZKVMPublicValues};
 
 /// A trait that defines the behavior of a zkVM (zkWASM in our case).
