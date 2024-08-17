@@ -5,6 +5,7 @@ use crate::{
   args::{WASMArgsBuilder, WASMCtx},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  BatchedZKEngine,
 };
 
 use nova::{
@@ -43,13 +44,13 @@ fn test_zk_ads() -> anyhow::Result<()> {
     .build();
 
   // Create a WASM execution context for proving.
-  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
-  let (proof, public_values, _) =
-    BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+  let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
 
-  // Verify proof
-  let result = proof.verify(public_values)?;
+  let (proof, public_values, _) = BatchedZKEngine::prove_wasm(&mut wasm_ctx, &pp)?;
+
+  let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }
 
@@ -65,28 +66,23 @@ fn test_gradient_boosting() -> anyhow::Result<()> {
     .invoke(Some(String::from("_start")))
     .build();
 
+  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+
   // Create a WASM execution context for proving.
-  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+  let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
 
-  // Prove execution and run memory consistency checks
-  //
-  // Get proof for verification and corresponding public values
-  //
-  // Above type alias's (for the backend config) get used here
-  let (proof, public_values, _) =
-    BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+  let (proof, public_values, _) = BatchedZKEngine::prove_wasm(&mut wasm_ctx, &pp)?;
 
-  // Verify proof
-  let result = proof.verify(public_values)?;
+  let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }
 
+#[cfg(feature = "k3")]
 mod k3 {
   use std::path::PathBuf;
 
   use crate::{
     args::{WASMArgs, WASMArgsBuilder, WASMCtx},
-    run::batched::BatchedZKEExecutionProof,
     traits::args::ZKWASMContext,
     utils::logging::init_logger,
   };

@@ -483,20 +483,23 @@ mod tests {
       .func_args(vec![String::from("1000")])
       .build();
 
-    let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+    let pp = BatchedZKEProof::<E1, BS1, S1, S2>::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
-    let (proof, public_values, _) = BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx)?;
-    let result = proof.verify(public_values)?;
-    assert!(result);
-    Ok(())
+    let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+
+    let (proof, public_values, _) =
+      BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx, &pp)?;
+
+    let result = proof.verify(public_values, &pp)?;
+    Ok(assert!(result))
   }
 
   #[test]
   fn test_zk_engine() -> anyhow::Result<()> {
     init_logger();
-    tracing::trace!("PallasEngine Curve Cycle");
+    tracing::debug!("PallasEngine Curve Cycle");
     test_zk_engine_with::<PallasEngine, BS1<_>, S1<_>, S2<PallasEngine>>()?;
-    tracing::trace!("ZKPallasEngine Curve Cycle");
+    tracing::debug!("ZKPallasEngine Curve Cycle");
     test_zk_engine_with::<ZKPallasEngine, BS1<_>, S1<_>, S2<ZKPallasEngine>>()?;
     Ok(())
   }

@@ -3,6 +3,6 @@ pub mod display;
 pub mod logging;
 pub mod memory;
 pub mod nivc;
-pub mod pp;
+// pub mod pp;
 pub mod save;
 pub mod wasm;
