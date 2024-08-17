@@ -36,15 +36,14 @@ fn main() -> anyhow::Result<()> {
     .file_path(PathBuf::from("wasm/example.wasm"))
     .build();
 
-  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(args.clone())?)?;
+  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
   // Prove execution and run memory consistency checks
   //
   // Get proof for verification and corresponding public values
   //
   // Above type alias's (for the backend config) get used here
-  let (proof, public_values, _) =
-    ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(args.clone())?, &pp)?;
+  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
 
   // // Verify proof
   let result = proof.verify(public_values, &pp)?;
