@@ -1,24 +1,26 @@
 use std::path::PathBuf;
 use zk_engine::{
   args::{WASMArgsBuilder, WASMCtx},
-  // Backend imports
   nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::Dual,
   },
-  run::batched::BatchedZKEProof,
+  run::batched::{public_values::BatchedPublicValues, BatchedZKEProof},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  BatchedZKEngine,
 };
 
-// Backend configs
 type E1 = PallasEngine;
-type EE1<E> = ipa_pc::EvaluationEngine<E>;
-type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
-type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
-type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
+type EE1 = ipa_pc::EvaluationEngine<E1>;
+type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
+type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
+type S1 = RelaxedR1CSSNARK<E1, EE1>;
+type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
+
+/// The default zkEngine type alias.
+pub type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
@@ -38,11 +40,22 @@ fn main() -> anyhow::Result<()> {
     .invoke(Some(String::from("fib")))
     .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
-  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
   // Use `BatchedZKEProof` for batched proving
   let (proof, public_values, _) =
-    BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
-  let result = proof.verify(public_values)?;
+    BatchedZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
+
+  // Serialize the proof and public values
+  let proof_str = serde_json::to_string(&proof)?;
+  let public_values_str = serde_json::to_string(&public_values)?;
+
+  // Deserialize the proof and public values
+  let proof: BatchedZKEProof<E1, BS1, S1, S2> = serde_json::from_str(&proof_str)?;
+  let public_values: BatchedPublicValues<E1> = serde_json::from_str(&public_values_str)?;
+
+  // Verify proof
+  let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }
