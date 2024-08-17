@@ -24,7 +24,7 @@ use crate::{
     snark::RecursiveSNARKTrait,
     zkvm::{ZKVMBuilder, ZKVM},
   },
-  utils::nivc::batch_execution_trace,
+  utils::{nivc::batch_execution_trace, pp},
 };
 use anyhow::anyhow;
 use ff::Field;
@@ -276,6 +276,7 @@ where
   }
   fn prove_wasm(
     ctx: &mut impl ZKWASMContext<WasiCtx>,
+    pp: &Self::PublicParams,
   ) -> anyhow::Result<(Self, PV<E1, BS1, S1, S2>, Box<[wasmi::Value]>)> {
     BatchedZKEProofBuilder::get_trace(ctx)?
       .prove_execution()?
