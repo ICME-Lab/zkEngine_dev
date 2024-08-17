@@ -36,6 +36,119 @@ use wasmi_wasi::WasiCtx;
 // type E1 = PallasEngine;
 type PV<E1> = PublicValues<E1>;
 
+/// A proof that testifies the correct execution of a WASM program
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(bound = "")]
+pub struct ZKEProof<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
+{
+  execution_proof: ExecutionProof<E1, BS1, S2>,
+  mcc_proof: MCCProof<E1, S1, S2>,
+}
+
+impl<E1, BS1, S1, S2> ZKEProof<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
+{
+  fn new(execution_proof: ExecutionProof<E1, BS1, S2>, mcc_proof: MCCProof<E1, S1, S2>) -> Self {
+    Self {
+      execution_proof,
+      mcc_proof,
+    }
+  }
+}
+
+impl<E1, BS1, S1, S2> ZKVM<E1, PV<E1>> for ZKEProof<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  <E1 as Engine>::Scalar: PartialOrd + Ord,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1> + Clone,
+  S1: RelaxedR1CSSNARKTrait<E1> + Clone,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
+{
+  type PublicParams = ZKEPublicParams<E1, BS1, S1, S2>;
+
+  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams> {
+    let (etable, _) = ctx.build_execution_trace()?;
+    let tracer = ctx.tracer()?;
+
+    // Build ROM and corresponding tracer values
+    let (rom, tracer_values) = build_rom(&etable.plain_execution_trace());
+
+    // Build SuperNova non-uniform circuit for WASM opcodes
+    let etable_rom = EtableROM::<E1>::new(rom, tracer_values.to_vec());
+
+    // Get SuperNova public params and prove execution
+    tracing::info!("Producing public params for execution proving...");
+    let execution_pp = super_nova_public_params::<_, BS1, S2>(&etable_rom)?;
+
+    // Get memory trace (memory table)
+    // Setup  MCC
+    tracing::info!("Setting up MCC...");
+    let tracer = tracer.borrow();
+    let imtable = tracer.imtable();
+    let mtable = etable.mtable(imtable);
+    let primary_circuits = MCCProver::<E1, S1, S2>::mcc_inputs(mtable);
+
+    // Get public params
+    tracing::info!("Producing public params for MCC...");
+    let mcc_pp =
+      public_params::<_, S1, S2>(primary_circuits[0].clone(), TrivialCircuit::default())?;
+
+    Ok(ZKEPublicParams {
+      execution_pp,
+      mcc_pp,
+    })
+  }
+
+  fn prove_wasm(
+    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    pp: &Self::PublicParams,
+  ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
+    ZKEProofBuilder::get_trace(ctx, pp)?
+      .prove_execution()?
+      .mcc()?
+      .build()
+  }
+
+  fn verify(self, public_values: PV<E1>, pp: &Self::PublicParams) -> anyhow::Result<bool> {
+    tracing::info!("Verifying proof...");
+
+    // Get execution and MCC proofs
+    let execution_proof = self.execution_proof;
+    let mcc_proof = self.mcc_proof;
+
+    // Get execution proofs public values,
+    let execution_public_values = public_values.execution();
+
+    // Get MCC proofs public values
+    let mcc_public_values = public_values.mcc();
+
+    // Verify execution proof
+    let execution_verified = execution_proof.verify(
+      &pp.execution_pp,
+      execution_public_values.public_inputs(),
+      execution_public_values.public_outputs(),
+    )?;
+
+    // Verify MCC proof
+    let mcc_verified = mcc_proof.verify(
+      &pp.mcc_pp,
+      mcc_public_values.public_inputs(),
+      mcc_public_values.public_outputs(),
+    )?;
+
+    Ok(mcc_verified && execution_verified)
+  }
+}
+
 // /// Output of execution proof
 // type ExecutionProofOutput<E1, BS1, S1, S2> = (
 //   ZKEExecutionProof<E1, BS1, S1, S2>,
@@ -218,119 +331,6 @@ where
     let proof = ZKEProof::new(execution_proof, mcc_proof);
 
     Ok((proof, public_values, self.wasm_func_res))
-  }
-}
-
-/// A proof that testifies the correct execution of a WASM program
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(bound = "")]
-pub struct ZKEProof<E1, BS1, S1, S2>
-where
-  E1: CurveCycleEquipped,
-  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
-  S1: RelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
-{
-  execution_proof: ExecutionProof<E1, BS1, S2>,
-  mcc_proof: MCCProof<E1, S1, S2>,
-}
-
-impl<E1, BS1, S1, S2> ZKEProof<E1, BS1, S1, S2>
-where
-  E1: CurveCycleEquipped,
-  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
-  S1: RelaxedR1CSSNARKTrait<E1>,
-  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
-{
-  fn new(execution_proof: ExecutionProof<E1, BS1, S2>, mcc_proof: MCCProof<E1, S1, S2>) -> Self {
-    Self {
-      execution_proof,
-      mcc_proof,
-    }
-  }
-}
-
-impl<E1, BS1, S1, S2> ZKVM<E1, PV<E1>> for ZKEProof<E1, BS1, S1, S2>
-where
-  E1: CurveCycleEquipped,
-  <E1 as Engine>::Scalar: PartialOrd + Ord,
-  BS1: BatchedRelaxedR1CSSNARKTrait<E1> + Clone,
-  S1: RelaxedR1CSSNARKTrait<E1> + Clone,
-  S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
-{
-  type PublicParams = ZKEPublicParams<E1, BS1, S1, S2>;
-
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams> {
-    let (etable, _) = ctx.build_execution_trace()?;
-    let tracer = ctx.tracer()?;
-
-    // Build ROM and corresponding tracer values
-    let (rom, tracer_values) = build_rom(&etable.plain_execution_trace());
-
-    // Build SuperNova non-uniform circuit for WASM opcodes
-    let etable_rom = EtableROM::<E1>::new(rom, tracer_values.to_vec());
-
-    // Get SuperNova public params and prove execution
-    tracing::info!("Producing public params for execution proving...");
-    let execution_pp = super_nova_public_params::<_, BS1, S2>(&etable_rom)?;
-
-    // Get memory trace (memory table)
-    // Setup  MCC
-    tracing::info!("Setting up MCC...");
-    let tracer = tracer.borrow();
-    let imtable = tracer.imtable();
-    let mtable = etable.mtable(imtable);
-    let primary_circuits = MCCProver::<E1, S1, S2>::mcc_inputs(mtable);
-
-    // Get public params
-    tracing::info!("Producing public params for MCC...");
-    let mcc_pp =
-      public_params::<_, S1, S2>(primary_circuits[0].clone(), TrivialCircuit::default())?;
-
-    Ok(ZKEPublicParams {
-      execution_pp,
-      mcc_pp,
-    })
-  }
-
-  fn prove_wasm(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
-    pp: &Self::PublicParams,
-  ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
-    ZKEProofBuilder::get_trace(ctx, pp)?
-      .prove_execution()?
-      .mcc()?
-      .build()
-  }
-
-  fn verify(self, public_values: PV<E1>, pp: &Self::PublicParams) -> anyhow::Result<bool> {
-    tracing::info!("Verifying proof...");
-
-    // Get execution and MCC proofs
-    let execution_proof = self.execution_proof;
-    let mcc_proof = self.mcc_proof;
-
-    // Get execution proofs public values,
-    let execution_public_values = public_values.execution();
-
-    // Get MCC proofs public values
-    let mcc_public_values = public_values.mcc();
-
-    // Verify execution proof
-    let execution_verified = execution_proof.verify(
-      &pp.execution_pp,
-      execution_public_values.public_inputs(),
-      execution_public_values.public_outputs(),
-    )?;
-
-    // Verify MCC proof
-    let mcc_verified = mcc_proof.verify(
-      &pp.mcc_pp,
-      mcc_public_values.public_inputs(),
-      mcc_public_values.public_outputs(),
-    )?;
-
-    Ok(mcc_verified && execution_verified)
   }
 }
 

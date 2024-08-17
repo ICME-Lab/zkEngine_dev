@@ -11,7 +11,7 @@ use nova::{
 };
 use wasmi_wasi::WasiCtx;
 
-// pub mod batched;
+pub mod batched;
 pub mod default;
 
 #[cfg(test)]
