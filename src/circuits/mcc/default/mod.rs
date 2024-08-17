@@ -3,11 +3,10 @@ use std::{borrow::Cow, cell::OnceCell, marker::PhantomData, time::Instant};
 
 use anyhow::anyhow;
 use circuit::MCCCircuit;
-use ff::Field;
 
 use nova::{
   errors::NovaError,
-  gadgets::lookup::{Lookup, LookupTraceBuilder},
+  gadgets::lookup::LookupTraceBuilder,
   traits::{
     circuit::TrivialCircuit, commitment::CommitmentEngineTrait, snark::RelaxedR1CSSNARKTrait,
     CurveCycleEquipped, Dual, Engine, ROConstants, ROConstantsCircuit,
@@ -32,7 +31,6 @@ pub type C1<E1> = Vec<IC1<E1>>;
 
 /// Type alias for a Trivial Test Circuit with G2 scalar field elements.
 pub type C2<E1> = TrivialCircuit<<Dual<E1> as Engine>::Scalar>;
-type CommitmentKey<E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey;
 
 type KeyPair<E1, S1, S2> = (ProverKey<E1, S1, S2>, VerifierKey<E1, S1, S2>);
 

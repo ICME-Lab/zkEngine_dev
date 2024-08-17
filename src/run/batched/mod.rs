@@ -173,7 +173,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  execution_pp: BatchedExecutionPublicParams<E1, BS1, S2>,
+  pub(crate) execution_pp: BatchedExecutionPublicParams<E1, BS1, S2>,
   mcc_pp: BatchedMCCPublicParams<E1, S1, S2>,
 }
 

@@ -31,11 +31,6 @@ pub type C1<E1> = Vec<IC1<E1>>;
 pub type C2<E1> = TrivialCircuit<<Dual<E1> as Engine>::Scalar>;
 
 type KeyPair<E1, S1, S2> = (ProverKey<E1, S1, S2>, VerifierKey<E1, S1, S2>);
-type MCCInputs<E1> = (
-  C1<E1>,
-  Lookup<<E1 as Engine>::Scalar>,
-  <E1 as Engine>::Scalar,
-);
 
 /// A struct that contains public parameters for the Nova proving system.
 #[derive(Serialize, Deserialize)]

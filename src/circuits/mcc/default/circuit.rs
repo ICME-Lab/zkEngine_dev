@@ -1,8 +1,8 @@
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, Namespace, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use nova::{
   gadgets::lookup::LookupTrace,
-  traits::{circuit::StepCircuit, CurveCycleEquipped, Dual, ROConstantsCircuit},
+  traits::{circuit::StepCircuit, CurveCycleEquipped},
 };
 use wasmi::mtable::{AccessType, MemoryTableEntry};
 

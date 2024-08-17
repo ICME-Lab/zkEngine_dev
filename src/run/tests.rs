@@ -1,17 +1,10 @@
 use std::path::PathBuf;
 
-use super::batched::BatchedZKEProof;
 use crate::{
   args::{WASMArgsBuilder, WASMCtx},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
   BatchedZKEngine,
-};
-
-use nova::{
-  provider::{ipa_pc, PallasEngine},
-  spartan::{self, snark::RelaxedR1CSSNARK},
-  traits::Dual,
 };
 
 #[test]

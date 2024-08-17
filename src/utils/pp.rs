@@ -49,9 +49,9 @@ mod tests {
 
   use crate::{
     args::{WASMArgsBuilder, WASMCtx},
-    run::batched::BatchedZKEProof,
     traits::zkvm::ZKVM,
     utils::logging::init_logger,
+    BatchedZKEngine,
   };
 
   use super::pp_hash_check;
@@ -63,7 +63,6 @@ mod tests {
     type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
 
     type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-    type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
     type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
     init_logger();
 
@@ -73,12 +72,11 @@ mod tests {
       .func_args(vec![String::from("1000")])
       .build();
 
-    let mut wasm_ctx = WASMCtx::new_from_file(args.clone())?;
-    let mut cloned_wasm_ctx = WASMCtx::new_from_file(args)?;
+    let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+    let mut cloned_wasm_ctx = WASMCtx::new_from_file(&args)?;
 
-    let (_, public_values, _) =
-      BatchedZKEProof::<E1, BS1<_>, S1<_>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
-    let digest = public_values.digest();
+    let pp = BatchedZKEngine::setup(&mut wasm_ctx)?;
+    let digest = pp.execution_pp.digest();
 
     let verified = pp_hash_check::<E1, BS1<_>, S2<E1>>(&mut cloned_wasm_ctx, digest)?;
     assert!(verified, "PP hash check failed");

@@ -5,10 +5,7 @@ use crate::{
   traits::args::{ZKWASMArgs, ZKWASMContext},
   utils::{
     display::DisplayExportedFuncs,
-    wasm::{
-      decode_func_args, prepare_func_results, print_pretty_results, read_wasm_or_wat,
-      typecheck_args,
-    },
+    wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat, typecheck_args},
   },
 };
 use anyhow::anyhow;
