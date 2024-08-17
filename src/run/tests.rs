@@ -14,18 +14,6 @@ use nova::{
   traits::Dual,
 };
 
-// Curve cycle to use for proving
-type E1 = PallasEngine;
-// PCS used for final SNARK at the end of (N)IVC
-type EE1<E> = ipa_pc::EvaluationEngine<E>;
-// PCS on secondary curve
-type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
-
-// Spartan SNARKS used for compressing at then end of (N)IVC
-type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
-type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
-
 #[test]
 fn test_zk_ads() -> anyhow::Result<()> {
   init_logger();

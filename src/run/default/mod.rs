@@ -19,7 +19,7 @@ use crate::{
     snark::RecursiveSNARKTrait,
     zkvm::{ZKVMBuilder, ZKVM},
   },
-  utils::nivc::build_rom,
+  utils::{nivc::build_rom, wasm::print_pretty_results},
 };
 use anyhow::anyhow;
 use ff::Field;
@@ -215,6 +215,8 @@ where
 
   fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self> {
     let (etable, wasm_func_res) = ctx.build_execution_trace()?;
+    print_pretty_results(&wasm_func_res);
+
     let tracer = ctx.tracer()?;
 
     Ok(Self {

@@ -24,7 +24,7 @@ use crate::{
     snark::RecursiveSNARKTrait,
     zkvm::{ZKVMBuilder, ZKVM},
   },
-  utils::nivc::batch_execution_trace,
+  utils::{nivc::batch_execution_trace, wasm::print_pretty_results},
 };
 use anyhow::anyhow;
 use ff::Field;
@@ -87,7 +87,6 @@ where
     let (etable, _) = ctx.build_execution_trace()?;
     let tracer = ctx.tracer()?;
 
-    tracing::debug!("etable.len {}", etable.entries().len());
     // Batch execution trace in batched
     let (execution_trace, rom) = batch_execution_trace(&etable)?;
 
@@ -95,21 +94,19 @@ where
     let batched_rom = BatchedROM::<E1>::new(rom, execution_trace.to_vec());
 
     // Get SuperNova public params and prove execution
+    tracing::info!("Producing public params for execution proving...");
     let execution_pp = super_nova_public_params(&batched_rom)?;
 
-    tracing::info!("Proving MCC...");
-
-    // Get memory trace (memory table)
+    //Setup MCC
+    tracing::info!("Setting up MCC...");
     let tracer = tracer.borrow();
     let imtable = tracer.imtable();
     let mtable = etable.mtable(imtable);
-    tracing::info!("memory trace length {}", mtable.entries().len());
 
-    //Setup MCC
-    tracing::info!("Building lookup table for MCC...");
     let primary_circuits = BatchedMCCProver::<E1, S1, S2>::mcc_inputs(mtable)?;
 
     // Get public params
+    tracing::info!("Producing public params for MCC...");
     let mcc_pp = public_params(primary_circuits[0].clone(), TrivialCircuit::default())?;
 
     Ok(BatchedZKEPublicParams {
@@ -223,7 +220,8 @@ where
   type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
 
   fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self> {
-    let (etable, func_res) = ctx.build_execution_trace()?;
+    let (etable, wasm_func_results) = ctx.build_execution_trace()?;
+    print_pretty_results(&wasm_func_results);
     Ok(Self {
       etable,
       tracer: ctx.tracer()?,
@@ -231,7 +229,7 @@ where
       execution_public_values: None,
       mcc_proof: None,
       mcc_public_values: None,
-      wasm_func_results: func_res,
+      wasm_func_results,
     })
   }
 

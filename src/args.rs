@@ -329,7 +329,6 @@ impl<WA: ZKWASMArgs + Clone> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
       &mut func_results,
       tracer.clone(),
     )?;
-    print_pretty_results(&func_results);
 
     // Return the execution trace
     let etable = tracer.borrow().etable();
