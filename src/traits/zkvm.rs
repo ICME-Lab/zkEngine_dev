@@ -27,7 +27,7 @@ where
 }
 
 /// A trait to constrain the steps needed to build a zkVM proof.
-pub trait ZKVMBuilder<'a, E1, PV>
+pub trait ZKVMBuilder<E1, PV>
 where
   Self: Sized,
   E1: CurveCycleEquipped,
@@ -46,16 +46,13 @@ where
   type ZKVM: ZKVM<E1, PV, PublicParams = Self::PublicParams>;
 
   /// A method that gets the execution trace of the WASM.
-  fn get_trace(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
-    pp: &'a Self::PublicParams,
-  ) -> anyhow::Result<Self>;
+  fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self>;
 
   /// A method that proves the execution of the WASM.
-  fn prove_execution(self) -> anyhow::Result<Self>;
+  fn prove_execution(self, pp: &Self::PublicParams) -> anyhow::Result<Self>;
 
   /// A method that proves the MCC for the WASM.
-  fn mcc(self) -> anyhow::Result<Self>;
+  fn mcc(self, pp: &Self::PublicParams) -> anyhow::Result<Self>;
 
   /// A method that builds the zkVM proof.
   fn build(self) -> anyhow::Result<(Self::ZKVM, PV, Box<[wasmi::Value]>)>;

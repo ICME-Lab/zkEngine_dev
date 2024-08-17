@@ -122,9 +122,9 @@ where
     ctx: &mut impl ZKWASMContext<WasiCtx>,
     pp: &Self::PublicParams,
   ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
-    BatchedZKEProofBuilder::get_trace(ctx, pp)?
-      .prove_execution()?
-      .mcc()?
+    BatchedZKEProofBuilder::get_trace(ctx)?
+      .prove_execution(pp)?
+      .mcc(pp)?
       .build()
   }
 
@@ -181,7 +181,7 @@ where
 }
 
 /// A helper struct to construct a valid zkVM proof, which has a execution proof and a MCC proof.
-pub struct BatchedZKEProofBuilder<'a, E1, BS1, S1, S2>
+pub struct BatchedZKEProofBuilder<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
@@ -191,14 +191,13 @@ where
   etable: ETable,
   tracer: Rc<RefCell<Tracer>>,
   wasm_func_results: Box<[wasmi::Value]>,
-  pp: &'a BatchedZKEPublicParams<E1, BS1, S1, S2>,
   execution_proof: Option<BatchedExecutionProof<E1, BS1, S2>>,
   execution_public_values: Option<ExecutionPublicValues<E1>>,
   mcc_proof: Option<BatchedMCCProof<E1, S1, S2>>,
   mcc_public_values: Option<MCCPublicValues<E1>>,
 }
 
-impl<'a, E1, BS1, S1, S2> BatchedZKEProofBuilder<'a, E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> BatchedZKEProofBuilder<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
@@ -210,8 +209,7 @@ where
   }
 }
 
-impl<'a, E1, BS1, S1, S2> ZKVMBuilder<'a, E1, PV<E1>>
-  for BatchedZKEProofBuilder<'a, E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> ZKVMBuilder<E1, PV<E1>> for BatchedZKEProofBuilder<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   <E1 as Engine>::Scalar: PartialOrd + Ord,
@@ -224,15 +222,11 @@ where
   type ZKVM = BatchedZKEProof<E1, BS1, S1, S2>;
   type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
 
-  fn get_trace(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
-    pp: &'a Self::PublicParams,
-  ) -> anyhow::Result<Self> {
+  fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self> {
     let (etable, func_res) = ctx.build_execution_trace()?;
     Ok(Self {
       etable,
       tracer: ctx.tracer()?,
-      pp,
       execution_proof: None,
       execution_public_values: None,
       mcc_proof: None,
@@ -241,7 +235,7 @@ where
     })
   }
 
-  fn prove_execution(mut self) -> anyhow::Result<Self> {
+  fn prove_execution(mut self, pp: &Self::PublicParams) -> anyhow::Result<Self> {
     // Get execution trace (execution table)
     let etable = self.etable();
 
@@ -265,7 +259,7 @@ where
 
     // Prove execution
     let (nivc_proof, z0_primary) = <Self::ExecutionProver as Prover<E1>>::prove(
-      &self.pp.execution_pp,
+      &pp.execution_pp,
       z0_primary,
       batched_rom,
       None,
@@ -276,7 +270,7 @@ where
 
     // Compress NIVC Proof into a zkSNARK
     let time = Instant::now();
-    let compressed_proof = nivc_proof.compress(&self.pp.execution_pp)?;
+    let compressed_proof = nivc_proof.compress(&pp.execution_pp)?;
     tracing::info!("compressing took: {:?}", time.elapsed());
 
     // Set public values
@@ -287,7 +281,7 @@ where
     Ok(self)
   }
 
-  fn mcc(mut self) -> anyhow::Result<Self> {
+  fn mcc(mut self, pp: &Self::PublicParams) -> anyhow::Result<Self> {
     tracing::info!("Proving MCC...");
 
     // Get memory trace (memory table)
@@ -303,14 +297,14 @@ where
 
     // Prove MCC
     let (ivc_proof, z0_primary) =
-      <Self::MCCProver as Prover<E1>>::prove(&self.pp.mcc_pp, vec![], primary_circuits, None)?;
+      <Self::MCCProver as Prover<E1>>::prove(&pp.mcc_pp, vec![], primary_circuits, None)?;
 
     // Get public output
     let zi = ivc_proof.zi_primary()?;
 
     // Compress IVC Proof into a zkSNARK
     let time = Instant::now();
-    let compressed_proof = ivc_proof.compress(&self.pp.mcc_pp)?;
+    let compressed_proof = ivc_proof.compress(&pp.mcc_pp)?;
     tracing::info!("compressing took: {:?}", time.elapsed());
 
     // Set public values
