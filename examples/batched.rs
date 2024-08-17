@@ -7,46 +7,46 @@ use zk_engine::{
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::Dual,
   },
-  run::default::ZKEProof,
+  run::batched::BatchedZKEProof,
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
 };
 
-// Curve cycle to use for proving
+// Backend configs
 type E1 = PallasEngine;
-// PCS used for final SNARK at the end of (N)IVC
 type EE1 = ipa_pc::EvaluationEngine<E1>;
-// PCS on secondary curve
 type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
-
-// Spartan SNARKS used for compressing at then end of (N)IVC
 type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
 type S1 = RelaxedR1CSSNARK<E1, EE1>;
 type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
 
-type ZKEngine = ZKEProof<E1, BS1, S1, S2>;
+type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
 
-  // Configure the arguments needed for WASM execution
+  // Some WASM' modules require the function to invoke and it's functions arguments.
+  // The below code is an example of how to configure the WASM arguments for such cases.
   //
-  // Here we are configuring the path to the WASM file
+  // This WASM module (fib.wat) has a fib fn which will
+  // produce the n'th number in the fibonacci sequence.
+  // The function we want to invoke has the following signature:
+  //
+  // fib(n: i32) -> i32;
+  //
+  // This means the higher the user input is for `n` the more opcodes will need to be proven
   let args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/example.wasm"))
+    .file_path(PathBuf::from("wasm/misc/fib.wat"))
+    .invoke(Some(String::from("fib")))
+    .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
 
-  // Run setup step for ZKVM
   let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
-  // Prove execution and run memory consistency checks
-  //
-  // Get proof for verification and corresponding public values
-  //
-  // Above type alias's (for the backend config) get used here
+  // Use `BatchedZKEProof` for batched proving
   let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
 
-  // // Verify proof
+  // Verify proof
   let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }
