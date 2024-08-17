@@ -2,13 +2,12 @@
 //!
 //! This run method runs one opcode per step in the zkVM.
 pub mod public_values;
-use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
+use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use crate::{
   circuits::{
-    execution::{
-      self,
-      default::{super_nova_public_params, ExecutionProof, ExecutionProver, ExecutionPublicParams},
+    execution::default::{
+      super_nova_public_params, ExecutionProof, ExecutionProver, ExecutionPublicParams,
     },
     mcc::default::{public_params, MCCProof, MCCProver, MCCPublicParams},
     supernova::etable_rom::EtableROM,
