@@ -112,9 +112,6 @@ pub struct WASMCtx<WA: ZKWASMArgs> {
 impl<WA: ZKWASMArgs + Clone> WASMCtx<WA> {
   /// Create a new instance of `WASMCtx`.
   ///
-  /// # Arguments
-  /// * `file_path` - The path to the WASM file.
-  ///
   /// # Returns
   /// A new instance of `WASMCtx`.
   pub fn new_from_file(wasm_args: &WA) -> anyhow::Result<Self> {
