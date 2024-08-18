@@ -25,3 +25,20 @@ pub trait ZKVMPublicValues<E1: CurveCycleEquipped> {
   /// Getter for the public values of execution proving
   fn execution(&self) -> &Self::ExecutionPublicValues;
 }
+
+/// Define the data structure that holds the Public Parameters for the ZKVM.
+///
+/// Holds public parameters for execution (SuperNova) and MCC (Nova) proving.
+pub trait ZKVMPublicParams<E1: CurveCycleEquipped> {
+  /// Public parameters for execution proving
+  type ExecutionPublicParams;
+
+  /// Public parameters for MCC
+  type MCCPublicParams;
+
+  /// Getter for the public parameters produced from execution proving
+  fn execution(&self) -> &Self::ExecutionPublicParams;
+
+  /// Getter for the public parameters for MCC proving
+  fn mcc(&self) -> &Self::MCCPublicParams;
+}

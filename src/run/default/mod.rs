@@ -2,7 +2,7 @@
 //!
 //! This run method runs one opcode per step in the zkVM.
 pub mod public_values;
-use std::{cell::RefCell, rc::Rc, time::Instant};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
 use crate::{
   circuits::{
@@ -15,7 +15,7 @@ use crate::{
   traits::{
     args::ZKWASMContext,
     prover::Prover,
-    public_values::{PublicValuesTrait, ZKVMPublicValues},
+    public_values::{PublicValuesTrait, ZKVMPublicParams, ZKVMPublicValues},
     snark::RecursiveSNARKTrait,
     zkvm::{ZKVMBuilder, ZKVM},
   },
@@ -33,7 +33,6 @@ use serde::{Deserialize, Serialize};
 use wasmi::{etable::ETable, Tracer};
 use wasmi_wasi::WasiCtx;
 
-// type E1 = PallasEngine;
 type PV<E1> = PublicValues<E1>;
 
 /// A proof that testifies the correct execution of a WASM program
@@ -113,8 +112,8 @@ where
     pp: &Self::PublicParams,
   ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
     ZKEProofBuilder::get_trace(ctx)?
-      .prove_execution(pp)?
-      .mcc(pp)?
+      .prove_execution(pp.execution())?
+      .mcc(pp.mcc())?
       .build()
   }
 
@@ -149,12 +148,6 @@ where
   }
 }
 
-// /// Output of execution proof
-// type ExecutionProofOutput<E1, BS1, S1, S2> = (
-//   ZKEExecutionProof<E1, BS1, S1, S2>,
-//   ExecutionPublicValues<E1, BS1, S2>,
-// );
-
 /// Contains the public parameters needed for proving/verifying
 ///
 /// Contains public parameters for both the execution and MCC proofs
@@ -169,6 +162,25 @@ where
 {
   execution_pp: ExecutionPublicParams<E1, BS1, S2>,
   mcc_pp: MCCPublicParams<E1, S1, S2>,
+}
+
+impl<E1, BS1, S1, S2> ZKVMPublicParams<E1> for ZKEPublicParams<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
+{
+  type ExecutionPublicParams = ExecutionPublicParams<E1, BS1, S2>;
+  type MCCPublicParams = MCCPublicParams<E1, S1, S2>;
+
+  fn execution(&self) -> &ExecutionPublicParams<E1, BS1, S2> {
+    &self.execution_pp
+  }
+
+  fn mcc(&self) -> &MCCPublicParams<E1, S1, S2> {
+    &self.mcc_pp
+  }
 }
 
 /// A helper struct to construct a valid zkVM proof, which has a execution proof and a MCC proof.
@@ -230,7 +242,7 @@ where
     })
   }
 
-  fn prove_execution(mut self, pp: &Self::PublicParams) -> anyhow::Result<Self> {
+  fn prove_execution(mut self, pp: &ExecutionPublicParams<E1, BS1, S2>) -> anyhow::Result<Self> {
     // Get execution trace (execution table)
     let etable = self.etable();
 
@@ -247,14 +259,14 @@ where
 
     // Prove execution
     let (nivc_proof, z0_primary) =
-      <Self::ExecutionProver as Prover<E1>>::prove(&pp.execution_pp, z0_primary, etable_rom, None)?;
+      <Self::ExecutionProver as Prover<E1>>::prove(pp, z0_primary, etable_rom, None)?;
 
     // Get public output
     let zi = nivc_proof.zi_primary()?;
 
     // Compress NIVC Proof into a zkSNARK
     let time = Instant::now();
-    let compressed_proof = nivc_proof.compress(&pp.execution_pp)?;
+    let compressed_proof = nivc_proof.compress(pp)?;
     tracing::info!("compressing took: {:?}", time.elapsed());
 
     // Set public values
@@ -266,7 +278,7 @@ where
     Ok(self)
   }
 
-  fn mcc(mut self, pp: &Self::PublicParams) -> anyhow::Result<Self> {
+  fn mcc(mut self, pp: &MCCPublicParams<E1, S1, S2>) -> anyhow::Result<Self> {
     tracing::info!("Proving MCC...");
 
     // Get memory trace (memory table)
@@ -285,14 +297,14 @@ where
 
     // Prove MCC
     let (ivc_proof, z0_primary) =
-      <Self::MCCProver as Prover<E1>>::prove(&pp.mcc_pp, z0, primary_circuits, None)?;
+      <Self::MCCProver as Prover<E1>>::prove(pp, z0, primary_circuits, None)?;
 
     // Get public output
     let zi = ivc_proof.zi_primary()?;
 
     // Compress IVC Proof into a zkSNARK
     let time = Instant::now();
-    let compressed_proof = ivc_proof.compress(&pp.mcc_pp)?;
+    let compressed_proof = ivc_proof.compress(pp)?;
     tracing::info!("compressing took: {:?}", time.elapsed());
 
     // Set public values
@@ -327,98 +339,107 @@ where
   }
 }
 
-// impl<E1, BS1, S1, S2> ZKEProofBuilder<E1, BS1, S1, S2>
-// where
-//   E1: CurveCycleEquipped,
-//   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
-//   S1: RelaxedR1CSSNARKTrait<E1>,
-//   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
-// {
-//   fn build_execution_proof(self) -> anyhow::Result<ExecutionProofOutput<E1, BS1, S1, S2>> {
-//     // Validate that all proofs and public values are present
-//     let execution_proof = self
-//       .execution_proof
-//       .ok_or(anyhow!("Execution proof not found"))?;
+/// Output of execution proof
+type ExecutionProofOutput<E1, BS1, S1, S2> = (
+  ZKEExecutionProof<E1, BS1, S1, S2>,
+  ExecutionPublicValues<E1>,
+);
 
-//     let execution_public_values = self
-//       .execution_public_values
-//       .ok_or(anyhow!("Execution public values not found"))?;
+impl<E1, BS1, S1, S2> ZKEProofBuilder<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
+{
+  fn build_execution_proof(self) -> anyhow::Result<ExecutionProofOutput<E1, BS1, S1, S2>> {
+    // Validate that all proofs and public values are present
+    let execution_proof = self
+      .execution_proof
+      .ok_or(anyhow!("Execution proof not found"))?;
 
-//     // Return proof and public values
-//     let proof = ZKEExecutionProof::new(execution_proof);
+    let execution_public_values = self
+      .execution_public_values
+      .ok_or(anyhow!("Execution public values not found"))?;
 
-//     Ok((proof, execution_public_values))
-//   }
-// }
-// /// A proof that testifies the correct execution of a WASM program
-// pub struct ZKEExecutionProof<E1, BS1, S1, S2>
-// where
-//   E1: CurveCycleEquipped,
-//   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
-//   S1: RelaxedR1CSSNARKTrait<E1>,
-//   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
-// {
-//   execution_proof: ExecutionProof<E1, BS1, S2>,
-//   _s1: PhantomData<S1>,
-// }
+    // Return proof and public values
+    let proof = ZKEExecutionProof::new(execution_proof);
 
-// impl<E1, BS1, S1, S2> ZKEExecutionProof<E1, BS1, S1, S2>
-// where
-//   E1: CurveCycleEquipped,
-//   BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
-//   S1: RelaxedR1CSSNARKTrait<E1>,
-//   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
-// {
-//   fn new(execution_proof: ExecutionProof<E1, BS1, S2>) -> Self {
-//     Self {
-//       execution_proof,
-//       _s1: PhantomData,
-//     }
-//   }
-// }
+    Ok((proof, execution_public_values))
+  }
+}
 
-// impl<E1, BS1, S1, S2> ZKEExecutionProof<E1, BS1, S1, S2>
-// where
-//   E1: CurveCycleEquipped,
-//   <E1 as Engine>::Scalar: PartialOrd + Ord,
-//   BS1: BatchedRelaxedR1CSSNARKTrait<E1> + Clone,
-//   S1: RelaxedR1CSSNARKTrait<E1> + Clone,
-//   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
-// {
-//   /// Proves only the execution of a WASM program
-//   pub fn prove_wasm_execution(
-//     ctx: &mut impl ZKWASMContext<WasiCtx>,
-//   ) -> anyhow::Result<(Self, ExecutionPublicValues<E1, BS1, S2>)> {
-//     ZKEProofBuilder::get_trace(ctx)?
-//       .prove_execution()?
-//       .build_execution_proof()
-//   }
+/// A proof that testifies the correct execution of a WASM program
+pub struct ZKEExecutionProof<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
+{
+  execution_proof: ExecutionProof<E1, BS1, S2>,
+  _s1: PhantomData<S1>,
+}
 
-//   /// Verifies only the execution proof from proving WASM execution
-//   ///
-//   /// Does not run memory consistency checks
-//   pub fn verify_wasm_execution(
-//     self,
-//     execution_public_values: ExecutionPublicValues<E1, BS1, S2>,
-//   ) -> anyhow::Result<bool> {
-//     tracing::info!("Verifying proof...");
+impl<E1, BS1, S1, S2> ZKEExecutionProof<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
+{
+  fn new(execution_proof: ExecutionProof<E1, BS1, S2>) -> Self {
+    Self {
+      execution_proof,
+      _s1: PhantomData,
+    }
+  }
+}
 
-//     // Get execution and MCC proofs
-//     let execution_proof = self.execution_proof;
+impl<E1, BS1, S1, S2> ZKEExecutionProof<E1, BS1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  <E1 as Engine>::Scalar: PartialOrd + Ord,
+  BS1: BatchedRelaxedR1CSSNARKTrait<E1> + Clone,
+  S1: RelaxedR1CSSNARKTrait<E1> + Clone,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
+{
+  /// Proves only the execution of a WASM program
+  pub fn prove_wasm_execution(
+    ctx: &mut impl ZKWASMContext<WasiCtx>,
+  ) -> anyhow::Result<(Self, ExecutionPublicValues<E1>)> {
+    // ZKEProofBuilder::get_trace(ctx)?
+    //   .prove_execution()?
+    //   .build_execution_proof()
+    todo!()
+  }
 
-//     // Get execution proofs public values,
-//     let execution_pp = execution_public_values.public_params();
+  /// Verifies only the execution proof from proving WASM execution
+  ///
+  /// Does not run memory consistency checks
+  pub fn verify_wasm_execution(
+    self,
+    execution_public_values: ExecutionPublicValues<E1>,
+  ) -> anyhow::Result<bool> {
+    tracing::info!("Verifying proof...");
 
-//     // Verify execution proof
-//     let execution_verified = execution_proof.verify(
-//       execution_pp,
-//       execution_public_values.public_inputs(),
-//       execution_public_values.public_outputs(),
-//     )?;
+    // // Get execution and MCC proofs
+    // let execution_proof = self.execution_proof;
 
-//     Ok(execution_verified)
-//   }
-// }
+    // // Get execution proofs public values,
+    // let execution_pp = execution_public_values.public_params();
+
+    // // Verify execution proof
+    // let execution_verified = execution_proof.verify(
+    //   execution_pp,
+    //   execution_public_values.public_inputs(),
+    //   execution_public_values.public_outputs(),
+    // )?;
+
+    // Ok(execution_verified)
+    todo!()
+  }
+}
 
 #[cfg(test)]
 mod tests {
