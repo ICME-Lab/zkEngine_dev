@@ -404,6 +404,25 @@ where
   S1: RelaxedR1CSSNARKTrait<E1> + Clone,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
+  /// Produce public params for execution proving
+  pub fn setup(
+    ctx: &mut impl ZKWASMContext<WasiCtx>,
+  ) -> anyhow::Result<ExecutionPublicParams<E1, BS1, S2>> {
+    let (etable, _) = ctx.build_execution_trace()?;
+
+    // Build ROM and corresponding tracer values
+    let (rom, tracer_values) = build_rom(&etable.plain_execution_trace());
+
+    // Build SuperNova non-uniform circuit for WASM opcodes
+    let etable_rom = EtableROM::<E1>::new(rom, tracer_values.to_vec());
+
+    // Get SuperNova public params and prove execution
+    tracing::info!("Producing public params for execution proving...");
+    let execution_pp = super_nova_public_params::<_, BS1, S2>(&etable_rom)?;
+
+    Ok(execution_pp)
+  }
+
   /// Proves only the execution of a WASM program
   pub fn prove_wasm_execution(
     ctx: &mut impl ZKWASMContext<WasiCtx>,
