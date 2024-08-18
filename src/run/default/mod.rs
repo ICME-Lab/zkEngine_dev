@@ -418,9 +418,7 @@ where
 
     // Get SuperNova public params and prove execution
     tracing::info!("Producing public params for execution proving...");
-    let execution_pp = super_nova_public_params::<_, BS1, S2>(&etable_rom)?;
-
-    Ok(execution_pp)
+    super_nova_public_params::<_, BS1, S2>(&etable_rom)
   }
 
   /// Proves only the execution of a WASM program
