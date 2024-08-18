@@ -407,11 +407,11 @@ where
   /// Proves only the execution of a WASM program
   pub fn prove_wasm_execution(
     ctx: &mut impl ZKWASMContext<WasiCtx>,
+    pp: &ExecutionPublicParams<E1, BS1, S2>,
   ) -> anyhow::Result<(Self, ExecutionPublicValues<E1>)> {
-    // ZKEProofBuilder::get_trace(ctx)?
-    //   .prove_execution()?
-    //   .build_execution_proof()
-    todo!()
+    ZKEProofBuilder::get_trace(ctx)?
+      .prove_execution(pp)?
+      .build_execution_proof()
   }
 
   /// Verifies only the execution proof from proving WASM execution
@@ -420,24 +420,21 @@ where
   pub fn verify_wasm_execution(
     self,
     execution_public_values: ExecutionPublicValues<E1>,
+    pp: &ExecutionPublicParams<E1, BS1, S2>,
   ) -> anyhow::Result<bool> {
     tracing::info!("Verifying proof...");
 
-    // // Get execution and MCC proofs
-    // let execution_proof = self.execution_proof;
+    // Get execution proof
+    let execution_proof = self.execution_proof;
 
-    // // Get execution proofs public values,
-    // let execution_pp = execution_public_values.public_params();
+    // Verify execution proof
+    let execution_verified = execution_proof.verify(
+      pp,
+      execution_public_values.public_inputs(),
+      execution_public_values.public_outputs(),
+    )?;
 
-    // // Verify execution proof
-    // let execution_verified = execution_proof.verify(
-    //   execution_pp,
-    //   execution_public_values.public_inputs(),
-    //   execution_public_values.public_outputs(),
-    // )?;
-
-    // Ok(execution_verified)
-    todo!()
+    Ok(execution_verified)
   }
 }
 
