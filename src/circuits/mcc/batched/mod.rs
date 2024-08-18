@@ -6,7 +6,7 @@ use std::{borrow::Cow, cell::OnceCell, marker::PhantomData, time::Instant};
 
 use nova::{
   errors::NovaError,
-  gadgets::lookup::{Lookup, LookupTraceBuilder},
+  gadgets::lookup::LookupTraceBuilder,
   traits::{
     circuit::TrivialCircuit, snark::RelaxedR1CSSNARKTrait, CurveCycleEquipped, Dual, Engine,
     ROTrait,

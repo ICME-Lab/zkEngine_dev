@@ -8,8 +8,8 @@ use nova::{
   errors::NovaError,
   gadgets::lookup::LookupTraceBuilder,
   traits::{
-    circuit::TrivialCircuit, commitment::CommitmentEngineTrait, snark::RelaxedR1CSSNARKTrait,
-    CurveCycleEquipped, Dual, Engine, ROConstants, ROConstantsCircuit,
+    circuit::TrivialCircuit, snark::RelaxedR1CSSNARKTrait, CurveCycleEquipped, Dual, Engine,
+    ROConstants,
   },
   CompressedSNARK, ProverKey, RecursiveSNARK, VerifierKey,
 };
