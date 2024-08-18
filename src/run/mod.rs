@@ -4,8 +4,6 @@ use crate::{
   args::{WASMArgs, WASMCtx},
   traits::{args::ZKWASMArgs, zkvm::ZKVM},
 };
-// use batched::{BatchedZKEExecutionProof, BatchedZKEProof};
-// use default::{ZKEExecutionProof, ZKEProof};
 
 use batched::{BatchedZKEExecutionProof, BatchedZKEProof};
 use default::{ZKEExecutionProof, ZKEProof};
