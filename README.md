@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
   // Above type alias's (for the backend config) get used here
   let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
 
-  // // Verify proof
+  // Verify proof
   let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }
