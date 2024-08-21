@@ -75,7 +75,7 @@ fn test_connect_shards() -> anyhow::Result<()> {
     .func_args(func_args.clone())
     .build();
 
-  let mut wasm_ctx = WASMCtx::new_from_file(wasm_args.clone())?;
+  let mut wasm_ctx = WASMCtx::new_from_file(&wasm_args)?;
 
   // Mock the lead node which first runs an estimate on WASM
   let (etable, _) = wasm_ctx.build_execution_trace()?;
@@ -99,7 +99,7 @@ fn test_connect_shards() -> anyhow::Result<()> {
       .func_args(func_args.clone())
       .build();
 
-    let mut wasm_ctx = WASMCtx::new_from_file(wasm_args)?;
+    let mut wasm_ctx = WASMCtx::new_from_file(&wasm_args)?;
 
     let receipt = mock_prove_shard(&mut wasm_ctx)?;
     receipt_vec.push(receipt);

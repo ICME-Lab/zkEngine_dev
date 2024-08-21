@@ -1,24 +1,10 @@
 use std::path::PathBuf;
-// Backend imports
 use zk_engine::{
   args::{WASMArgsBuilder, WASMCtx},
-  nova::{
-    provider::{ipa_pc, PallasEngine},
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::Dual,
-  },
-  run::batched::BatchedZKEProof,
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  BatchedZKEngine,
 };
-
-// Backend configs
-type E1 = PallasEngine;
-type EE1<E> = ipa_pc::EvaluationEngine<E>;
-type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
-type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
-type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
@@ -38,11 +24,14 @@ fn main() -> anyhow::Result<()> {
     .invoke(Some(String::from("fib")))
     .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
-  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+
+  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
   // Use `BatchedZKEProof` for batched proving
   let (proof, public_values, _) =
-    BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
-  let result = proof.verify(public_values)?;
+    BatchedZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
+
+  // Verify proof
+  let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }

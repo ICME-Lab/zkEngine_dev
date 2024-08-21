@@ -1,8 +1,8 @@
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, Namespace, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use nova::{
   gadgets::lookup::LookupTrace,
-  traits::{circuit::StepCircuit, CurveCycleEquipped, Dual, ROConstantsCircuit},
+  traits::{circuit::StepCircuit, CurveCycleEquipped},
 };
 use wasmi::mtable::{AccessType, MemoryTableEntry};
 
@@ -11,19 +11,13 @@ use crate::circuits::supernova::helpers::conditionally_select2;
 #[derive(Clone)]
 pub struct MCCCircuit<E1: CurveCycleEquipped> {
   lookup_trace: LookupTrace<E1>,
-  ro_consts: ROConstantsCircuit<Dual<E1>>,
   m_entry: MemoryTableEntry,
 }
 
 impl<E1: CurveCycleEquipped> MCCCircuit<E1> {
-  pub fn new(
-    lookup_trace: LookupTrace<E1>,
-    ro_consts: ROConstantsCircuit<Dual<E1>>,
-    m_entry: MemoryTableEntry,
-  ) -> Self {
+  pub fn new(lookup_trace: LookupTrace<E1>, m_entry: MemoryTableEntry) -> Self {
     Self {
       lookup_trace,
-      ro_consts,
       m_entry,
     }
   }
@@ -38,20 +32,15 @@ where
   }
 
   fn arity(&self) -> usize {
-    5
+    0
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
     &self,
     cs: &mut CS,
-    z: &[AllocatedNum<F>],
+    _z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
     let mut lookup_trace = self.lookup_trace.clone();
-    let prev_intermediate_gamma = &z[0];
-    let alpha = &z[1];
-    let gamma = &z[2];
-    let prev_RW_acc = &z[3];
-    let prev_global_ts = &z[4];
 
     let index = AllocatedNum::alloc(cs.namespace(|| "index"), || {
       Ok(F::from(self.m_entry.addr as u64))
@@ -82,23 +71,6 @@ where
 
     lookup_trace.write(cs.namespace(|| "write"), &index, &value)?;
 
-    // commit the rw change
-    let (next_RW_acc, next_global_ts, next_intermediate_gamma) = lookup_trace
-      .commit::<Dual<E1>, Namespace<'_, F, <CS as ConstraintSystem<F>>::Root>>(
-        cs.namespace(|| "commit"),
-        self.ro_consts.clone(),
-        prev_intermediate_gamma,
-        &(alpha.clone(), gamma.clone()),
-        prev_RW_acc,
-        prev_global_ts,
-      )?;
-
-    Ok(vec![
-      next_intermediate_gamma,
-      alpha.clone(),
-      gamma.clone(),
-      next_RW_acc,
-      next_global_ts,
-    ])
+    Ok(vec![])
   }
 }

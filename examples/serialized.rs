@@ -11,7 +11,6 @@ use zk_engine::{
   utils::logging::init_logger,
 };
 
-// Backend configs
 type E1 = PallasEngine;
 type EE1 = ipa_pc::EvaluationEngine<E1>;
 type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
@@ -19,7 +18,8 @@ type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
 type S1 = RelaxedR1CSSNARK<E1, EE1>;
 type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
 
-type ZKEngine = ZKEProof<E1, BS1, S1, S2>;
+/// The default zkEngine type alias.
+pub type ZKEngine = ZKEProof<E1, BS1, S1, S2>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
@@ -39,9 +39,11 @@ fn main() -> anyhow::Result<()> {
     .invoke(Some(String::from("fib")))
     .func_args(vec![String::from("10")]) // This will generate 152 opcodes
     .build();
-  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
 
-  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut wasm_ctx)?;
+  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+
+  // Use `BatchedZKEProof` for batched proving
+  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
 
   // Serialize the proof and public values
   let proof_str = serde_json::to_string(&proof)?;
@@ -49,9 +51,10 @@ fn main() -> anyhow::Result<()> {
 
   // Deserialize the proof and public values
   let proof: ZKEProof<E1, BS1, S1, S2> = serde_json::from_str(&proof_str)?;
-  let public_values: PublicValues<E1, BS1, S1, S2> = serde_json::from_str(&public_values_str)?;
+  let public_values: PublicValues<E1> = serde_json::from_str(&public_values_str)?;
 
-  // Verify the proof
-  let result = proof.verify(public_values)?;
+  // Verify proof
+  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+  let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }

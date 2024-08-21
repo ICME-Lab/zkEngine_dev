@@ -157,7 +157,7 @@ impl<'a, WA: ZKWASMArgs> From<&'a WASMCtx<WA>> for DisplayExportedFuncs<'a, WA> 
   }
 }
 
-impl<WA: ZKWASMArgs> Display for DisplayExportedFuncs<'_, WA> {
+impl<WA: ZKWASMArgs + Clone> Display for DisplayExportedFuncs<'_, WA> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let exported_funcs = self.ctx.exported_funcs().collect::<Box<[_]>>();
     if exported_funcs.is_empty() {

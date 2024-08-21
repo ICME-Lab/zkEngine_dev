@@ -6,7 +6,7 @@ use std::{borrow::Cow, cell::OnceCell, marker::PhantomData, time::Instant};
 
 use nova::{
   errors::NovaError,
-  gadgets::lookup::{Lookup, LookupTraceBuilder},
+  gadgets::lookup::LookupTraceBuilder,
   traits::{
     circuit::TrivialCircuit, snark::RelaxedR1CSSNARKTrait, CurveCycleEquipped, Dual, Engine,
     ROTrait,
@@ -31,11 +31,6 @@ pub type C1<E1> = Vec<IC1<E1>>;
 pub type C2<E1> = TrivialCircuit<<Dual<E1> as Engine>::Scalar>;
 
 type KeyPair<E1, S1, S2> = (ProverKey<E1, S1, S2>, VerifierKey<E1, S1, S2>);
-type MCCInputs<E1> = (
-  C1<E1>,
-  Lookup<<E1 as Engine>::Scalar>,
-  <E1 as Engine>::Scalar,
-);
 
 /// A struct that contains public parameters for the Nova proving system.
 #[derive(Serialize, Deserialize)]
@@ -260,7 +255,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  pub fn mcc_inputs(mtable: MTable) -> anyhow::Result<MCCInputs<E1>> {
+  pub fn mcc_inputs(mtable: MTable) -> anyhow::Result<C1<E1>> {
     let (init_table, memory_trace, last_addr) = create_lookup_table(mtable);
     let m_chunks = batch_memory_trace(memory_trace, last_addr)?;
     let initial_intermediate_gamma = <E1 as Engine>::Scalar::from(1);
@@ -294,7 +289,7 @@ where
       primary_circuits.push(circuit);
     }
 
-    Ok((primary_circuits, lookup, intermediate_gamma))
+    Ok(primary_circuits)
   }
 }
 

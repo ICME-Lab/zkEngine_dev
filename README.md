@@ -33,60 +33,38 @@ RUST_LOG=debug cargo +nightly run --release --example default
 ````
 
 ```rust
-  use std::path::PathBuf;
-  // Backend imports
-  use zk_engine::nova::{
-    provider::{ipa_pc, PallasEngine},
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::{
-      snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-      CurveCycleEquipped, Dual, Engine,
-    },
-  };
-  use zk_engine::{
-    args::{WASMArgsBuilder, WASMCtx},
-    run::default::ZKEProof,
-    traits::zkvm::ZKVM,
-    utils::logging::init_logger,
-  };
+use std::path::PathBuf;
+use zk_engine::{
+  args::{WASMArgsBuilder, WASMCtx},
+  traits::zkvm::ZKVM,
+  utils::logging::init_logger,
+  ZKEngine,
+};
 
-  // Curve cycle to use for proving
-  type E1 = PallasEngine;
-  // PCS used for final SNARK at the end of (N)IVC
-  type EE1<E> = ipa_pc::EvaluationEngine<E>;
-  // PCS on secondary curve
-  type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
+fn main() -> anyhow::Result<()> {
+  init_logger();
 
-  // Spartan SNARKS used for compressing at then end of (N)IVC
-  type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-  type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
-  type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
+  // Configure the arguments needed for WASM execution
+  //
+  // Here we are configuring the path to the WASM file
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/example.wasm"))
+    .build();
 
-  fn main() -> anyhow::Result<()>
-  {
-    init_logger();
+  // Run setup step for ZKVM
+  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
-    // Configure the arguments needed for WASM execution
-    //
-    // Here we are configuring the path to the WASM file
-    let args = WASMArgsBuilder::default()
-      .file_path(PathBuf::from("wasm/example.wasm"))
-      .build();
-    
-    // Create a WASM execution context for proving.
-    let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+  // Prove execution and run memory consistency checks
+  //
+  // Get proof for verification and corresponding public values
+  //
+  // Above type alias's (for the backend config) get used here
+  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
 
-    // Prove execution and run memory consistency checks
-    //
-    // Get proof for verification and corresponding public values
-    //
-    // Above type alias's (for the backend config) get used here
-    let (proof, public_values, _) = ZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
-
-    // Verify proof
-    let result = proof.verify(public_values)?;
-    Ok(assert!(result))
-  }
+  // Verify proof
+  let result = proof.verify(public_values, &pp)?;
+  Ok(assert!(result))
+}
 ```
 
 ### Batched mode
@@ -98,57 +76,44 @@ RUST_LOG=debug cargo +nightly run --release --example batched
 ````
 
 ```rust
-  use std::path::PathBuf;
-  // Backend imports
-  use zk_engine::nova::{
-    provider::{ipa_pc, PallasEngine},
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::{
-      snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-      CurveCycleEquipped, Dual, Engine,
-    },
-  };
-  use zk_engine::{
-    args::{WASMArgsBuilder, WASMCtx},
-    run::batched::BatchedZKEProof,
-    traits::zkvm::ZKVM,
-    utils::logging::init_logger,
-  };
+use std::path::PathBuf;
+use zk_engine::{
+  args::{WASMArgsBuilder, WASMCtx},
+  traits::zkvm::ZKVM,
+  utils::logging::init_logger,
+  BatchedZKEngine,
+};
 
-  // Backend configs
-  type E1 = PallasEngine;
-  type EE1<E> = ipa_pc::EvaluationEngine<E>;
-  type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
-  type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-  type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
-  type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
+fn main() -> anyhow::Result<()> {
+  init_logger();
 
-  fn main() -> anyhow::Result<()>
-  {
-    init_logger();
+  // Some WASM' modules require the function to invoke and it's functions arguments.
+  // The below code is an example of how to configure the WASM arguments for such cases.
+  //
+  // This WASM module (fib.wat) has a fib fn which will
+  // produce the n'th number in the fibonacci sequence.
+  // The function we want to invoke has the following signature:
+  //
+  // fib(n: i32) -> i32;
+  //
+  // This means the higher the user input is for `n` the more opcodes will need to be proven
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/misc/fib.wat"))
+    .invoke(Some(String::from("fib")))
+    .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
+    .build();
 
-    // Some WASM' modules require the function to invoke and it's functions arguments.
-    // The below code is an example of how to configure the WASM arguments for such cases.
-    //
-    // This WASM module (fib.wat) has a fib fn which will 
-    // produce the n'th number in the fibonacci sequence.
-    // The function we want to invoke has the following signature: 
-    //
-    // fib(n: i32) -> i32;
-    // 
-    // This means the higher the user input is for `n` the more opcodes will need to be proven
-    let args = WASMArgsBuilder::default()
-      .file_path(PathBuf::from("wasm/misc/fib.wat"))
-      .invoke(Some(String::from("fib")))
-      .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
-      .build();
-    let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
-    // Use `BatchedZKEProof` for batched proving
-    let (proof, public_values, _) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
-    let result = proof.verify(public_values)?;
-    Ok(assert!(result))
-  }
+  // Use `BatchedZKEProof` for batched proving
+  let (proof, public_values, _) =
+    BatchedZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
+
+  // Verify proof
+  let result = proof.verify(public_values, &pp)?;
+  Ok(assert!(result))
+}
+
 ```
 
 ### Enable zero-knowledge
@@ -163,65 +128,13 @@ RUST_LOG=debug cargo +nightly run --release --example zk
 ````
 
 ```rust
-  use std::path::PathBuf;
-  // Backend imports for ZK
-  use zk_engine::nova::{
-    provider::{ipa_pc, ZKPallasEngine},
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::{
-      snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-      CurveCycleEquipped, Dual, Engine,
-    },
-  };
-  use zk_engine::{
-    args::{WASMArgsBuilder, WASMCtx},
-    run::batched::BatchedZKEProof,
-    traits::zkvm::ZKVM,
-    utils::logging::init_logger,
-  };
-
-  // Configs to enable ZK
-  type E1 = ZKPallasEngine;
-  type EE1<E> = ipa_pc::EvaluationEngine<E>;
-  type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
-  type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-  type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
-  type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
-
-  fn main() -> anyhow::Result<()>
-  {
-    init_logger();
-
-    // WASM Arguments
-    let args = WASMArgsBuilder::default()
-      .file_path(PathBuf::from("wasm/misc/fib.wat"))
-      .invoke(Some(String::from("fib")))
-      .func_args(vec![String::from("1000")])
-      .build();
-    let mut wasm_ctx = WASMCtx::new_from_file(args)?;
-
-    // ZKPallasEngine get's used here
-    let (proof, public_values, _) = BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
-    let result = proof.verify(public_values)?;
-    Ok(assert!(result))
-  }
-  ```
-
-### ZKML example
-
-
-```bash
-RUST_LOG=debug cargo +nightly run --release --example zkml
-````
-
-```rust
+use nova::provider::ZKPallasEngine;
 use std::path::PathBuf;
-use wasmi::TraceSliceValues;
-// Backend imports for ZK
 use zk_engine::{
   args::{WASMArgsBuilder, WASMCtx},
+  // Backend imports for ZK
   nova::{
-    provider::{ipa_pc, ZKPallasEngine},
+    provider::ipa_pc,
     spartan::{self, snark::RelaxedR1CSSNARK},
     traits::Dual,
   },
@@ -230,44 +143,34 @@ use zk_engine::{
   utils::logging::init_logger,
 };
 
-// Curve cycle to use for proving
-type E1 = PallasEngine;
-// PCS used for final SNARK at the end of (N)IVC
-type EE1<E> = ipa_pc::EvaluationEngine<E>;
-// PCS on secondary curve
-type EE2<E> = ipa_pc::EvaluationEngine<Dual<E>>;
+// Configs to enable ZK
+type E1 = ZKPallasEngine;
+type EE1 = ipa_pc::EvaluationEngine<E1>;
+type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
+type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
+type S1 = RelaxedR1CSSNARK<E1, EE1>;
+type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
 
-// Spartan SNARKS used for compressing at then end of (N)IVC
-type BS1<E> = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1<E>>;
-type S1<E> = RelaxedR1CSSNARK<E, EE1<E>>;
-type S2<E> = RelaxedR1CSSNARK<Dual<E>, EE2<E>>;
+type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
 
-  // Configure the arguments needed for WASM execution
-  //
-  // Here we are configuring the path to the WASM file
   let args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
-    .invoke(Some(String::from("_start")))
-    .trace_slice_values(TraceSliceValues::new(0, 100_000))
+    .file_path(PathBuf::from("wasm/misc/fib.wat"))
+    .invoke(Some(String::from("fib")))
+    .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
 
-  // Create a WASM execution context for proving.
-  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
 
-  // Prove execution and run memory consistency checks
-  //
-  // Get proof for verification and corresponding public values
-  //
-  // Above type alias's (for the backend config) get used here
-  let (proof, public_values, _) =
-    BatchedZKEProof::<E1, BS1<E1>, S1<E1>, S2<E1>>::prove_wasm(&mut wasm_ctx)?;
+  // ZKPallasEngine get's used here
+  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
 
   // Verify proof
-  let result = proof.verify(public_values)?;
+  let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }
-  }
   ```
+
+

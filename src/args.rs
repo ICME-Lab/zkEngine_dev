@@ -5,10 +5,7 @@ use crate::{
   traits::args::{ZKWASMArgs, ZKWASMContext},
   utils::{
     display::DisplayExportedFuncs,
-    wasm::{
-      decode_func_args, prepare_func_results, print_pretty_results, read_wasm_or_wat,
-      typecheck_args,
-    },
+    wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat, typecheck_args},
   },
 };
 use anyhow::anyhow;
@@ -112,20 +109,17 @@ pub struct WASMCtx<WA: ZKWASMArgs> {
   wasm_args: WA,
 }
 
-impl<WA: ZKWASMArgs> WASMCtx<WA> {
+impl<WA: ZKWASMArgs + Clone> WASMCtx<WA> {
   /// Create a new instance of `WASMCtx`.
-  ///
-  /// # Arguments
-  /// * `file_path` - The path to the WASM file.
   ///
   /// # Returns
   /// A new instance of `WASMCtx`.
-  pub fn new_from_file(wasm_args: WA) -> anyhow::Result<Self> {
+  pub fn new_from_file(wasm_args: &WA) -> anyhow::Result<Self> {
     Self::new_from_bytecode(&wasm_args.bytecode()?, wasm_args)
   }
 
   /// Create a new instance of `WASMCtx` from a byte code.
-  pub fn new_from_bytecode(wasm_bytes: &[u8], wasm_args: WA) -> anyhow::Result<Self> {
+  pub fn new_from_bytecode(wasm_bytes: &[u8], wasm_args: &WA) -> anyhow::Result<Self> {
     // Setup and parse the wasm bytecode.
     let engine = Engine::default();
     let mut linker = <Linker<WasiCtx>>::new(&engine);
@@ -155,7 +149,7 @@ impl<WA: ZKWASMArgs> WASMCtx<WA> {
       instance,
       module,
       tracer,
-      wasm_args,
+      wasm_args: wasm_args.clone(),
     })
   }
 
@@ -255,7 +249,7 @@ impl<WA: ZKWASMArgs> WASMCtx<WA> {
   }
 }
 
-impl<WA: ZKWASMArgs> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
+impl<WA: ZKWASMArgs + Clone> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
   /// Returns an exclusive reference to the [`Store`] of the [`Context`].
   fn store_mut(&mut self) -> &mut Store<WasiCtx> {
     &mut self.store
@@ -329,7 +323,6 @@ impl<WA: ZKWASMArgs> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
       &mut func_results,
       tracer.clone(),
     )?;
-    print_pretty_results(&func_results);
 
     // Return the execution trace
     let etable = tracer.borrow().etable();

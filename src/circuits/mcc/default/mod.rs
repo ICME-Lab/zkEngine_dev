@@ -3,14 +3,13 @@ use std::{borrow::Cow, cell::OnceCell, marker::PhantomData, time::Instant};
 
 use anyhow::anyhow;
 use circuit::MCCCircuit;
-use ff::Field;
 
 use nova::{
   errors::NovaError,
-  gadgets::lookup::{Lookup, LookupTraceBuilder},
+  gadgets::lookup::LookupTraceBuilder,
   traits::{
-    circuit::TrivialCircuit, commitment::CommitmentEngineTrait, snark::RelaxedR1CSSNARKTrait,
-    CurveCycleEquipped, Dual, Engine, ROConstants, ROConstantsCircuit,
+    circuit::TrivialCircuit, snark::RelaxedR1CSSNARKTrait, CurveCycleEquipped, Dual, Engine,
+    ROConstants,
   },
   CompressedSNARK, ProverKey, RecursiveSNARK, VerifierKey,
 };
@@ -32,7 +31,6 @@ pub type C1<E1> = Vec<IC1<E1>>;
 
 /// Type alias for a Trivial Test Circuit with G2 scalar field elements.
 pub type C2<E1> = TrivialCircuit<<Dual<E1> as Engine>::Scalar>;
-type CommitmentKey<E> = <<E as Engine>::CE as CommitmentEngineTrait<E>>::CommitmentKey;
 
 type KeyPair<E1, S1, S2> = (ProverKey<E1, S1, S2>, VerifierKey<E1, S1, S2>);
 
@@ -260,7 +258,7 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  pub fn mcc_inputs(mtable: MTable) -> (C1<E1>, Lookup<<E1 as Engine>::Scalar>, E1::Scalar) {
+  pub fn mcc_inputs(mtable: MTable) -> C1<E1> {
     let (init_table, memory_trace, _) = create_lookup_table(mtable);
     let initial_intermediate_gamma = <E1 as Engine>::Scalar::from(1);
     let mut intermediate_gamma = initial_intermediate_gamma;
@@ -269,7 +267,6 @@ where
     let num_steps = memory_trace.len();
 
     let ro_consts = ROConstants::<Dual<E1>>::default();
-    let ro_consts_circuit = ROConstantsCircuit::<Dual<E1>>::default();
 
     // simulate folding step lookup io
     let mut primary_circuits = Vec::with_capacity(num_steps + 1);
@@ -286,35 +283,10 @@ where
       let res = lookup_trace_builder.snapshot::<Dual<E1>>(ro_consts.clone(), intermediate_gamma);
       intermediate_gamma = res.0;
       let (_, lookup_trace) = res;
-      primary_circuits.push(MCCCircuit::new(
-        lookup_trace,
-        ro_consts_circuit.clone(),
-        m_entry,
-      ));
+      primary_circuits.push(MCCCircuit::new(lookup_trace, m_entry));
     }
-    (primary_circuits, lookup, intermediate_gamma)
-  }
 
-  pub fn get_z0(
-    ck: &CommitmentKey<E1>,
-    final_table: &Lookup<<E1 as Engine>::Scalar>,
-    intermediate_gamma: <E1 as Engine>::Scalar,
-  ) -> Vec<<E1 as Engine>::Scalar> {
-    let (initial_intermediate_gamma, init_prev_RW_acc, init_global_ts) = (
-      <E1 as Engine>::Scalar::ONE,
-      <E1 as Engine>::Scalar::ZERO,
-      <E1 as Engine>::Scalar::ZERO,
-    );
-
-    let (alpha, gamma) =
-      LookupTraceBuilder::<E1>::get_challenge::<Dual<E1>>(ck, final_table, intermediate_gamma);
-    vec![
-      initial_intermediate_gamma,
-      alpha,
-      gamma,
-      init_prev_RW_acc,
-      init_global_ts,
-    ]
+    primary_circuits
   }
 }
 

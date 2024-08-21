@@ -11,7 +11,7 @@ pub trait Prover<E1: CurveCycleEquipped> {
   /// Associated proof type, which must implement `RecursiveSNARKTrait`
   type RecursiveSNARK: RecursiveSNARKTrait<E1, Self::Frames, PublicParams = Self::PublicParams>;
 
-  /// Generates a recursive proof from a vector of `M`
+  /// Generates a recursive proof from a vector of `steps`
   fn prove(
     pp: &Self::PublicParams,
     z0: Vec<E1::Scalar>,
