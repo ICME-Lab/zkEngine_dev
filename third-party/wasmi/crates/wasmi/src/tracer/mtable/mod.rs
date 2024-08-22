@@ -64,6 +64,10 @@ impl MTable {
         &self.0
     }
 
+    pub fn into_entries(self) -> Vec<MemoryTableEntry> {
+        self.0
+    }
+
     /// Return Mutable Vec<MemoryTableEntry>
     pub fn entries_mut(&mut self) -> &mut Vec<MemoryTableEntry> {
         &mut self.0
