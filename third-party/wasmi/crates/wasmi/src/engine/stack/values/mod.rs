@@ -214,7 +214,7 @@ impl ValueStack {
     }
 
     /// Returns the current length of the [`ValueStack`].
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.stack_ptr
     }
 

@@ -152,9 +152,6 @@ impl<WA: ZKWASMArgs + Clone> WASMCtx<WA> {
 
   /// Create a new instance of `WASMCtx`.
   ///
-  /// # Arguments
-  /// * `file_path` - The path to the WASM file.
-  ///
   /// # Returns
   /// A new instance of `WASMCtx`.
   pub fn new_from_file_with_linking(
@@ -337,9 +334,8 @@ impl<WA: ZKWASMArgs + Clone> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
       end
     };
 
-    let start_opcode = self.args().trace_slice_values().start();
-
     // Slice etable if necessary
+    let start_opcode = self.args().trace_slice_values().start();
     let etable = ETable::new(etable.entries()[start_opcode..end_opcode].to_vec());
     tracing::trace!("Execution trace: {:#?}", etable);
 

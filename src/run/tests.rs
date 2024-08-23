@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use wasmi::mtable::{MTable, MemoryTableEntry};
+use wasmi::mtable::{AccessType, LocationType, MTable, MemoryTableEntry};
 
 use crate::{
   args::{WASMArgs, WASMArgsBuilder, WASMCtx},
@@ -83,6 +83,7 @@ fn test_rand_with(args: &WASMArgs) -> anyhow::Result<()> {
   };
 
   for (mtrace_0, mtrace_1) in mtrace_0.iter().zip(mtrace_1.iter()) {
+    // assert_eq!(mtrace_0.value, mtrace_1.value);
     assert_eq!(mtrace_0, mtrace_1);
   }
 
@@ -90,10 +91,25 @@ fn test_rand_with(args: &WASMArgs) -> anyhow::Result<()> {
 }
 
 fn make_m_entries_linear(mut m_entries: Vec<MemoryTableEntry>) -> Vec<MemoryTableEntry> {
-  let mut hash_map = HashMap::new();
+  let mut map = HashMap::new();
 
   for m_entry in m_entries.iter_mut() {
-    set_linear_addr(m_entry, &mut hash_map);
+    if m_entry.ltype != LocationType::Stack {
+      continue;
+    }
+    let addr = m_entry.addr;
+    if map.contains_key(&addr) {
+      m_entry.addr = *map.get(&addr).unwrap();
+    } else {
+      // Else new address is the length of the map
+      let new_addr = map.len();
+
+      // Map the new address to the string address
+      map.insert(addr, new_addr);
+
+      // Set the memory entry address to the new linear address
+      m_entry.addr = new_addr;
+    }
   }
 
   m_entries
@@ -101,12 +117,10 @@ fn make_m_entries_linear(mut m_entries: Vec<MemoryTableEntry>) -> Vec<MemoryTabl
 
 fn get_mtable(ctx: &mut WASMCtx<WASMArgs>) -> anyhow::Result<Vec<MemoryTableEntry>> {
   let (etable, _) = ctx.build_execution_trace()?;
-
   // Get imtable
   let tracer = ctx.tracer()?;
   let tracer_binding = tracer.borrow();
   let imtable = tracer_binding.imtable();
-  tracing::debug!("imtable: {:?}", imtable.entries().len());
 
   // Get mtable
   let mtable = etable.mtable(imtable);

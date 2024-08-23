@@ -70,4 +70,9 @@ impl ETable {
             .map(|e| e.step_info.clone())
             .collect::<Vec<_>>()
     }
+
+    /// Get number of entries in the table
+    pub fn len(&self) -> usize {
+        self.entries().len()
+    }
 }
