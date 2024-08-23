@@ -1,6 +1,4 @@
 //! This module contains the data structures to contain the arguments needed to run arbitrary WASM.
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
-
 use crate::{
   traits::args::{ZKWASMArgs, ZKWASMContext},
   utils::{
@@ -9,11 +7,13 @@ use crate::{
   },
 };
 use anyhow::anyhow;
+use rand::{rngs::StdRng, RngCore, SeedableRng};
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use wasmi::{
   core::UntypedValue, etable::ETable, Engine, ExternType, Func, FuncType, Linker, Module, Store,
   TraceSliceValues, Tracer,
 };
-use wasmi_wasi::{WasiCtx, WasiCtxBuilder};
+use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx, WasiCtxBuilder};
 
 /// If no WASM function to invoke attemp to fetch a function call `main`
 const DEFAULT_FN_NAME: &str = "main";
@@ -129,10 +129,7 @@ impl<WA: ZKWASMArgs + Clone> WASMCtx<WA> {
     let tracer = Rc::new(RefCell::new(Tracer::new(wasm_args.trace_slice_values())));
 
     // build wasi ctx to add to linker.
-    let wasi = WasiCtxBuilder::new()
-      .inherit_stdio()
-      .inherit_args()?
-      .build();
+    let wasi = WasiCtx::new(zkvm_random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
 
     // Create a new store & add wasi through the linker
     let mut store = Store::new(&engine, wasi);
@@ -349,4 +346,9 @@ impl<WA: ZKWASMArgs + Clone> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
     // Execution trace
     Ok((etable, func_results))
   }
+}
+
+/// zkvm uses a seed to generate random numbers.
+pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
+  Box::new(StdRng::from_seed([0; 32]))
 }
