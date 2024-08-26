@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use wasmi::{
-  etable::{ETEntry, ETable},
+  etable::ETable,
   mtable::{LocationType, MemoryTableEntry},
 };
 
