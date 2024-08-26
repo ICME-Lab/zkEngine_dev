@@ -71,6 +71,11 @@ impl ETable {
             .collect::<Vec<_>>()
     }
 
+    /// Converts the table into entries
+    pub fn into_entries(self) -> Vec<ETEntry> {
+        self.0
+    }
+
     /// Get number of entries in the table
     pub fn len(&self) -> usize {
         self.entries().len()
