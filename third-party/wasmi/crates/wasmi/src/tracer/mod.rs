@@ -2,7 +2,7 @@ pub mod continuations;
 pub mod etable;
 pub mod mtable;
 
-use crate::{engine::stack::ValueStackPtr, AsContext, Global, Memory};
+use crate::{AsContext, Global, Memory};
 use mtable::imtable::IMTable;
 use wasmi_core::UntypedValue;
 

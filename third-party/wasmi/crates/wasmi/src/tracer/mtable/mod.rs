@@ -6,10 +6,7 @@ use imtable::IMTable;
 use serde::{Deserialize, Serialize};
 use wasmi_core::ValueType;
 
-use crate::{
-    engine::stack::ValueStackPtr,
-    etable::{step_info::StepInfo, ETEntry},
-};
+use crate::etable::{step_info::StepInfo, ETEntry};
 
 #[derive(Default, Debug, Clone)]
 pub struct MTable(Vec<MemoryTableEntry>);

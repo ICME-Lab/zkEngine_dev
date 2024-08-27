@@ -2875,6 +2875,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         use Instruction as Instr;
 
         loop {
+            // TODO: Refactor the tracing here...
+
             // Check if we need to take a memory snapshot
             if let Some(tracer) = self.get_tracer_if_active() {
                 let mut tracer = tracer.borrow_mut();
@@ -2885,10 +2887,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     let digest = sha256::digest(&value_stack_json);
                     tracer.set_memory_snapshot_input(ImageID::new(digest));
                 }
-
-                // if len > 92985 && len < 93000 {
-                //     tracing::debug!("{:#?}", tracer.etable.entries().last().unwrap());
-                // }
 
                 if len != 0 {
                     if let StepInfo::CallHost {

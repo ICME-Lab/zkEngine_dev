@@ -47,7 +47,7 @@ use self::{
         Stack as Stack2,
     },
     resumable::ResumableCallBase,
-    stack::{FuncFrame, Stack, ValueStack, ValueStackPtr},
+    stack::{FuncFrame, Stack, ValueStack},
     trap::TaggedTrap,
 };
 pub(crate) use self::{
