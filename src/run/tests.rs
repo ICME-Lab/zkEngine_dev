@@ -1,14 +1,15 @@
 use std::{collections::HashMap, path::PathBuf};
 
+use anyhow::anyhow;
 use wasmi::{
-  etable::ETable,
-  mtable::{LocationType, MemoryTableEntry},
+  etable::{ETEntry, ETable},
+  mtable::{AccessType, LocationType, MTable, MemoryTableEntry},
 };
 
 use crate::{
   args::{WASMArgs, WASMArgsBuilder, WASMCtx},
   traits::{args::ZKWASMContext, zkvm::ZKVM},
-  utils::logging::init_logger,
+  utils::{logging::init_logger, memory::set_linear_addr},
   BatchedZKEngine,
 };
 
@@ -30,6 +31,77 @@ fn test_gradient_boosting() -> anyhow::Result<()> {
 
   let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
+}
+
+#[test]
+fn test_gradient_boosting_mock_mcc() -> anyhow::Result<()> {
+  init_logger();
+
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
+    .invoke(Some(String::from("_start")))
+    .build();
+
+  test_mock_mcc(&args)
+}
+
+#[test]
+fn test_zk_ads_mock_mcc() -> anyhow::Result<()> {
+  init_logger();
+
+  let input_x = "200.05";
+  let input_y = "-30.0";
+
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/zk_ads.wasm"))
+    .invoke(Some(String::from("is_user_close_enough")))
+    .func_args(vec![
+      String::from("0"),
+      String::from(input_x),
+      String::from(input_y),
+    ])
+    .build();
+
+  test_mock_mcc(&args)
+}
+
+#[test]
+fn test_example_mock_mcc() -> anyhow::Result<()> {
+  init_logger();
+
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/example.wasm"))
+    .build();
+
+  test_mock_mcc(&args)
+}
+
+#[test]
+fn test_add_mcc() -> anyhow::Result<()> {
+  init_logger();
+
+  let args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/add.wat"))
+    .build();
+
+  test_mock_mcc(&args)
+}
+
+fn test_mock_mcc(args: &WASMArgs) -> anyhow::Result<()> {
+  let mut wasm_ctx = WASMCtx::new_from_file(args)?;
+  let (etable, _) = wasm_ctx.build_execution_trace()?;
+  // Get imtable
+  let tracer = wasm_ctx.tracer()?;
+  let tracer_binding = tracer.borrow();
+  let imtable = tracer_binding.imtable();
+
+  // Get mtable
+  let mtable = etable.mtable(imtable);
+  tracing::trace!("mtable: {:#?}", mtable);
+
+  // Create a WASM execution context for proving.
+  mock_mcc(mtable, &etable, None, None)?;
+  Ok(())
 }
 
 #[test]
@@ -60,6 +132,74 @@ fn test_zk_ads() -> anyhow::Result<()> {
   Ok(assert!(result))
 }
 
+fn get_etentry_from_eid(execution_trace: &[ETEntry], eid: u32) -> &ETEntry {
+  let delta = if eid == 0 { 0 } else { 1 };
+  &execution_trace[eid as usize - delta]
+}
+
+fn mock_mcc(
+  mtable: MTable,
+  etable: &ETable,
+  ltype: Option<LocationType>,
+  debug_addr: Option<usize>,
+) -> anyhow::Result<()> {
+  let mut hash_map = HashMap::new();
+  let mut m_entries = mtable.entries().clone();
+  let etable_entries = etable.entries();
+
+  tracing::info!("memory trace length {}", m_entries.len());
+
+  let mut mcc_map = HashMap::new();
+  // let mut debug_addr_vec = vec![];
+  for m_entry in m_entries.iter_mut() {
+    set_linear_addr(m_entry, &mut hash_map);
+
+    if let Some(ltype) = ltype {
+      if m_entry.ltype != ltype {
+        continue;
+      }
+    }
+
+    if let Some(debug_addr) = debug_addr {
+      if m_entry.addr == debug_addr {
+        // let etentry = get_etentry_from_eid(etable_entries, m_entry.eid);
+        // debug_addr_vec.push((m_entry.clone(), etentry));
+        tracing::debug!("m_entry: {:#?}", m_entry);
+        tracing::debug!(
+          "m_entry: {:#?}",
+          get_etentry_from_eid(etable_entries, m_entry.eid)
+        );
+        tracing::debug!("----------------------------------------------------------------------------------------------------------------------------------------------------------------");
+      }
+    }
+
+    match m_entry.atype {
+      AccessType::Init => {
+        mcc_map.insert(m_entry.addr, m_entry.value);
+      }
+      AccessType::Write => {
+        mcc_map.insert(m_entry.addr, m_entry.value);
+      }
+      AccessType::Read => {
+        if !mcc_map.contains_key(&m_entry.addr)
+          || m_entry.value != *mcc_map.get(&m_entry.addr).unwrap()
+        {
+          println!("addr: {:#?}", m_entry.addr);
+          let value = mcc_map.get(&m_entry.addr);
+          println!("execution trace says: {}", m_entry.value);
+          println!("lookup table disagrees: {:#?}", value);
+
+          println!("----------------------------------------------------------------------------------------------------------------------------------------------------------------");
+          println!("m_entry: {:#?}", m_entry);
+          println!("{:#?}", get_etentry_from_eid(etable_entries, m_entry.eid));
+          return Err(anyhow!("Memory consistency check failed"));
+        }
+      }
+    }
+  }
+  Ok(())
+}
+
 #[test]
 fn test_gradient_boosting_rand() -> anyhow::Result<()> {
   init_logger();
@@ -69,6 +209,7 @@ fn test_gradient_boosting_rand() -> anyhow::Result<()> {
     .build();
 
   test_rand_with_mcc(&args)?;
+  test_rand_with_etable(&args)?;
 
   Ok(())
 }
@@ -86,6 +227,7 @@ fn test_uni_poly_eval() -> anyhow::Result<()> {
     .build();
 
   test_rand_with_etable(&args)?;
+  test_rand_with_mcc(&args)?;
 
   Ok(())
 }
@@ -126,8 +268,8 @@ fn test_rand_with_etable(args: &WASMArgs) -> anyhow::Result<()> {
   let mut sp_map_1 = HashMap::new();
 
   for (eentry_0, eentry_1) in etable_0.entries().iter().zip(etable_1.entries().iter()) {
-    let mut sp_0 = eentry_0.sp.get_addr();
-    let mut sp_1 = eentry_1.sp.get_addr();
+    let mut sp_0 = eentry_0.pre_sp;
+    let mut sp_1 = eentry_1.pre_sp;
 
     if sp_map_0.contains_key(&sp_0) {
       sp_0 = *sp_map_0.get(&sp_0).unwrap();

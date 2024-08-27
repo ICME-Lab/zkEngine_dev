@@ -1045,7 +1045,11 @@ impl<'engine> EngineExecutor<'engine> {
         Results: CallResults,
     {
         self.stack.reset();
-        let pre_sp = self.stack.values.stack_ptr().clone();
+        let pre_sp = self
+            .stack
+            .values
+            .stack_ptr()
+            .offset_from(self.stack.values.base_ptr()) as usize;
         self.stack.values.extend(params.call_params());
         match ctx.as_context().store.inner.resolve_func(func) {
             FuncEntity::Wasm(wasm_func) => {
@@ -1064,7 +1068,7 @@ impl<'engine> EngineExecutor<'engine> {
         &mut self,
         tracer: Rc<RefCell<Tracer>>,
         wasm_func: &WasmFuncEntity,
-        pre_sp: ValueStackPtr,
+        pre_sp: usize,
     ) {
         let mut tracer = tracer.borrow_mut();
         let fn_header = self.res.code_map.header(wasm_func.func_body());

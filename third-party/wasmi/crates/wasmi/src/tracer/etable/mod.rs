@@ -1,10 +1,7 @@
 pub(crate) mod pre;
 pub mod step_info;
 
-use crate::{
-    engine::stack::ValueStackPtr,
-    mtable::{imtable::IMTable, memory_event_of_step, MTable, VarType},
-};
+use crate::mtable::{imtable::IMTable, memory_event_of_step, MTable, VarType};
 use serde::{Deserialize, Serialize};
 use step_info::StepInfo;
 use wasmi_core::UntypedValue;

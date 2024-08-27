@@ -102,18 +102,14 @@ impl Tracer {
     }
 
     /// Push local memory values to tracer for MCC
-    pub fn push_len_locals(&mut self, len_locals: usize, pre_sp: ValueStackPtr) {
+    pub fn push_len_locals(&mut self, len_locals: usize, pre_sp: usize) {
         let n = len_locals + self.fn_inputs.len();
         for i in 0..n {
             if i < self.fn_inputs.len() {
-                self.imtable.push(
-                    pre_sp.into_add(i).get_addr(),
-                    self.fn_inputs[i].to_bits(),
-                    LocationType::Stack,
-                );
-            } else {
                 self.imtable
-                    .push(pre_sp.into_add(i).get_addr(), 0, LocationType::Stack);
+                    .push(pre_sp + i, self.fn_inputs[i].to_bits(), LocationType::Stack);
+            } else {
+                self.imtable.push(pre_sp + i, 0, LocationType::Stack);
             }
         }
     }
