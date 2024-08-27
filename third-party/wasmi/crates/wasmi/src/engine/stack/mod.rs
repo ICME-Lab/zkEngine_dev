@@ -251,7 +251,8 @@ impl Stack {
             .params_results();
 
         // Stack pointer before the call for tracing
-        let pre_sp = self.values.stack_ptr().clone();
+        let pre_sp = self.values.stack_ptr();
+        let pre_sp = pre_sp.offset_from(self.values.base_ptr());
 
         // In case the host function returns more values than it takes
         // we are required to extend the value stack.
@@ -308,10 +309,11 @@ impl Stack {
 
         // Trace post values
         let post_sp = self.values.stack_ptr();
+        let post_sp = post_sp.offset_from(self.values.base_ptr()) as usize;
 
         for i in 1..=max_inout {
-            let value = post_sp.nth_back(i);
-            post_values.push((value.to_bits(), post_sp.into_sub(i).get_addr()))
+            let value = self.values.stack_ptr().nth_back(i);
+            post_values.push((value.to_bits(), post_sp - i))
         }
 
         let step_info = StepInfo::CallHost {
@@ -321,7 +323,7 @@ impl Stack {
 
         let mut tracer = tracer.borrow_mut();
 
-        tracer.etable.push(0, step_info, pre_sp);
+        tracer.etable.push(0, step_info, pre_sp as usize);
 
         // At this point the host function has been called and has directly
         // written its results into the value stack so that the last entries

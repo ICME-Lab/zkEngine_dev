@@ -24,7 +24,7 @@ pub struct ETEntry {
     pub eid: u32,
     pub allocated_memory_pages: usize,
     pub step_info: StepInfo,
-    pub sp: ValueStackPtr,
+    pub pre_sp: usize,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -42,12 +42,12 @@ impl ETable {
     pub fn entries_mut(&mut self) -> &mut Vec<ETEntry> {
         &mut self.0
     }
-    pub fn push(&mut self, allocated_memory_pages: u32, step_info: StepInfo, sp: ValueStackPtr) {
+    pub fn push(&mut self, allocated_memory_pages: u32, step_info: StepInfo, pre_sp: usize) {
         let etable_entry = ETEntry {
             eid: (self.entries().len() + 1).try_into().unwrap(),
             allocated_memory_pages: allocated_memory_pages as usize,
             step_info,
-            sp,
+            pre_sp,
         };
 
         self.entries_mut().push(etable_entry);
