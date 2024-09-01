@@ -6,10 +6,7 @@ use imtable::IMTable;
 use serde::{Deserialize, Serialize};
 use wasmi_core::ValueType;
 
-use crate::{
-    engine::stack::ValueStackPtr,
-    etable::{step_info::StepInfo, ETEntry},
-};
+use crate::etable::{step_info::StepInfo, ETEntry};
 
 #[derive(Default, Debug, Clone)]
 pub struct MTable(Vec<MemoryTableEntry>);
@@ -64,6 +61,10 @@ impl MTable {
         &self.0
     }
 
+    pub fn into_entries(self) -> Vec<MemoryTableEntry> {
+        self.0
+    }
+
     /// Return Mutable Vec<MemoryTableEntry>
     pub fn entries_mut(&mut self) -> &mut Vec<MemoryTableEntry> {
         &mut self.0
@@ -82,7 +83,7 @@ impl MTable {
 }
 
 fn mem_op_from_stack_only_step(
-    sp_before_execution: ValueStackPtr,
+    sp_before_execution: usize,
     eid: u32,
     emid: &mut u32,
     pop_value: &[u64],
@@ -95,7 +96,7 @@ fn mem_op_from_stack_only_step(
         mem_op.push(MemoryTableEntry {
             eid,
             emid: *emid,
-            addr: sp_before_execution.into_sub(depth + 1).get_addr(),
+            addr: sp_before_execution - (depth + 1),
             ltype: LocationType::Stack,
             atype: AccessType::Read,
             is_mutable: true,
@@ -109,7 +110,7 @@ fn mem_op_from_stack_only_step(
         mem_op.push(MemoryTableEntry {
             eid,
             emid: *emid,
-            addr: sp_before_execution.into_sub(depth).get_addr(),
+            addr: sp_before_execution - depth,
             ltype: LocationType::Stack,
             atype: AccessType::Write,
             is_mutable: true,
@@ -127,7 +128,7 @@ fn mem_op_from_stack_only_step(
 
 pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableEntry> {
     let eid = event.eid;
-    let sp_before_execution = event.sp;
+    let sp_before_execution = event.pre_sp;
 
     match &event.step_info {
         StepInfo::Br { .. } => vec![],
@@ -140,7 +141,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
                 ops.push(MemoryTableEntry {
                     eid,
                     emid: *emid,
-                    addr: sp_before_execution.into_sub(i + 1).get_addr(),
+                    addr: sp_before_execution - (i + 1),
                     ltype: LocationType::Stack,
                     atype: AccessType::Read,
                     is_mutable: true,
@@ -153,9 +154,8 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
                 ops.push(MemoryTableEntry {
                     eid,
                     emid: *emid,
-                    addr: sp_before_execution
-                        .into_sub(i + 1 + *drop as usize)
-                        .get_addr(),
+                    addr: sp_before_execution - (i + 1 + *drop as usize),
+
                     ltype: LocationType::Stack,
                     atype: AccessType::Write,
                     is_mutable: true,
@@ -179,7 +179,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             ops.push(MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(depth).get_addr(),
+                addr: sp_before_execution - depth,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -191,7 +191,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             ops.push(MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(depth).get_addr(),
+                addr: sp_before_execution - depth,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -203,7 +203,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             ops.push(MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(depth).get_addr(),
+                addr: sp_before_execution - depth,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -215,7 +215,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             ops.push(MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(depth).get_addr(),
+                addr: sp_before_execution - depth,
                 ltype: LocationType::Stack,
                 atype: AccessType::Write,
                 is_mutable: true,
@@ -231,7 +231,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
                 ops.push(MemoryTableEntry {
                     eid,
                     emid: *emid,
-                    addr: sp_before_execution.into_add(i).get_addr(),
+                    addr: sp_before_execution + i,
                     ltype: LocationType::Stack,
                     atype: AccessType::Write,
                     is_mutable: true,
@@ -247,7 +247,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
                 ops.push(MemoryTableEntry {
                     eid,
                     emid: *emid,
-                    addr: sp_before_execution.into_add(i).get_addr(),
+                    addr: sp_before_execution + i,
                     ltype: LocationType::Stack,
                     atype: AccessType::Write,
                     is_mutable: true,
@@ -261,7 +261,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let read = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(*depth).get_addr(),
+                addr: sp_before_execution - *depth,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -272,7 +272,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let write = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.get_addr(),
+                addr: sp_before_execution,
                 ltype: LocationType::Stack,
                 atype: AccessType::Write,
                 is_mutable: true,
@@ -285,7 +285,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let read = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(1).get_addr(),
+                addr: sp_before_execution - 1,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -296,7 +296,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let write = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(depth + 1).get_addr(),
+                addr: sp_before_execution - (depth + 1),
                 ltype: LocationType::Stack,
                 atype: AccessType::Write,
                 is_mutable: true,
@@ -310,7 +310,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let read = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(1).get_addr(),
+                addr: sp_before_execution - 1,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -322,7 +322,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let write = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(*depth).get_addr(),
+                addr: sp_before_execution - *depth,
                 ltype: LocationType::Stack,
                 atype: AccessType::Write,
                 is_mutable: true,
@@ -347,7 +347,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let stack_write = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.get_addr(),
+                addr: sp_before_execution,
                 ltype: LocationType::Stack,
                 atype: AccessType::Write,
                 is_mutable: true,
@@ -361,7 +361,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let stack_read = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(1).get_addr(),
+                addr: sp_before_execution - 1,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -394,7 +394,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let load_address_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(1).get_addr(),
+                addr: sp_before_execution - 1,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -434,7 +434,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let push_value = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(1).get_addr(),
+                addr: sp_before_execution - 1,
                 ltype: LocationType::Stack,
                 atype: AccessType::Write,
                 is_mutable: true,
@@ -462,7 +462,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let load_value_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(1).get_addr(),
+                addr: sp_before_execution - 1,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -473,7 +473,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let load_address_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(2).get_addr(),
+                addr: sp_before_execution - 2,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -702,7 +702,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let fill_size_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(1).get_addr(),
+                addr: sp_before_execution - 1,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -714,7 +714,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let fill_value_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(2).get_addr(),
+                addr: sp_before_execution - 2,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -726,7 +726,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let fill_offset_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(3).get_addr(),
+                addr: sp_before_execution - 3,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -777,7 +777,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let num_bytes_to_copy_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(1).get_addr(),
+                addr: sp_before_execution - 1,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -789,7 +789,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let copy_src_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(2).get_addr(),
+                addr: sp_before_execution - 2,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -801,7 +801,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
             let copy_dst_from_stack = MemoryTableEntry {
                 eid,
                 emid: *emid,
-                addr: sp_before_execution.into_sub(3).get_addr(),
+                addr: sp_before_execution - 3,
                 ltype: LocationType::Stack,
                 atype: AccessType::Read,
                 is_mutable: true,
@@ -850,7 +850,7 @@ pub fn memory_event_of_step(event: &ETEntry, emid: &mut u32) -> Vec<MemoryTableE
                 ops.push(MemoryTableEntry {
                     eid,
                     emid: *emid,
-                    addr: sp_before_execution.into_add(i).get_addr(),
+                    addr: sp_before_execution + i,
                     ltype: LocationType::Stack,
                     atype: AccessType::Write,
                     is_mutable: true,

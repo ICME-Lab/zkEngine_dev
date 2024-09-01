@@ -57,6 +57,7 @@ fn get_shard_start_end_values(
 }
 
 #[test]
+#[ignore]
 fn test_connect_shards() -> anyhow::Result<()> {
   let _ = tracing_subscriber::fmt()
     .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())

@@ -1,10 +1,7 @@
 pub(crate) mod pre;
 pub mod step_info;
 
-use crate::{
-    engine::stack::ValueStackPtr,
-    mtable::{imtable::IMTable, memory_event_of_step, MTable, VarType},
-};
+use crate::mtable::{imtable::IMTable, memory_event_of_step, MTable, VarType};
 use serde::{Deserialize, Serialize};
 use step_info::StepInfo;
 use wasmi_core::UntypedValue;
@@ -24,7 +21,7 @@ pub struct ETEntry {
     pub eid: u32,
     pub allocated_memory_pages: usize,
     pub step_info: StepInfo,
-    pub sp: ValueStackPtr,
+    pub pre_sp: usize,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -42,12 +39,12 @@ impl ETable {
     pub fn entries_mut(&mut self) -> &mut Vec<ETEntry> {
         &mut self.0
     }
-    pub fn push(&mut self, allocated_memory_pages: u32, step_info: StepInfo, sp: ValueStackPtr) {
+    pub fn push(&mut self, allocated_memory_pages: u32, step_info: StepInfo, pre_sp: usize) {
         let etable_entry = ETEntry {
             eid: (self.entries().len() + 1).try_into().unwrap(),
             allocated_memory_pages: allocated_memory_pages as usize,
             step_info,
-            sp,
+            pre_sp,
         };
 
         self.entries_mut().push(etable_entry);
@@ -69,5 +66,15 @@ impl ETable {
             .iter()
             .map(|e| e.step_info.clone())
             .collect::<Vec<_>>()
+    }
+
+    /// Converts the table into entries
+    pub fn into_entries(self) -> Vec<ETEntry> {
+        self.0
+    }
+
+    /// Get number of entries in the table
+    pub fn len(&self) -> usize {
+        self.entries().len()
     }
 }

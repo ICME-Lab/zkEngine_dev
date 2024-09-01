@@ -8,7 +8,7 @@ mod guest_memory;
 pub mod sync;
 
 pub use self::guest_memory::WasmiGuestMemory;
-pub use wasi_common::{Error, WasiCtx, WasiDir, WasiFile};
+pub use wasi_common::{Error, Table, WasiCtx, WasiDir, WasiFile};
 
 /// Sync mode is the "default" of this crate, so we also export it at the top level.
 #[cfg(feature = "sync")]

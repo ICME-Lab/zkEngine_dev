@@ -2875,6 +2875,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         use Instruction as Instr;
 
         loop {
+            // TODO: Refactor the tracing here...
+
             // Check if we need to take a memory snapshot
             if let Some(tracer) = self.get_tracer_if_active() {
                 let mut tracer = tracer.borrow_mut();
@@ -2912,7 +2914,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                             post_heap_values: updated_values,
                         };
 
-                        tracer.etable.push(0, step_info, self.sp.clone());
+                        tracer.etable.push(
+                            0,
+                            step_info,
+                            self.sp.offset_from(self.value_stack.base_ptr()) as usize,
+                        );
                     }
                 }
             }
@@ -2935,7 +2941,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             };
 
             // stack pointer used for memory trace
-            let pre_sp = self.sp.clone();
+            let pre_sp = self.sp.offset_from(self.value_stack.base_ptr()) as usize;
 
             // Get number of pages (used to determine how many memory addresses to account for in the memory trace)
             let pages = if has_default_memory {
@@ -2984,7 +2990,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 Instr::Return(drop_keep) => {
                     if let ReturnOutcome::Host = self.visit_ret(drop_keep) {
                         trace_post!();
-
                         // Get the last memory snapshot
                         if let Some(tracer) = self.get_tracer_if_active() {
                             let mut tracer = tracer.borrow_mut();

@@ -383,8 +383,4 @@ impl ValueStackPtr {
         drop_keep_impl(*self, drop_keep);
         self.dec_by(drop as usize);
     }
-
-    pub fn get_addr(&self) -> usize {
-        self.ptr as usize
-    }
 }
