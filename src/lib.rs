@@ -8,6 +8,7 @@ mod circuits;
 pub mod errors;
 pub mod pcd;
 pub mod run;
+mod snark;
 pub mod traits;
 pub mod utils;
 
@@ -24,7 +25,8 @@ pub use wasmi_wasi::WasiCtx;
 // re-export `nova`
 pub use nova;
 
-type E1 = PallasEngine;
+/// Curve cycle used for testing...
+pub type E1 = PallasEngine;
 type EE1 = ipa_pc::EvaluationEngine<E1>;
 type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
 type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
