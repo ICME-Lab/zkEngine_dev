@@ -74,7 +74,7 @@ where
 {
   type PublicParams = ZKEPublicParams<E1, BS1, S1, S2>;
 
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams> {
+  fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self::PublicParams> {
     let (etable, _) = ctx.build_execution_trace()?;
     let tracer = ctx.tracer()?;
 
@@ -108,7 +108,7 @@ where
   }
 
   fn prove_wasm(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
     pp: &Self::PublicParams,
   ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
     ZKEProofBuilder::get_trace(ctx)?
@@ -225,7 +225,7 @@ where
   type ZKVM = ZKEProof<E1, BS1, S1, S2>;
   type PublicParams = ZKEPublicParams<E1, BS1, S1, S2>;
 
-  fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self> {
+  fn get_trace(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self> {
     let (etable, wasm_func_res) = ctx.build_execution_trace()?;
     print_pretty_results(&wasm_func_res);
 
@@ -405,9 +405,7 @@ where
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
   /// Produce public params for execution proving
-  pub fn setup(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
-  ) -> anyhow::Result<ExecutionPublicParams<E1, BS1, S2>> {
+  pub fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<ExecutionPublicParams<E1, BS1, S2>> {
     let (etable, _) = ctx.build_execution_trace()?;
 
     // Build ROM and corresponding tracer values
@@ -423,7 +421,7 @@ where
 
   /// Proves only the execution of a WASM program
   pub fn prove_wasm_execution(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
     pp: &ExecutionPublicParams<E1, BS1, S2>,
   ) -> anyhow::Result<(Self, ExecutionPublicValues<E1>)> {
     ZKEProofBuilder::get_trace(ctx)?

@@ -17,7 +17,7 @@ fn mock_build_rom(_execution_trace: &[StepInfo]) {}
 /// connected.
 ///
 /// `start` and `end` are parameters to specify the shards range of opcodes to prove.
-fn mock_prove_shard(wasm_ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Receipt> {
+fn mock_prove_shard(wasm_ctx: &mut impl ZKWASMContext) -> anyhow::Result<Receipt> {
   // Get the execution trace of Wasm module
   let tracer = wasm_ctx.tracer()?;
   let (etable, _) = wasm_ctx.build_execution_trace()?;

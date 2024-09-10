@@ -26,7 +26,7 @@ use receipt::Receipt;
 ///
 /// `start` and `end` are parameters to specify the shards range of opcodes to prove.
 pub fn prove_shard(
-  wasm_ctx: &mut impl ZKWASMContext<WasiCtx>,
+  wasm_ctx: &mut impl ZKWASMContext,
   should_stop: impl Fn() -> bool,
 ) -> Result<String, ProvingError> {
   // Get the execution trace of Wasm module

@@ -20,12 +20,15 @@ use crate::{
 /// This trait is used to define the wasm context that is passed to the zkWASM.
 ///
 /// Guarantees an execution trace from the wasm bytecode.
-pub trait ZKWASMContext<T> {
+pub trait ZKWASMContext {
+  /// User provided host data owned by the [`Store`].
+  type T;
+
   /// Returns an exclusive reference to the [`Store`] of the [`Context`].
-  fn store_mut(&mut self) -> &mut Store<T>;
+  fn store_mut(&mut self) -> &mut Store<Self::T>;
 
   /// Returns a shared reference to the [`Store`] of the [`Context`].
-  fn store(&self) -> &Store<T>;
+  fn store(&self) -> &Store<Self::T>;
 
   /// To get a trace you need a function to invoke.
   ///
@@ -35,7 +38,8 @@ pub trait ZKWASMContext<T> {
   /// returns a struct that is used to build the execution trace.
   fn tracer(&self) -> anyhow::Result<Rc<RefCell<Tracer>>>;
 
-  /// builds and returns a struct that contains the execution trace.
+  /// builds and returns a struct that contains the execution trace and the invoked functions
+  /// result.
   fn build_execution_trace(&mut self) -> anyhow::Result<(ETable, Box<[wasmi::Value]>)>;
 
   /// Get the args needed to run the WASM module.
@@ -58,7 +62,10 @@ pub struct WASMCtx<WA: ZKWASMArgs> {
   wasm_args: WA,
 }
 
-impl<WA: ZKWASMArgs + Clone> WASMCtx<WA> {
+impl<WA> WASMCtx<WA>
+where
+  WA: ZKWASMArgs + Clone,
+{
   /// Create a new instance of `WASMCtx`.
   ///
   /// # Returns
@@ -192,7 +199,8 @@ impl<WA: ZKWASMArgs + Clone> WASMCtx<WA> {
   }
 }
 
-impl<WA: ZKWASMArgs + Clone> ZKWASMContext<WasiCtx> for WASMCtx<WA> {
+impl<WA: ZKWASMArgs + Clone> ZKWASMContext for WASMCtx<WA> {
+  type T = WasiCtx;
   /// Returns an exclusive reference to the [`Store`] of the [`Context`].
   fn store_mut(&mut self) -> &mut Store<WasiCtx> {
     &mut self.store

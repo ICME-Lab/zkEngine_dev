@@ -82,7 +82,7 @@ where
 {
   type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
 
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams> {
+  fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self::PublicParams> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
     let tracer = ctx.tracer()?;
@@ -116,7 +116,7 @@ where
   }
 
   fn prove_wasm(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
     pp: &Self::PublicParams,
   ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
     BatchedZKEProofBuilder::get_trace(ctx)?
@@ -232,7 +232,7 @@ where
   type ZKVM = BatchedZKEProof<E1, BS1, S1, S2>;
   type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
 
-  fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self> {
+  fn get_trace(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self> {
     let (etable, wasm_func_results) = ctx.build_execution_trace()?;
     print_pretty_results(&wasm_func_results);
     Ok(Self {
@@ -423,7 +423,7 @@ where
 {
   /// Produce the Public Parameters for execution proving
   pub fn setup(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
   ) -> anyhow::Result<BatchedExecutionPublicParams<E1, BS1, S2>> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
@@ -440,7 +440,7 @@ where
   }
   /// Proves only the execution of a WASM program
   pub fn prove_wasm_execution(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
     pp: &BatchedExecutionPublicParams<E1, BS1, S2>,
   ) -> anyhow::Result<(Self, ExecutionPublicValues<E1>)> {
     BatchedZKEProofBuilder::get_trace(ctx)?

@@ -13,7 +13,7 @@ use crate::{
 
 /// Check if the hash of the public params is correct
 pub fn pp_hash_check<E1, BS1, S2>(
-  wasm_ctx: &mut impl ZKWASMContext<WasiCtx>,
+  wasm_ctx: &mut impl ZKWASMContext,
   pp_digest: <E1 as Engine>::Scalar,
 ) -> anyhow::Result<bool>
 where
