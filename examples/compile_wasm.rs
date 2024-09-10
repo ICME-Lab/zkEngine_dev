@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use zk_engine::{
   traits::zkvm::ZKVM,
   utils::{logging::init_logger, wasm::wat2wasm},
