@@ -5,9 +5,6 @@
 pub mod public_values;
 use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
 
-use public_values::ExecutionPublicValues;
-use serde::{Deserialize, Serialize};
-
 use crate::{
   circuits::{
     execution::batched::{
@@ -21,10 +18,10 @@ use crate::{
     prover::Prover,
     public_values::{PublicValuesTrait, ZKVMPublicParams, ZKVMPublicValues},
     snark::RecursiveSNARKTrait,
+    wasm::ZKWASMContext,
     zkvm::{ZKVMBuilder, ZKVM},
   },
   utils::{nivc::batch_execution_trace, wasm::print_pretty_results},
-  wasm_ctx::ZKWASMContext,
 };
 use anyhow::anyhow;
 use ff::Field;
@@ -33,9 +30,9 @@ use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual, Engine,
 };
-use public_values::{BatchedPublicValues, MCCPublicValues};
+use public_values::{BatchedPublicValues, ExecutionPublicValues, MCCPublicValues};
+use serde::{Deserialize, Serialize};
 use wasmi::{etable::ETable, Tracer};
-use wasmi_wasi::WasiCtx;
 
 /// Type alias for public values produced by the proving system
 type PV<E1> = BatchedPublicValues<E1>;
@@ -486,8 +483,10 @@ mod tests {
   };
 
   use crate::{
-    args::WASMArgsBuilder, run::batched::BatchedZKEProof, traits::zkvm::ZKVM,
-    utils::logging::init_logger, wasm_ctx::WASMCtx,
+    run::batched::BatchedZKEProof,
+    traits::zkvm::ZKVM,
+    utils::logging::init_logger,
+    wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   };
 
   type EE1<E> = ipa_pc::EvaluationEngine<E>;
@@ -513,9 +512,9 @@ mod tests {
       .func_args(vec![String::from("1000")])
       .build();
 
-    let pp = BatchedZKEProof::<E1, BS1, S1, S2>::setup(&mut WASMCtx::new_from_file(&args)?)?;
+    let pp = BatchedZKEProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
-    let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+    let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
     let (proof, public_values, _) =
       BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx, &pp)?;

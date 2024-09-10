@@ -1,4 +1,4 @@
-//! Data structures used to build wasm context for zkWASM execution.
+//! Data structures used to build wasm-wasi context for zkWASM execution.
 
 use anyhow::anyhow;
 use rand::{rngs::StdRng, RngCore, SeedableRng};
@@ -10,46 +10,17 @@ use wasmi::{
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx, WasiCtxBuilder};
 
 use crate::{
-  traits::args::ZKWASMArgs,
+  traits::wasm::{ZKWASMArgs, ZKWASMContext},
   utils::{
     display::DisplayExportedFuncs,
     wasm::{decode_func_args, prepare_func_results, typecheck_args},
   },
 };
 
-/// This trait is used to define the wasm context that is passed to the zkWASM.
-///
-/// Guarantees an execution trace from the wasm bytecode.
-pub trait ZKWASMContext {
-  /// User provided host data owned by the [`Store`].
-  type T;
-
-  /// Returns an exclusive reference to the [`Store`] of the [`Context`].
-  fn store_mut(&mut self) -> &mut Store<Self::T>;
-
-  /// Returns a shared reference to the [`Store`] of the [`Context`].
-  fn store(&self) -> &Store<Self::T>;
-
-  /// To get a trace you need a function to invoke.
-  ///
-  /// Gets a function to invoke from an instantiated WASM module.
-  fn func(&self, fn_name: &str) -> anyhow::Result<Func>;
-
-  /// returns a struct that is used to build the execution trace.
-  fn tracer(&self) -> anyhow::Result<Rc<RefCell<Tracer>>>;
-
-  /// builds and returns a struct that contains the execution trace and the invoked functions
-  /// result.
-  fn build_execution_trace(&mut self) -> anyhow::Result<(ETable, Box<[wasmi::Value]>)>;
-
-  /// Get the args needed to run the WASM module.
-  fn args(&self) -> &dyn ZKWASMArgs;
-}
-
-/// The WASM execution context.
+/// The WASM-WASI execution context.
 ///
 /// Stores all the necessary data to run a WASM module.
-pub struct WASMCtx<WA: ZKWASMArgs> {
+pub struct WasiWASMCtx<WA: ZKWASMArgs> {
   /// The used Wasm store that contains all the modules data.
   store: wasmi::Store<WasiCtx>,
   /// The Wasm module instance to operate on.
@@ -62,19 +33,19 @@ pub struct WASMCtx<WA: ZKWASMArgs> {
   wasm_args: WA,
 }
 
-impl<WA> WASMCtx<WA>
+impl<WA> WasiWASMCtx<WA>
 where
   WA: ZKWASMArgs + Clone,
 {
-  /// Create a new instance of `WASMCtx`.
+  /// Create a new instance of `WasiWASMCtx`.
   ///
   /// # Returns
-  /// A new instance of `WASMCtx`.
+  /// A new instance of `WasiWASMCtx`.
   pub fn new_from_file(wasm_args: &WA) -> anyhow::Result<Self> {
     Self::new_from_bytecode(&wasm_args.bytecode()?, wasm_args)
   }
 
-  /// Create a new instance of `WASMCtx` from a byte code.
+  /// Create a new instance of `WasiWASMCtx` from a byte code.
   pub fn new_from_bytecode(wasm_bytes: &[u8], wasm_args: &WA) -> anyhow::Result<Self> {
     // Setup and parse the wasm bytecode.
     let engine = Engine::default();
@@ -96,7 +67,7 @@ where
       .instantiate_with_tracer(&mut store, &module, tracer.clone())?
       .start(&mut store)?;
 
-    // Return the new instance of `WASMCtx`
+    // Return the new instance of `WasiWASMCtx`
     Ok(Self {
       store,
       instance,
@@ -106,10 +77,10 @@ where
     })
   }
 
-  /// Create a new instance of `WASMCtx`.
+  /// Create a new instance of `WasiWASMCtx`.
   ///
   /// # Returns
-  /// A new instance of `WASMCtx`.
+  /// A new instance of `WasiWASMCtx`.
   pub fn new_from_file_with_linking(
     wasm_args: WA,
     linking_fn: fn(&mut Linker<WasiCtx>),
@@ -117,7 +88,7 @@ where
     Self::new_from_bytecode_with_linking(&wasm_args.bytecode()?, wasm_args, linking_fn)
   }
 
-  /// Create a new instance of `WASMCtx` from a byte code.
+  /// Create a new instance of `WasiWASMCtx` from a byte code.
   pub fn new_from_bytecode_with_linking(
     wasm_bytes: &[u8],
     wasm_args: WA,
@@ -149,26 +120,13 @@ where
       .instantiate_with_tracer(&mut store, &module, tracer.clone())?
       .start(&mut store)?;
 
-    // Return the new instance of `WASMCtx`
+    // Return the new instance of `WasiWASMCtx`
     Ok(Self {
       store,
       instance,
       module,
       tracer,
       wasm_args,
-    })
-  }
-
-  /// Returns the exported named functions of the Wasm [`Module`].
-  ///
-  /// [`Module`]: wasmi::Module
-  pub fn exported_funcs(&self) -> impl Iterator<Item = (&str, FuncType)> {
-    self.module.exports().filter_map(|export| {
-      let name = export.name();
-      match export.ty() {
-        ExternType::Func(func_type) => Some((name, func_type.clone())),
-        _ => None,
-      }
     })
   }
 
@@ -199,7 +157,7 @@ where
   }
 }
 
-impl<WA: ZKWASMArgs + Clone> ZKWASMContext for WASMCtx<WA> {
+impl<WA: ZKWASMArgs + Clone> ZKWASMContext for WasiWASMCtx<WA> {
   type T = WasiCtx;
   /// Returns an exclusive reference to the [`Store`] of the [`Context`].
   fn store_mut(&mut self) -> &mut Store<WasiCtx> {
@@ -298,6 +256,19 @@ impl<WA: ZKWASMArgs + Clone> ZKWASMContext for WASMCtx<WA> {
 
     // Execution trace
     Ok((etable, func_results))
+  }
+
+  /// Returns the exported named functions of the Wasm [`Module`].
+  ///
+  /// [`Module`]: wasmi::Module
+  fn exported_funcs(&self) -> impl Iterator<Item = (&str, FuncType)> {
+    self.module.exports().filter_map(|export| {
+      let name = export.name();
+      match export.ty() {
+        ExternType::Func(func_type) => Some((name, func_type.clone())),
+        _ => None,
+      }
+    })
   }
 }
 

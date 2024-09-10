@@ -1,13 +1,11 @@
 //! A module that defines the ZKVM trait and its builder.
 
 use nova::traits::CurveCycleEquipped;
-use wasmi_wasi::WasiCtx;
-
-use crate::wasm_ctx::ZKWASMContext;
 
 use super::{
   prover::Prover,
   public_values::{ZKVMPublicParams, ZKVMPublicValues},
+  wasm::ZKWASMContext,
 };
 
 /// A trait that defines the behavior of a zkVM (zkWASM in our case).

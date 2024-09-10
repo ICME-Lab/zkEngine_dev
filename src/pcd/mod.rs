@@ -8,13 +8,12 @@ pub mod receipt;
 mod tests;
 use anyhow::anyhow;
 use nova::provider::PallasEngine;
-use wasmi_wasi::WasiCtx;
 
 use crate::{
   circuits::{supernova::etable_rom::wasm_nivc, verify::verify_receipts},
   errors::ProvingError,
+  traits::wasm::ZKWASMContext,
   utils::nivc::build_rom,
-  wasm_ctx::ZKWASMContext,
 };
 
 use receipt::Receipt;

@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use crate::{
-  args::WASMArgsBuilder, traits::zkvm::ZKVM, utils::logging::init_logger, wasm_ctx::WASMCtx,
+  traits::zkvm::ZKVM,
+  utils::logging::init_logger,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   BatchedZKEngine,
 };
 
@@ -15,9 +17,9 @@ fn test_gradient_boosting() -> anyhow::Result<()> {
     .build();
 
   // Create a WASM execution context for proving.
-  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
-  let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+  let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
   let (proof, public_values, _) = BatchedZKEngine::prove_wasm(&mut wasm_ctx, &pp)?;
 
@@ -42,9 +44,9 @@ fn test_zk_ads() -> anyhow::Result<()> {
     ])
     .build();
 
-  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
-  let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+  let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
   let (proof, public_values, _) = BatchedZKEngine::prove_wasm(&mut wasm_ctx, &pp)?;
 
@@ -64,9 +66,9 @@ fn test_uni_poly_eval() -> anyhow::Result<()> {
     .func_args(vec![String::from(x), String::from(size)])
     .build();
 
-  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
-  let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+  let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
   let (proof, public_values, _) = BatchedZKEngine::prove_wasm(&mut wasm_ctx, &pp)?;
 

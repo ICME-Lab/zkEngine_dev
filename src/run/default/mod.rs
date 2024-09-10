@@ -16,10 +16,10 @@ use crate::{
     prover::Prover,
     public_values::{PublicValuesTrait, ZKVMPublicParams, ZKVMPublicValues},
     snark::RecursiveSNARKTrait,
+    wasm::ZKWASMContext,
     zkvm::{ZKVMBuilder, ZKVM},
   },
   utils::{nivc::build_rom, wasm::print_pretty_results},
-  wasm_ctx::ZKWASMContext,
 };
 use anyhow::anyhow;
 use ff::Field;
@@ -31,7 +31,6 @@ use nova::traits::{
 use public_values::{ExecutionPublicValues, MCCPublicValues, PublicValues};
 use serde::{Deserialize, Serialize};
 use wasmi::{etable::ETable, Tracer};
-use wasmi_wasi::WasiCtx;
 
 type PV<E1> = PublicValues<E1>;
 
@@ -467,8 +466,10 @@ mod tests {
   };
 
   use crate::{
-    args::WASMArgsBuilder, run::default::ZKEProof, traits::zkvm::ZKVM, utils::logging::init_logger,
-    wasm_ctx::WASMCtx,
+    run::default::ZKEProof,
+    traits::zkvm::ZKVM,
+    utils::logging::init_logger,
+    wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   };
 
   type EE1<E> = ipa_pc::EvaluationEngine<E>;
@@ -491,9 +492,9 @@ mod tests {
     let args = WASMArgsBuilder::default()
       .file_path(PathBuf::from("wasm/example.wasm"))
       .build();
-    let pp = ZKEProof::<E1, BS1, S1, S2>::setup(&mut WASMCtx::new_from_file(&args)?)?;
+    let pp = ZKEProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
-    let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+    let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
     let (proof, public_values, _) = ZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx, &pp)?;
 

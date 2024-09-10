@@ -1,13 +1,12 @@
 use super::receipt::Receipt;
 use crate::{
-  args::WASMArgsBuilder,
   circuits::verify::verify_receipts,
-  wasm_ctx::{WASMCtx, ZKWASMContext},
+  traits::wasm::ZKWASMContext,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
 };
 use anyhow::Ok;
 use std::path::PathBuf;
 use wasmi::{etable::step_info::StepInfo, TraceSliceValues};
-use wasmi_wasi::WasiCtx;
 
 fn mock_wasm_nivc() {}
 fn mock_build_rom(_execution_trace: &[StepInfo]) {}
@@ -76,7 +75,7 @@ fn test_connect_shards() -> anyhow::Result<()> {
     .func_args(func_args.clone())
     .build();
 
-  let mut wasm_ctx = WASMCtx::new_from_file(&wasm_args)?;
+  let mut wasm_ctx = WasiWASMCtx::new_from_file(&wasm_args)?;
 
   // Mock the lead node which first runs an estimate on WASM
   let (etable, _) = wasm_ctx.build_execution_trace()?;
@@ -100,7 +99,7 @@ fn test_connect_shards() -> anyhow::Result<()> {
       .func_args(func_args.clone())
       .build();
 
-    let mut wasm_ctx = WASMCtx::new_from_file(&wasm_args)?;
+    let mut wasm_ctx = WasiWASMCtx::new_from_file(&wasm_args)?;
 
     let receipt = mock_prove_shard(&mut wasm_ctx)?;
     receipt_vec.push(receipt);

@@ -3,12 +3,11 @@ use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual, Engine,
 };
-use wasmi_wasi::WasiCtx;
 
 use crate::{
   circuits::{execution::batched::super_nova_public_params, supernova::batched_rom::BatchedROM},
+  traits::wasm::ZKWASMContext,
   utils::nivc::batch_execution_trace,
-  wasm_ctx::ZKWASMContext,
 };
 
 /// Check if the hash of the public params is correct
@@ -48,7 +47,9 @@ mod tests {
   };
 
   use crate::{
-    args::WASMArgsBuilder, traits::zkvm::ZKVM, utils::logging::init_logger, wasm_ctx::WASMCtx,
+    traits::zkvm::ZKVM,
+    utils::logging::init_logger,
+    wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
     BatchedZKEngine,
   };
 
@@ -70,8 +71,8 @@ mod tests {
       .func_args(vec![String::from("1000")])
       .build();
 
-    let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
-    let mut cloned_wasm_ctx = WASMCtx::new_from_file(&args)?;
+    let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
+    let mut cloned_wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
     let pp = BatchedZKEngine::setup(&mut wasm_ctx)?;
     let digest = pp.execution_pp.digest();

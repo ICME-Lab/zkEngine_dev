@@ -1,19 +1,8 @@
 //! This module contains the data structures to contain the arguments needed to run arbitrary WASM.
-use crate::{
-  traits::args::ZKWASMArgs,
-  utils::{
-    display::DisplayExportedFuncs,
-    wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat, typecheck_args},
-  },
-};
-use anyhow::anyhow;
-use rand::{rngs::StdRng, RngCore, SeedableRng};
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
-use wasmi::{
-  core::UntypedValue, etable::ETable, Engine, ExternType, Func, FuncType, Linker, Module, Store,
-  TraceSliceValues, Tracer,
-};
-use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx, WasiCtxBuilder};
+use crate::{traits::wasm::ZKWASMArgs, utils::wasm::read_wasm_or_wat};
+
+use std::path::PathBuf;
+use wasmi::TraceSliceValues;
 
 /// If no WASM function to invoke attemp to fetch a function call `main`
 const DEFAULT_FN_NAME: &str = "main";

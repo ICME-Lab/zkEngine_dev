@@ -1,11 +1,11 @@
 //! The run module contains the different run strategies that can be used to run the zkVM.
 
 use crate::{
-  args::WASMArgs,
-  traits::{args::ZKWASMArgs, zkvm::ZKVM},
-  wasm_ctx::WASMCtx,
+  traits::zkvm::ZKVM,
+  wasm::{args::WASMArgs, ctx::wasi::WasiWASMCtx},
 };
 
+use crate::traits::wasm::ZKWASMArgs;
 use batched::{BatchedZKEExecutionProof, BatchedZKEProof};
 use default::{ZKEExecutionProof, ZKEProof};
 use nova::{
@@ -13,7 +13,6 @@ use nova::{
   spartan::{self, snark::RelaxedR1CSSNARK},
   traits::Dual,
 };
-
 pub mod batched;
 pub mod default;
 
@@ -50,16 +49,18 @@ pub fn prove_wasm_test(wasm_args: &WASMArgs, batched: bool) -> anyhow::Result<()
 /// Runs proving system on only execution trace
 pub fn prove_execution(wasm_args: &WASMArgs, batched: bool) -> anyhow::Result<()> {
   if batched {
-    let pp =
-      BatchedZKEExecutionProof::<E1, BS1, S1, S2>::setup(&mut WASMCtx::new_from_file(wasm_args)?)?;
+    let pp = BatchedZKEExecutionProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(
+      wasm_args,
+    )?)?;
     let _ = BatchedZKEExecutionProof::<E1, BS1, S1, S2>::prove_wasm_execution(
-      &mut WASMCtx::new_from_file(wasm_args)?,
+      &mut WasiWASMCtx::new_from_file(wasm_args)?,
       &pp,
     )?;
   } else {
-    let pp = ZKEExecutionProof::<E1, BS1, S1, S2>::setup(&mut WASMCtx::new_from_file(wasm_args)?)?;
+    let pp =
+      ZKEExecutionProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
     let _ = ZKEExecutionProof::<E1, BS1, S1, S2>::prove_wasm_execution(
-      &mut WASMCtx::new_from_file(wasm_args)?,
+      &mut WasiWASMCtx::new_from_file(wasm_args)?,
       &pp,
     )?;
   }
@@ -69,11 +70,15 @@ pub fn prove_execution(wasm_args: &WASMArgs, batched: bool) -> anyhow::Result<()
 /// Runs proving system on execution trace and memory trace
 fn prove_mcc_and_execution(wasm_args: &WASMArgs, batched: bool) -> anyhow::Result<()> {
   if batched {
-    let pp = BatchedZKEProof::<E1, BS1, S1, S2>::setup(&mut WASMCtx::new_from_file(wasm_args)?)?;
-    BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut WASMCtx::new_from_file(wasm_args)?, &pp)?;
+    let pp =
+      BatchedZKEProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
+    BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(
+      &mut WasiWASMCtx::new_from_file(wasm_args)?,
+      &pp,
+    )?;
   } else {
-    let pp = ZKEProof::<E1, BS1, S1, S2>::setup(&mut WASMCtx::new_from_file(wasm_args)?)?;
-    ZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut WASMCtx::new_from_file(wasm_args)?, &pp)?;
+    let pp = ZKEProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
+    ZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut WasiWASMCtx::new_from_file(wasm_args)?, &pp)?;
   }
   Ok(())
 }

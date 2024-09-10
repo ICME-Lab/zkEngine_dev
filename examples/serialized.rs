@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 use zk_engine::{
-  args::{WASMArgsBuilder, WASMCtx},
   nova::{
     provider::{ipa_pc, PallasEngine},
     spartan::{self, snark::RelaxedR1CSSNARK},
@@ -9,6 +8,7 @@ use zk_engine::{
   run::default::{public_values::PublicValues, ZKEProof},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
 };
 
 type E1 = PallasEngine;
@@ -40,10 +40,11 @@ fn main() -> anyhow::Result<()> {
     .func_args(vec![String::from("10")]) // This will generate 152 opcodes
     .build();
 
-  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Use `BatchedZKEProof` for batched proving
-  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
+  let (proof, public_values, _) =
+    ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Serialize the proof and public values
   let proof_str = serde_json::to_string(&proof)?;
@@ -54,7 +55,7 @@ fn main() -> anyhow::Result<()> {
   let public_values: PublicValues<E1> = serde_json::from_str(&public_values_str)?;
 
   // Verify proof
-  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
   let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }
