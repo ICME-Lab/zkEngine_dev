@@ -1,7 +1,6 @@
 use nova::provider::ZKPallasEngine;
 use std::path::PathBuf;
 use zk_engine::{
-  args::{WASMArgsBuilder, WASMCtx},
   // Backend imports for ZK
   nova::{
     provider::ipa_pc,
@@ -11,6 +10,7 @@ use zk_engine::{
   run::batched::BatchedZKEProof,
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
 };
 
 // Configs to enable ZK
@@ -32,10 +32,11 @@ fn main() -> anyhow::Result<()> {
     .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
 
-  let pp = ZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // ZKPallasEngine get's used here
-  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
+  let (proof, public_values, _) =
+    ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;

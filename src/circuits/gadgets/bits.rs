@@ -145,9 +145,13 @@ pub fn ge_u_bits<Scalar: PrimeField, CS: ConstraintSystem<Scalar>>(
 mod test {
   use super::*;
   use bellpepper_core::test_cs::TestConstraintSystem;
-  use halo2curves::bn256::Fr;
+
+  use nova::{provider::PallasEngine, traits::Engine};
   use rand::{Rng, SeedableRng};
   use rand_xorshift::XorShiftRng;
+
+  type Fr = <PallasEngine as Engine>::Base;
+
   #[test]
   fn test_shl_bits() {
     let mut rng = XorShiftRng::from_seed([

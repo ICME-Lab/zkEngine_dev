@@ -1,13 +1,12 @@
 use super::receipt::Receipt;
 use crate::{
-  args::{WASMArgsBuilder, WASMCtx},
   circuits::verify::verify_receipts,
-  traits::args::ZKWASMContext,
+  traits::wasm::ZKWASMContext,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
 };
 use anyhow::Ok;
 use std::path::PathBuf;
 use wasmi::{etable::step_info::StepInfo, TraceSliceValues};
-use wasmi_wasi::WasiCtx;
 
 fn mock_wasm_nivc() {}
 fn mock_build_rom(_execution_trace: &[StepInfo]) {}
@@ -17,7 +16,7 @@ fn mock_build_rom(_execution_trace: &[StepInfo]) {}
 /// connected.
 ///
 /// `start` and `end` are parameters to specify the shards range of opcodes to prove.
-fn mock_prove_shard(wasm_ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Receipt> {
+fn mock_prove_shard(wasm_ctx: &mut impl ZKWASMContext) -> anyhow::Result<Receipt> {
   // Get the execution trace of Wasm module
   let tracer = wasm_ctx.tracer()?;
   let (etable, _) = wasm_ctx.build_execution_trace()?;
@@ -57,7 +56,6 @@ fn get_shard_start_end_values(
 }
 
 #[test]
-#[ignore]
 fn test_connect_shards() -> anyhow::Result<()> {
   let _ = tracing_subscriber::fmt()
     .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -76,7 +74,7 @@ fn test_connect_shards() -> anyhow::Result<()> {
     .func_args(func_args.clone())
     .build();
 
-  let mut wasm_ctx = WASMCtx::new_from_file(&wasm_args)?;
+  let mut wasm_ctx = WasiWASMCtx::new_from_file(&wasm_args)?;
 
   // Mock the lead node which first runs an estimate on WASM
   let (etable, _) = wasm_ctx.build_execution_trace()?;
@@ -100,7 +98,7 @@ fn test_connect_shards() -> anyhow::Result<()> {
       .func_args(func_args.clone())
       .build();
 
-    let mut wasm_ctx = WASMCtx::new_from_file(&wasm_args)?;
+    let mut wasm_ctx = WasiWASMCtx::new_from_file(&wasm_args)?;
 
     let receipt = mock_prove_shard(&mut wasm_ctx)?;
     receipt_vec.push(receipt);

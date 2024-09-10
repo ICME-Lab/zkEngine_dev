@@ -3,13 +3,13 @@
 #![allow(non_snake_case)]
 #![deny(missing_docs)]
 
-pub mod args;
 mod circuits;
 pub mod errors;
 pub mod pcd;
 pub mod run;
 pub mod traits;
 pub mod utils;
+pub mod wasm;
 
 use nova::{
   provider::{ipa_pc, PallasEngine},
@@ -19,6 +19,8 @@ use nova::{
 use run::{batched::BatchedZKEProof, default::ZKEProof};
 // re-export the wasi module
 pub use wasmi::TraceSliceValues;
+
+#[cfg(not(target_arch = "wasm32"))]
 pub use wasmi_wasi::WasiCtx;
 
 // re-export `nova`

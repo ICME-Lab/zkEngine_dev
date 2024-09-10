@@ -8,12 +8,11 @@ pub mod receipt;
 mod tests;
 use anyhow::anyhow;
 use nova::provider::PallasEngine;
-use wasmi_wasi::WasiCtx;
 
 use crate::{
   circuits::{supernova::etable_rom::wasm_nivc, verify::verify_receipts},
   errors::ProvingError,
-  traits::args::ZKWASMContext,
+  traits::wasm::ZKWASMContext,
   utils::nivc::build_rom,
 };
 
@@ -26,7 +25,7 @@ use receipt::Receipt;
 ///
 /// `start` and `end` are parameters to specify the shards range of opcodes to prove.
 pub fn prove_shard(
-  wasm_ctx: &mut impl ZKWASMContext<WasiCtx>,
+  wasm_ctx: &mut impl ZKWASMContext,
   should_stop: impl Fn() -> bool,
 ) -> Result<String, ProvingError> {
   // Get the execution trace of Wasm module

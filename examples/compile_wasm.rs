@@ -1,23 +1,31 @@
-use std::path::PathBuf;
 use zk_engine::{
   traits::zkvm::ZKVM,
-  utils::logging::init_logger,
-  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
+  utils::{logging::init_logger, wasm::wat2wasm},
+  wasm::{args::WASMArgsBuilder, ctx::WASMCtx},
   ZKEngine,
 };
 
+#[no_mangle]
 fn main() -> anyhow::Result<()> {
   init_logger();
 
   // Configure the arguments needed for WASM execution
   //
   // Here we are configuring the path to the WASM file
+  let wasm = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    local.get 0
+    local.get 1
+    i32.add))"#;
+
   let args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/example.wasm"))
+    .func_args(vec![String::from("1"), String::from("2")])
     .build();
 
+  let wasm_bytes = wat2wasm(wasm)?;
+
   // Run setup step for ZKVM
-  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = ZKEngine::setup(&mut WASMCtx::new_from_bytecode(&wasm_bytes, &args)?)?;
 
   // Prove execution and run memory consistency checks
   //
@@ -25,7 +33,7 @@ fn main() -> anyhow::Result<()> {
   //
   // Above type alias's (for the backend config) get used here
   let (proof, public_values, _) =
-    ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
+    ZKEngine::prove_wasm(&mut WASMCtx::new_from_bytecode(&wasm_bytes, &args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;

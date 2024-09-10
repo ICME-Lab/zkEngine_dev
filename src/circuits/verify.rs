@@ -5,7 +5,6 @@ use std::{marker::PhantomData, time::Instant};
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
 
-use flate2::{write::ZlibEncoder, Compression};
 use nova::{
   provider, spartan,
   traits::{
@@ -145,14 +144,5 @@ pub fn verify_receipts(receipts: &[Receipt]) -> anyhow::Result<String> {
   // verify the compressed SNARK
   compressed_snark.verify(&vk, circuit_steps, &res.0, &res.1)?;
 
-  let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-  bincode::serialize_into(&mut encoder, &compressed_snark)?;
-
-  let compressed_snark_encoded = encoder.finish()?;
-  tracing::info!(
-    "CompressedSNARK::len {:?} bytes",
-    compressed_snark_encoded.len()
-  );
-
-  Ok(serde_json::to_string(&compressed_snark_encoded)?) // return the compressed SNARK
+  Ok(serde_json::to_string(&compressed_snark)?) // return the compressed SNARK
 }

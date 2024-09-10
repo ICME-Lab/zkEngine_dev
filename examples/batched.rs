@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use zk_engine::{
-  args::{WASMArgsBuilder, WASMCtx},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   BatchedZKEngine,
 };
 
@@ -25,11 +25,11 @@ fn main() -> anyhow::Result<()> {
     .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
 
-  let pp = BatchedZKEngine::setup(&mut WASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Use `BatchedZKEProof` for batched proving
   let (proof, public_values, _) =
-    BatchedZKEngine::prove_wasm(&mut WASMCtx::new_from_file(&args)?, &pp)?;
+    BatchedZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;
