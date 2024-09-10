@@ -2,6 +2,7 @@
 #![feature(macro_metavar_expr, concat_idents)]
 #![allow(non_snake_case)]
 #![deny(missing_docs)]
+#![cfg(not(target_arch = "wasm32"))]
 
 pub mod args;
 mod circuits;

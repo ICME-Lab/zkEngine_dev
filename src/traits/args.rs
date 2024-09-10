@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use wasmi::{etable::ETable, Func, Store, TraceSliceValues, Tracer};
 
 /// The trait to define what you need to run a WASM module and to expose the WASM modules bytecode.
+///
 /// You should be able to get a WASM modules bytecode and the function to invoke and its
 /// corresponding arguments.
 pub trait ZKWASMArgs {
