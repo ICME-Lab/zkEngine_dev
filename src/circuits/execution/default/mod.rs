@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::OnceCell, marker::PhantomData, time::Instant};
+use std::{borrow::Cow, cell::OnceCell, marker::PhantomData};
 
 use anyhow::anyhow;
 use nova::{
@@ -89,10 +89,10 @@ where
   S1: BatchedRelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  let time = Instant::now();
+  //let time = Instant::now();
   tracing::info!("producing PP...");
   let pp = SuperNovaPublicParams::setup(nc, &*default_ck_hint(), &*default_ck_hint());
-  tracing::info!("producing PP took: {:?}", time.elapsed());
+  //tracing::info!("producing PP took: {:?}", time.elapsed());
   Ok(ExecutionPublicParams {
     pp,
     pk_and_vk: OnceCell::new(),
