@@ -1,6 +1,6 @@
 //! Holds the different types of WASM contexts (context is defined by host data).
 
-#![cfg(not(target_arch = "wasm32"))]
+#[cfg(not(target_arch = "wasm32"))]
 pub mod wasi;
 
 use anyhow::anyhow;
