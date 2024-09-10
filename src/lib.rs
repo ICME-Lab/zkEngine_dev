@@ -11,6 +11,7 @@ pub mod pcd;
 pub mod run;
 pub mod traits;
 pub mod utils;
+pub mod wasm_ctx;
 
 use nova::{
   provider::{ipa_pc, PallasEngine},

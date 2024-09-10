@@ -1,8 +1,9 @@
 //! The run module contains the different run strategies that can be used to run the zkVM.
 
 use crate::{
-  args::{WASMArgs, WASMCtx},
+  args::WASMArgs,
   traits::{args::ZKWASMArgs, zkvm::ZKVM},
+  wasm_ctx::WASMCtx,
 };
 
 use batched::{BatchedZKEExecutionProof, BatchedZKEProof};

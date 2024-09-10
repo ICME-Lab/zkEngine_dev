@@ -1,8 +1,8 @@
 use super::receipt::Receipt;
 use crate::{
-  args::{WASMArgsBuilder, WASMCtx},
+  args::WASMArgsBuilder,
   circuits::verify::verify_receipts,
-  traits::args::ZKWASMContext,
+  wasm_ctx::{WASMCtx, ZKWASMContext},
 };
 use anyhow::Ok;
 use std::path::PathBuf;

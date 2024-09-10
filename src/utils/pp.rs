@@ -7,8 +7,8 @@ use wasmi_wasi::WasiCtx;
 
 use crate::{
   circuits::{execution::batched::super_nova_public_params, supernova::batched_rom::BatchedROM},
-  traits::args::ZKWASMContext,
   utils::nivc::batch_execution_trace,
+  wasm_ctx::ZKWASMContext,
 };
 
 /// Check if the hash of the public params is correct
@@ -48,9 +48,7 @@ mod tests {
   };
 
   use crate::{
-    args::{WASMArgsBuilder, WASMCtx},
-    traits::zkvm::ZKVM,
-    utils::logging::init_logger,
+    args::WASMArgsBuilder, traits::zkvm::ZKVM, utils::logging::init_logger, wasm_ctx::WASMCtx,
     BatchedZKEngine,
   };
 

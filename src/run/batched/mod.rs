@@ -18,13 +18,13 @@ use crate::{
     supernova::batched_rom::BatchedROM,
   },
   traits::{
-    args::ZKWASMContext,
     prover::Prover,
     public_values::{PublicValuesTrait, ZKVMPublicParams, ZKVMPublicValues},
     snark::RecursiveSNARKTrait,
     zkvm::{ZKVMBuilder, ZKVM},
   },
   utils::{nivc::batch_execution_trace, wasm::print_pretty_results},
+  wasm_ctx::ZKWASMContext,
 };
 use anyhow::anyhow;
 use ff::Field;
@@ -486,10 +486,8 @@ mod tests {
   };
 
   use crate::{
-    args::{WASMArgsBuilder, WASMCtx},
-    run::batched::BatchedZKEProof,
-    traits::zkvm::ZKVM,
-    utils::logging::init_logger,
+    args::WASMArgsBuilder, run::batched::BatchedZKEProof, traits::zkvm::ZKVM,
+    utils::logging::init_logger, wasm_ctx::WASMCtx,
   };
 
   type EE1<E> = ipa_pc::EvaluationEngine<E>;

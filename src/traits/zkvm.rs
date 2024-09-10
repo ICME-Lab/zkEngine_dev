@@ -3,8 +3,9 @@
 use nova::traits::CurveCycleEquipped;
 use wasmi_wasi::WasiCtx;
 
+use crate::wasm_ctx::ZKWASMContext;
+
 use super::{
-  args::ZKWASMContext,
   prover::Prover,
   public_values::{ZKVMPublicParams, ZKVMPublicValues},
 };

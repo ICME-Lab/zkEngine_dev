@@ -3,7 +3,7 @@
 use std::fmt::{self, Display};
 use wasmi::{core::ValueType, FuncType, Value};
 
-use crate::{args::WASMCtx, traits::args::ZKWASMArgs};
+use crate::{traits::args::ZKWASMArgs, wasm_ctx::WASMCtx};
 
 /// [`Display`]-wrapper type for [`ValueType`].
 pub struct DisplayValueType<'a>(&'a ValueType);

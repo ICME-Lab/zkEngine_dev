@@ -25,28 +25,3 @@ pub trait ZKWASMArgs {
   /// These values specify the starting point and end point of the trace to prove.
   fn trace_slice_values(&self) -> TraceSliceValues;
 }
-
-/// This trait is used to define the wasm context that is passed to the zkWASM.
-///
-/// Guarantees an execution trace from the wasm bytecode.
-pub trait ZKWASMContext<T> {
-  /// Returns an exclusive reference to the [`Store`] of the [`Context`].
-  fn store_mut(&mut self) -> &mut Store<T>;
-
-  /// Returns a shared reference to the [`Store`] of the [`Context`].
-  fn store(&self) -> &Store<T>;
-
-  /// To get a trace you need a function to invoke.
-  ///
-  /// Gets a function to invoke from an instantiated WASM module.
-  fn func(&self, fn_name: &str) -> anyhow::Result<Func>;
-
-  /// returns a struct that is used to build the execution trace.
-  fn tracer(&self) -> anyhow::Result<Rc<RefCell<Tracer>>>;
-
-  /// builds and returns a struct that contains the execution trace.
-  fn build_execution_trace(&mut self) -> anyhow::Result<(ETable, Box<[wasmi::Value]>)>;
-
-  /// Get the args needed to run the WASM module.
-  fn args(&self) -> &dyn ZKWASMArgs;
-}
