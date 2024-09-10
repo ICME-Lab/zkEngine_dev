@@ -35,9 +35,9 @@ RUST_LOG=debug cargo +nightly run --release --example default
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
-  args::{WASMArgsBuilder, WasiWASMCtx},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   ZKEngine,
 };
 
@@ -78,9 +78,9 @@ RUST_LOG=debug cargo +nightly run --release --example batched
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
-  args::{WASMArgsBuilder, WasiWASMCtx},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   BatchedZKEngine,
 };
 
@@ -127,9 +127,9 @@ RUST_LOG=debug cargo +nightly run --release --example zkml
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
-  args::{WASMArgsBuilder, WasiWASMCtx},
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   BatchedZKEngine,
 };
 
@@ -168,7 +168,6 @@ RUST_LOG=debug cargo +nightly run --release --example zk
 use nova::provider::ZKPallasEngine;
 use std::path::PathBuf;
 use zk_engine::{
-  args::{WASMArgsBuilder, WasiWASMCtx},
   // Backend imports for ZK
   nova::{
     provider::ipa_pc,
@@ -178,7 +177,9 @@ use zk_engine::{
   run::batched::BatchedZKEProof,
   traits::zkvm::ZKVM,
   utils::logging::init_logger,
+  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
 };
+
 
 // Configs to enable ZK
 type E1 = ZKPallasEngine;

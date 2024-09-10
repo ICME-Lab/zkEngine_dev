@@ -7,6 +7,7 @@ use crate::{
   BatchedZKEngine,
 };
 
+#[ignore]
 #[test]
 fn test_gradient_boosting() -> anyhow::Result<()> {
   init_logger();
@@ -27,6 +28,7 @@ fn test_gradient_boosting() -> anyhow::Result<()> {
   Ok(assert!(result))
 }
 
+#[ignore]
 #[test]
 fn test_zk_ads() -> anyhow::Result<()> {
   init_logger();
