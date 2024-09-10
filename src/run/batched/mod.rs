@@ -3,7 +3,7 @@
 //! Batched execution is a technique that allows the zkVM to execute multiple instructions in a
 //! single step.
 pub mod public_values;
-use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use crate::{
   circuits::{
@@ -276,9 +276,9 @@ where
     let zi = nivc_proof.zi_primary()?;
 
     // Compress NIVC Proof into a zkSNARK
-    let time = Instant::now();
+    //let time = Instant::now();
     let compressed_proof = nivc_proof.compress(pp)?;
-    tracing::info!("compressing took: {:?}", time.elapsed());
+    //tracing::info!("compressing took: {:?}", time.elapsed());
 
     // Set public values
     let execution_public_values = ExecutionPublicValues::new(&z0_primary, zi);
@@ -310,9 +310,9 @@ where
     let zi = ivc_proof.zi_primary()?;
 
     // Compress IVC Proof into a zkSNARK
-    let time = Instant::now();
+    //let time = Instant::now();
     let compressed_proof = ivc_proof.compress(pp)?;
-    tracing::info!("compressing took: {:?}", time.elapsed());
+    //tracing::info!("compressing took: {:?}", time.elapsed());
 
     // Set public values
     let mcc_public_values = MCCPublicValues::new(&z0_primary, zi);

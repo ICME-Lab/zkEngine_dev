@@ -2,7 +2,7 @@ mod circuit;
 
 use anyhow::anyhow;
 use circuit::BatchedMCCCircuit;
-use std::{borrow::Cow, cell::OnceCell, marker::PhantomData, time::Instant};
+use std::{borrow::Cow, cell::OnceCell, marker::PhantomData};
 
 use nova::{
   errors::NovaError,
@@ -114,7 +114,7 @@ where
   let commitment_size_hint2 = <S2 as RelaxedR1CSSNARKTrait<Dual<E1>>>::ck_floor();
 
   tracing::info!("producing PP...");
-  let time = Instant::now();
+  //let time = Instant::now();
   let pp = nova::PublicParams::setup(
     &circuit_primary,
     &circuit_secondary,
@@ -122,7 +122,7 @@ where
     &*commitment_size_hint2,
   )?;
 
-  tracing::info!("PP produced in {:?}", time.elapsed());
+  //tracing::info!("PP produced in {:?}", time.elapsed());
   Ok(BatchedMCCPublicParams {
     pp,
     pk_and_vk: OnceCell::new(),

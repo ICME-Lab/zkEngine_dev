@@ -1,6 +1,6 @@
 //! This module contains the circuit to verify proofs/receipts
 
-use std::{marker::PhantomData, time::Instant};
+use std::{marker::PhantomData};
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
