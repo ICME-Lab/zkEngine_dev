@@ -1,6 +1,9 @@
 //! This module contains the circuit to verify proofs/receipts
 
-use std::{marker::PhantomData, time::Instant};
+use std::{marker::PhantomData};
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
@@ -103,7 +106,9 @@ pub fn verify_receipts(receipts: &[Receipt]) -> anyhow::Result<String> {
   let circuit_secondary = TrivialCircuit::default();
 
   // produce public parameters
+  #[cfg(not(target_arch = "wasm32"))]
   let start = Instant::now();
+
   tracing::info!("Producing public parameters...");
   let pp = PublicParams::<E1>::setup(
     &circuit_primary,
@@ -111,6 +116,8 @@ pub fn verify_receipts(receipts: &[Receipt]) -> anyhow::Result<String> {
     &*S1::ck_floor(),
     &*S2::ck_floor(),
   )?;
+
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("PublicParams::setup, took {:?} ", start.elapsed());
 
   // Prove sole circuit-step
@@ -136,9 +143,12 @@ pub fn verify_receipts(receipts: &[Receipt]) -> anyhow::Result<String> {
   tracing::info!("Generating a CompressedSNARK");
   let (pk, vk) = CompressedSNARK::<_, S1, S2>::setup(&pp)?;
 
+  #[cfg(not(target_arch = "wasm32"))]
   let start = Instant::now();
 
   let compressed_snark = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark)?;
+  
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("CompressedSNARK::prove took {:?}", start.elapsed());
 
   // verify the compressed SNARK

@@ -1,5 +1,8 @@
 mod circuit;
-use std::{borrow::Cow, cell::OnceCell, marker::PhantomData, time::Instant};
+use std::{borrow::Cow, cell::OnceCell, marker::PhantomData};
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 use anyhow::anyhow;
 use circuit::MCCCircuit;
@@ -115,7 +118,9 @@ where
   let commitment_size_hint1 = <S1 as RelaxedR1CSSNARKTrait<E1>>::ck_floor();
   let commitment_size_hint2 = <S2 as RelaxedR1CSSNARKTrait<Dual<E1>>>::ck_floor();
 
+  #[cfg(not(target_arch = "wasm32"))]
   let time = Instant::now();
+
   tracing::info!("producing PP...");
   let pp = nova::PublicParams::setup(
     &circuit_primary,
@@ -124,6 +129,7 @@ where
     &*commitment_size_hint2,
   )?;
 
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("producing PP took: {:?}", time.elapsed());
 
   Ok(MCCPublicParams {

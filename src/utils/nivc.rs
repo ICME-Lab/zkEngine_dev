@@ -1,5 +1,5 @@
 //! Utility functions to run NIVC
-
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
 use crate::{circuits::supernova::batched_rom::BatchedROM, utils::save};
@@ -437,9 +437,13 @@ where
   let test_rom = BatchedROM::<E1>::new(rom, execution_trace.to_vec());
 
   // Produce PP
+  #[cfg(not(target_arch = "wasm32"))]
   let time = Instant::now();
+
   tracing::info!("Producing pp..");
   let pp = PublicParams::setup(&test_rom, &*default_ck_hint(), &*default_ck_hint());
+
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("pp produced in {:?}", time.elapsed());
 
   if save_pp {
@@ -462,7 +466,9 @@ where
   let last_index = test_rom.rom.len() - 1;
 
   // Run NIVC
+  #[cfg(not(target_arch = "wasm32"))]
   let time = Instant::now();
+
   tracing::info!("starting NIVC");
   for (i, &op_code) in test_rom.rom.iter().enumerate() {
     let op_code_err = format!("index:{}, failed to run on opcode {:?}", i, op_code);
@@ -490,18 +496,24 @@ where
 
     // Verify snark on last index
     if i == last_index {
+      #[cfg(not(target_arch = "wasm32"))]
       let time = Instant::now();
+
       recursive_snark
         .verify(&pp, &z0_primary, &z0_secondary)
         .expect(&op_code_err);
+
+      #[cfg(not(target_arch = "wasm32"))]
       tracing::info!("time to verify snark {:?}", time.elapsed())
     }
 
     recursive_snark_option = Some(recursive_snark)
   }
 
+  #[cfg(not(target_arch = "wasm32"))]
   let total_elapsed_time = time.elapsed();
 
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("NIVC run took {:?}", total_elapsed_time);
 
   assert!(recursive_snark_option.is_some());
@@ -509,17 +521,30 @@ where
   // Add CompressedSNARK check
   let recursive_snark = recursive_snark_option.unwrap();
 
+  #[cfg(not(target_arch = "wasm32"))]
   let time = Instant::now();
+
   let (prover_key, verifier_key) = CompressedSNARK::<E1, S1, S2>::setup(&pp)?;
+
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("CompressedSNARK setup done in {:?}", time.elapsed());
 
   tracing::info!("Proving CompressedSNARK..");
+
+  #[cfg(not(target_arch = "wasm32"))]
   let time = Instant::now();
+
   let compressed_snark = CompressedSNARK::prove(&pp, &prover_key, &recursive_snark)?;
+
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("CompressedSNARK prove time: {:?}", time.elapsed());
 
+  #[cfg(not(target_arch = "wasm32"))]
   let time = Instant::now();
+
   compressed_snark.verify(&pp, &verifier_key, &z0_primary, &z0_secondary)?;
+
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("CompressedSNARK verify time: {:?}", time.elapsed());
 
   Ok(serde_json::to_string(&compressed_snark)?) // return the compressed SNARK
