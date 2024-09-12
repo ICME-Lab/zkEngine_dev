@@ -15,13 +15,13 @@ use nova::{
     shape_cs::ShapeCS,
     solver::SatisfyingAssignment,
   },
-  provider::{ipa_pc, pedersen::CommitmentKey, PallasEngine},
+  provider::{pedersen::CommitmentKey, PallasEngine},
   r1cs::{
     commitment_key_size, CommitmentKeyHint, R1CSShape, RelaxedR1CSInstance, RelaxedR1CSWitness,
   },
   spartan::{
     self,
-    batched_ppsnark::{ProverKey, VerifierKey},
+    ipa_batched_ppsnark::{ProverKey, VerifierKey},
   },
   supernova::{NonUniformCircuit, StepCircuit},
   traits::{commitment::CommitmentEngineTrait, snark::BatchedRelaxedR1CSSNARKTrait, Engine},
@@ -29,20 +29,22 @@ use nova::{
 use serde::{Deserialize, Serialize};
 
 type E = PallasEngine;
-type PCS = ipa_pc::EvaluationEngine<E>;
-type SNARK = spartan::batched_ppsnark::BatchedRelaxedR1CSSNARK<E, PCS>;
+type SNARK = spartan::ipa_batched_ppsnark::BatchedRelaxedR1CSSNARK<E>;
+
+#[derive(Debug, Serialize, Deserialize)]
 
 /// Verifier key for the non-uniform circuits
 pub struct VK {
-  vk: VerifierKey<E, PCS>,
+  vk: VerifierKey<E>,
 }
 
 type PublicValues = (
-  ProverKey<E, PCS>, // pk
-  VK,                // vk
-  PublicParams,      // pp
+  ProverKey<E>, // pk
+  VK,           // vk
+  PublicParams, // pp
 );
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// A lite prover for non-uniform circuits
 pub struct LiteProver {
   snark: NonUniformSNARK,
@@ -66,7 +68,7 @@ impl LiteProver {
   pub fn prove(
     ctx: &mut impl ZKWASMContext,
     pp: &PublicParams,
-    pk: &ProverKey<E, PCS>,
+    pk: &ProverKey<E>,
   ) -> anyhow::Result<Self> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
@@ -137,7 +139,7 @@ impl NonUniformSNARK {
   }
 
   fn prove(
-    pk: &ProverKey<E, PCS>,
+    pk: &ProverKey<E>,
     pp: &PublicParams,
     batched_rom: BatchedROM<E>,
   ) -> anyhow::Result<Self> {
@@ -175,7 +177,7 @@ impl NonUniformSNARK {
   }
 
   /// verify the SNARK
-  pub fn verify(&self, vk: &VerifierKey<E, PCS>) -> anyhow::Result<bool> {
+  pub fn verify(&self, vk: &VerifierKey<E>) -> anyhow::Result<bool> {
     self.inner_snark.verify(vk, &self.instance)?;
     Ok(true)
   }
@@ -201,8 +203,8 @@ mod tests {
   use std::path::PathBuf;
 
   use crate::{
-    utils::logging::init_logger,
-    wasm::{args::WASMArgsBuilder, ctx::WASMCtx},
+    utils::{logging::init_logger, save::save_string},
+    wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   };
 
   use super::LiteProver;
@@ -220,12 +222,42 @@ mod tests {
       .build();
 
     tracing::info!("running setup");
-    let (pk, vk, pp) = LiteProver::setup(&mut WASMCtx::new_from_file(&args)?)?;
+    let (pk, vk, pp) = LiteProver::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
-    let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+    let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
     tracing::info!("running prover");
     let proof = LiteProver::prove(&mut wasm_ctx, &pp, &pk)?;
+
+    tracing::info!("running verifier");
+    let result = proof.verify(&vk)?;
+    assert!(result);
+    Ok(())
+  }
+
+  #[test]
+  fn test_lite_prover_serde() -> anyhow::Result<()> {
+    init_logger();
+    let x = "1";
+    let size = "10";
+
+    let args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/misc/uni-poly-eval.wasm"))
+      .invoke(Some(String::from("eval")))
+      .func_args(vec![String::from(x), String::from(size)])
+      .build();
+
+    tracing::info!("running setup");
+    let (pk, vk, pp) = LiteProver::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+
+    let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
+
+    tracing::info!("running prover");
+    let proof = LiteProver::prove(&mut wasm_ctx, &pp, &pk)?;
+
+    let vk_str = serde_json::to_string(&vk)?;
+    save_string(vk_str.clone(), "vk.json")?;
+    let vk: super::VK = serde_json::from_str(&vk_str)?;
 
     tracing::info!("running verifier");
     let result = proof.verify(&vk)?;
