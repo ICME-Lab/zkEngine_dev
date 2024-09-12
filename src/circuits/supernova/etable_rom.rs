@@ -34,6 +34,7 @@ use super::step_circuits::{
   parametric_ops::SelectCircuit,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
 
 /// The Etable ROM to constraint the sequence of execution order for opcode, in the Execution table
@@ -368,7 +369,9 @@ where
   E1: CurveCycleEquipped,
   <E1 as Engine>::Scalar: PartialOrd,
 {
+  #[cfg(not(target_arch = "wasm32"))]
   let total_time = Instant::now();
+
   let mut test_rom = EtableROM::<E1>::new(rom, tracer_values.to_vec());
 
   let pp = PublicParams::setup(&test_rom, &*default_ck_hint(), &*default_ck_hint());
@@ -383,7 +386,9 @@ where
   let last_index = test_rom.rom.len() - 1;
   tracing::info!("Starting NIVC");
 
+  #[cfg(not(target_arch = "wasm32"))]
   let time = Instant::now();
+
   for (i, &op_code) in test_rom.rom.iter().enumerate() {
     if i % 10 == 0 && should_stop() {
       return Err(ProvingError::Interrupted);
@@ -418,9 +423,14 @@ where
     test_rom.counter += 1;
     recursive_snark_option = Some(recursive_snark)
   }
+
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("NIVC done in {:?}", time.elapsed());
+
+  #[cfg(not(target_arch = "wasm32"))]
   let total_elapsed_time = total_time.elapsed();
 
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("The full run took {:?}", total_elapsed_time);
 
   assert!(recursive_snark_option.is_some());

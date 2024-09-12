@@ -3,10 +3,10 @@
 //! Batched execution is a technique that allows the zkVM to execute multiple instructions in a
 //! single step.
 pub mod public_values;
-use std::{cell::RefCell, marker::PhantomData, rc::Rc, time::Instant};
+use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use public_values::ExecutionPublicValues;
-use serde::{Deserialize, Serialize};
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 use crate::{
   circuits::{
@@ -18,10 +18,10 @@ use crate::{
     supernova::batched_rom::BatchedROM,
   },
   traits::{
-    args::ZKWASMContext,
     prover::Prover,
     public_values::{PublicValuesTrait, ZKVMPublicParams, ZKVMPublicValues},
     snark::RecursiveSNARKTrait,
+    wasm::ZKWASMContext,
     zkvm::{ZKVMBuilder, ZKVM},
   },
   utils::{nivc::batch_execution_trace, wasm::print_pretty_results},
@@ -33,9 +33,9 @@ use nova::traits::{
   snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
   CurveCycleEquipped, Dual, Engine,
 };
-use public_values::{BatchedPublicValues, MCCPublicValues};
+use public_values::{BatchedPublicValues, ExecutionPublicValues, MCCPublicValues};
+use serde::{Deserialize, Serialize};
 use wasmi::{etable::ETable, Tracer};
-use wasmi_wasi::WasiCtx;
 
 /// Type alias for public values produced by the proving system
 type PV<E1> = BatchedPublicValues<E1>;
@@ -82,7 +82,7 @@ where
 {
   type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
 
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams> {
+  fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self::PublicParams> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
     let tracer = ctx.tracer()?;
@@ -116,7 +116,7 @@ where
   }
 
   fn prove_wasm(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
     pp: &Self::PublicParams,
   ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
     BatchedZKEProofBuilder::get_trace(ctx)?
@@ -232,7 +232,7 @@ where
   type ZKVM = BatchedZKEProof<E1, BS1, S1, S2>;
   type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
 
-  fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self> {
+  fn get_trace(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self> {
     let (etable, wasm_func_results) = ctx.build_execution_trace()?;
     print_pretty_results(&wasm_func_results);
     Ok(Self {
@@ -279,8 +279,12 @@ where
     let zi = nivc_proof.zi_primary()?;
 
     // Compress NIVC Proof into a zkSNARK
+    #[cfg(not(target_arch = "wasm32"))]
     let time = Instant::now();
+
     let compressed_proof = nivc_proof.compress(pp)?;
+
+    #[cfg(not(target_arch = "wasm32"))]
     tracing::info!("compressing took: {:?}", time.elapsed());
 
     // Set public values
@@ -313,8 +317,12 @@ where
     let zi = ivc_proof.zi_primary()?;
 
     // Compress IVC Proof into a zkSNARK
+    #[cfg(not(target_arch = "wasm32"))]
     let time = Instant::now();
+
     let compressed_proof = ivc_proof.compress(pp)?;
+    
+    #[cfg(not(target_arch = "wasm32"))]
     tracing::info!("compressing took: {:?}", time.elapsed());
 
     // Set public values
@@ -423,7 +431,7 @@ where
 {
   /// Produce the Public Parameters for execution proving
   pub fn setup(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
   ) -> anyhow::Result<BatchedExecutionPublicParams<E1, BS1, S2>> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
@@ -440,7 +448,7 @@ where
   }
   /// Proves only the execution of a WASM program
   pub fn prove_wasm_execution(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
     pp: &BatchedExecutionPublicParams<E1, BS1, S2>,
   ) -> anyhow::Result<(Self, ExecutionPublicValues<E1>)> {
     BatchedZKEProofBuilder::get_trace(ctx)?
@@ -486,10 +494,10 @@ mod tests {
   };
 
   use crate::{
-    args::{WASMArgsBuilder, WASMCtx},
     run::batched::BatchedZKEProof,
     traits::zkvm::ZKVM,
     utils::logging::init_logger,
+    wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   };
 
   type EE1<E> = ipa_pc::EvaluationEngine<E>;
@@ -515,9 +523,9 @@ mod tests {
       .func_args(vec![String::from("1000")])
       .build();
 
-    let pp = BatchedZKEProof::<E1, BS1, S1, S2>::setup(&mut WASMCtx::new_from_file(&args)?)?;
+    let pp = BatchedZKEProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
-    let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
+    let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
     let (proof, public_values, _) =
       BatchedZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut wasm_ctx, &pp)?;

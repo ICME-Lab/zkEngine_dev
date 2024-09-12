@@ -894,9 +894,11 @@ impl<F: PrimeField + PrimeFieldBits + PartialOrd> UInt64<F> {
 mod test {
   use super::*;
   use bellpepper_core::{test_cs::TestConstraintSystem, Comparable};
-  use halo2curves::bn256::Fr;
+  use nova::{provider::PallasEngine, traits::Engine};
   use rand::{Rng, SeedableRng};
   use rand_xorshift::XorShiftRng;
+
+  type Fr = <PallasEngine as Engine>::Base;
 
   #[test]
   fn test_convert_to_bits() {

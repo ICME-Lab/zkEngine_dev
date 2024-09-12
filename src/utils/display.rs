@@ -3,7 +3,7 @@
 use std::fmt::{self, Display};
 use wasmi::{core::ValueType, FuncType, Value};
 
-use crate::{args::WASMCtx, traits::args::ZKWASMArgs};
+use crate::traits::wasm::ZKWASMContext;
 
 /// [`Display`]-wrapper type for [`ValueType`].
 pub struct DisplayValueType<'a>(&'a ValueType);
@@ -147,17 +147,17 @@ where
 }
 
 /// [`Display`]-wrapper for exported functions of a [`Context`].
-pub struct DisplayExportedFuncs<'a, WA: ZKWASMArgs> {
-  ctx: &'a WASMCtx<WA>,
+pub struct DisplayExportedFuncs<'a, CTX: ZKWASMContext> {
+  ctx: &'a CTX,
 }
 
-impl<'a, WA: ZKWASMArgs> From<&'a WASMCtx<WA>> for DisplayExportedFuncs<'a, WA> {
-  fn from(ctx: &'a WASMCtx<WA>) -> Self {
+impl<'a, CTX: ZKWASMContext> From<&'a CTX> for DisplayExportedFuncs<'a, CTX> {
+  fn from(ctx: &'a CTX) -> Self {
     Self { ctx }
   }
 }
 
-impl<WA: ZKWASMArgs + Clone> Display for DisplayExportedFuncs<'_, WA> {
+impl<CTX: ZKWASMContext> Display for DisplayExportedFuncs<'_, CTX> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let exported_funcs = self.ctx.exported_funcs().collect::<Box<[_]>>();
     if exported_funcs.is_empty() {

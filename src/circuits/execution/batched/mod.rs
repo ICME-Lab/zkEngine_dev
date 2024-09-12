@@ -1,4 +1,7 @@
-use std::{borrow::Cow, cell::OnceCell, marker::PhantomData, time::Instant};
+use std::{borrow::Cow, cell::OnceCell, marker::PhantomData};
+
+#[cfg(not(target_arch = "wasm32"))]
+use std::time::Instant;
 
 use anyhow::anyhow;
 use nova::{
@@ -116,10 +119,15 @@ where
   S1: BatchedRelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
+  #[cfg(not(target_arch = "wasm32"))]
   let time = Instant::now();
+
   tracing::info!("producing PP...");
   let pp = SuperNovaPublicParams::setup(nc, &*default_ck_hint(), &*default_ck_hint());
+  
+  #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("producing PP took: {:?}", time.elapsed());
+  
   Ok(BatchedExecutionPublicParams {
     pp,
     pk_and_vk: OnceCell::new(),

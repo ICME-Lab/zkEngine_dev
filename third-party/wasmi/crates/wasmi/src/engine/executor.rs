@@ -1,32 +1,22 @@
+use sha2::Digest;
+
 use super::{
     bytecode::{BranchOffset, F64Const32},
     const_pool::ConstRef,
-    CompiledFunc,
-    ConstPoolView,
+    CompiledFunc, ConstPoolView,
 };
 use crate::{
     core::TrapCode,
     engine::{
         bytecode::{
-            AddressOffset,
-            BlockFuel,
-            BranchTableTargets,
-            DataSegmentIdx,
-            ElementSegmentIdx,
-            FuncIdx,
-            GlobalIdx,
-            Instruction,
-            LocalDepth,
-            SignatureIdx,
-            TableIdx,
+            AddressOffset, BlockFuel, BranchTableTargets, DataSegmentIdx, ElementSegmentIdx,
+            FuncIdx, GlobalIdx, Instruction, LocalDepth, SignatureIdx, TableIdx,
         },
         cache::InstanceCache,
         code_map::{CodeMap, InstructionPtr},
         config::FuelCosts,
         stack::{CallStack, ValueStackPtr},
-        DropKeep,
-        FuncFrame,
-        ValueStack,
+        DropKeep, FuncFrame, ValueStack,
     },
     error::EntityGrowError,
     etable::{
@@ -42,16 +32,11 @@ use crate::{
         continuations::ImageID,
         mtable::{MemoryReadSize, MemoryStoreSize, VarType},
     },
-    FuelConsumptionMode,
-    Func,
-    FuncRef,
-    Instance,
-    StoreInner,
-    Table,
-    Tracer,
+    FuelConsumptionMode, Func, FuncRef, Instance, StoreInner, Table, Tracer,
 };
 
 use core::cmp::{self};
+use sha2::Sha256;
 use std::{cell::RefCell, rc::Rc};
 use wasmi_core::{effective_address, Pages, UntypedValue};
 
@@ -2884,7 +2869,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
                 if len == tracer.shard_start() {
                     let value_stack_json = serde_json::to_string(&self.value_stack).unwrap();
-                    let digest = sha256::digest(&value_stack_json);
+                    let digest = hex::encode(Sha256::digest(&value_stack_json.as_bytes()));
                     tracer.set_memory_snapshot_input(ImageID::new(digest));
                 }
 
@@ -2967,7 +2952,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                             if len == tracer.shard_end() {
                                 let value_stack_json =
                                     serde_json::to_string(&self.value_stack).unwrap();
-                                let digest = sha256::digest(&value_stack_json);
+                                let digest =
+                                    hex::encode(Sha256::digest(&value_stack_json.as_bytes()));
                                 tracer.set_memory_snapshot_output(ImageID::new(digest));
                             }
                         }
@@ -2998,7 +2984,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                             if tracer.memory_snapshot_output().as_string() == "" {
                                 let value_stack_json =
                                     serde_json::to_string(&self.value_stack).unwrap();
-                                let digest = sha256::digest(&value_stack_json);
+                                let digest =
+                                    hex::encode(Sha256::digest(&value_stack_json.as_bytes()));
                                 tracer.set_memory_snapshot_output(ImageID::new(digest));
                             }
                         }

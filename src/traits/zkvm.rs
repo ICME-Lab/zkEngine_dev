@@ -1,12 +1,11 @@
 //! A module that defines the ZKVM trait and its builder.
 
 use nova::traits::CurveCycleEquipped;
-use wasmi_wasi::WasiCtx;
 
 use super::{
-  args::ZKWASMContext,
   prover::Prover,
   public_values::{ZKVMPublicParams, ZKVMPublicValues},
+  wasm::ZKWASMContext,
 };
 
 /// A trait that defines the behavior of a zkVM (zkWASM in our case).
@@ -18,13 +17,13 @@ where
   type PublicParams;
 
   /// Setup the public parameters for prover and verifier.
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self::PublicParams>;
+  fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self::PublicParams>;
 
   /// A method that produces a zkSNARK for the WASM, with some public values.
   ///
   /// Returns the proof, the public i/o values and the result of the invoked WASM function.
   fn prove_wasm(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
     pp: &Self::PublicParams,
   ) -> anyhow::Result<(Self, PV, Box<[wasmi::Value]>)>;
 
@@ -52,7 +51,7 @@ where
   type ZKVM: ZKVM<E1, PV, PublicParams = Self::PublicParams>;
 
   /// A method that gets the execution trace of the WASM.
-  fn get_trace(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<Self>;
+  fn get_trace(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self>;
 
   /// A method that proves the execution of the WASM.
   fn prove_execution(
