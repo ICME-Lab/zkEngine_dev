@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::{
-  circuits::supernova::batched_rom::BatchedROM, traits::args::ZKWASMContext,
+  circuits::supernova::batched_rom::BatchedROM, traits::wasm::ZKWASMContext,
   utils::nivc::batch_execution_trace,
 };
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem};
@@ -27,7 +27,6 @@ use nova::{
   traits::{commitment::CommitmentEngineTrait, snark::BatchedRelaxedR1CSSNARKTrait, Engine},
 };
 use serde::{Deserialize, Serialize};
-use wasmi_wasi::WasiCtx;
 
 type E = PallasEngine;
 type PCS = ipa_pc::EvaluationEngine<E>;
@@ -51,7 +50,7 @@ pub struct LiteProver {
 
 impl LiteProver {
   /// Setup the non-uniform circuits
-  pub fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<PublicValues> {
+  pub fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<PublicValues> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
 
@@ -65,7 +64,7 @@ impl LiteProver {
 
   /// Prove the non-uniform circuits
   pub fn prove(
-    ctx: &mut impl ZKWASMContext<WasiCtx>,
+    ctx: &mut impl ZKWASMContext,
     pp: &PublicParams,
     pk: &ProverKey<E, PCS>,
   ) -> anyhow::Result<Self> {
@@ -202,8 +201,8 @@ mod tests {
   use std::path::PathBuf;
 
   use crate::{
-    args::{WASMArgsBuilder, WASMCtx},
     utils::logging::init_logger,
+    wasm::{args::WASMArgsBuilder, ctx::WASMCtx},
   };
 
   use super::LiteProver;
