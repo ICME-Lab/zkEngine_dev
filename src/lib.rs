@@ -8,7 +8,7 @@ mod circuits;
 pub mod errors;
 pub mod pcd;
 pub mod run;
-mod snark;
+pub mod snark;
 pub mod traits;
 pub mod utils;
 

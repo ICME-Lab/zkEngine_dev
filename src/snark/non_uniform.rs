@@ -1,4 +1,6 @@
-use std::{cell::OnceCell, sync::Arc};
+#![allow(clippy::upper_case_acronyms)]
+//! Implements a "lite prover"
+use std::sync::Arc;
 
 use crate::{
   circuits::supernova::batched_rom::BatchedROM, traits::args::ZKWASMContext,
@@ -31,10 +33,9 @@ type E = PallasEngine;
 type PCS = ipa_pc::EvaluationEngine<E>;
 type SNARK = spartan::batched_ppsnark::BatchedRelaxedR1CSSNARK<E, PCS>;
 
-#[derive(Serialize, Deserialize)]
-struct VK {
-  #[serde(skip)]
-  vk: OnceCell<VerifierKey<E, PCS>>,
+/// Verifier key for the non-uniform circuits
+pub struct VK {
+  vk: VerifierKey<E, PCS>,
 }
 
 type PublicValues = (
@@ -43,15 +44,16 @@ type PublicValues = (
   PublicParams,      // pp
 );
 
-struct LiteProver {
+/// A lite prover for non-uniform circuits
+pub struct LiteProver {
   snark: NonUniformSNARK,
 }
 
 impl LiteProver {
-  fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<PublicValues> {
+  /// Setup the non-uniform circuits
+  pub fn setup(ctx: &mut impl ZKWASMContext<WasiCtx>) -> anyhow::Result<PublicValues> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
-    let tracer = ctx.tracer()?;
 
     // Batch execution trace in batched
     let (execution_trace, rom) = batch_execution_trace(&etable)?;
@@ -61,37 +63,42 @@ impl LiteProver {
     NonUniformSNARK::setup(batched_rom)
   }
 
-  fn prove(
+  /// Prove the non-uniform circuits
+  pub fn prove(
     ctx: &mut impl ZKWASMContext<WasiCtx>,
     pp: &PublicParams,
     pk: &ProverKey<E, PCS>,
-  ) -> anyhow::Result<NonUniformSNARK> {
+  ) -> anyhow::Result<Self> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
-    let tracer = ctx.tracer()?;
 
     // Batch execution trace in batched
     let (execution_trace, rom) = batch_execution_trace(&etable)?;
 
     // Build large step circuits
     let batched_rom = BatchedROM::<E>::new(rom, execution_trace.to_vec());
-    NonUniformSNARK::prove(pk, pp, batched_rom)
+    let snark = NonUniformSNARK::prove(pk, pp, batched_rom)?;
+
+    Ok(Self { snark })
   }
 
-  fn verify(&self, vk: VerifierKey<E, PCS>) -> anyhow::Result<bool> {
-    self.snark.verify(vk)?;
+  /// Verify the correct execution of the non-uniform circuits used in WASM proving
+  pub fn verify(&self, vk: &VK) -> anyhow::Result<bool> {
+    self.snark.verify(&vk.vk)?;
     Ok(true)
   }
 }
 
+/// Public parameters for the non-uniform circuits
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct PublicParams {
+pub struct PublicParams {
   ck: CommitmentKey<E>,
   r1cs_shapes: Vec<R1CSShape<E>>,
 }
 
+/// Non-uniform SNARK
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct NonUniformSNARK {
+pub struct NonUniformSNARK {
   inner_snark: SNARK,
   instance: Vec<RelaxedR1CSInstance<E>>,
 }
@@ -126,9 +133,7 @@ impl NonUniformSNARK {
       r1cs_shapes: circuit_shapes,
     };
 
-    let vk = VK {
-      vk: OnceCell::new(),
-    };
+    let vk = VK { vk };
     Ok((pk, vk, pp))
   }
 
@@ -170,9 +175,9 @@ impl NonUniformSNARK {
     })
   }
 
-  // verify the SNARK
-  pub fn verify(&self, vk: VerifierKey<E, PCS>) -> anyhow::Result<bool> {
-    self.inner_snark.verify(&vk, &self.instance)?;
+  /// verify the SNARK
+  pub fn verify(&self, vk: &VerifierKey<E, PCS>) -> anyhow::Result<bool> {
+    self.inner_snark.verify(vk, &self.instance)?;
     Ok(true)
   }
 }
@@ -185,7 +190,7 @@ fn compute_ck_primary(
 ) -> CommitmentKey<E> {
   let size_primary = circuit_shapes
     .iter()
-    .map(|shape| commitment_key_size(&shape, ck_hint1))
+    .map(|shape| commitment_key_size(shape, ck_hint1))
     .max()
     .unwrap();
 
@@ -196,11 +201,8 @@ fn compute_ck_primary(
 mod tests {
   use std::path::PathBuf;
 
-  use nova::spartan::batched_ppsnark::VerifierKey;
-
   use crate::{
     args::{WASMArgsBuilder, WASMCtx},
-    snark::non_uniform::{E, PCS},
     utils::logging::init_logger,
   };
 
@@ -226,12 +228,9 @@ mod tests {
     tracing::info!("running prover");
     let proof = LiteProver::prove(&mut wasm_ctx, &pp, &pk)?;
 
-    let vk_str = serde_json::to_string(&vk)?;
-    // let vk: VerifierKey<E, PCS> = serde_json::from_str(&vk_str)?;
-
     tracing::info!("running verifier");
-    // let result = proof.verify(vk)?;
-
+    let result = proof.verify(&vk)?;
+    assert!(result);
     Ok(())
   }
 }
