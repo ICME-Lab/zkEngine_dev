@@ -25,7 +25,6 @@ fn main() -> anyhow::Result<()> {
   let proof = LiteProver::prove(&mut wasm_ctx, &pp, &pk)?;
 
   tracing::info!("running verifier");
-  let result = proof.verify(&vk)?;
-  assert!(result);
+  proof.verify(&vk)?;
   Ok(())
 }

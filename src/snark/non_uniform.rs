@@ -84,9 +84,8 @@ impl LiteProver {
   }
 
   /// Verify the correct execution of the non-uniform circuits used in WASM proving
-  pub fn verify(&self, vk: &VK) -> anyhow::Result<bool> {
-    self.snark.verify(&vk.vk)?;
-    Ok(true)
+  pub fn verify(&self, vk: &VK) -> anyhow::Result<()> {
+    self.snark.verify(&vk.vk)
   }
 }
 
@@ -177,9 +176,9 @@ impl NonUniformSNARK {
   }
 
   /// verify the SNARK
-  pub fn verify(&self, vk: &VerifierKey<E>) -> anyhow::Result<bool> {
+  pub fn verify(&self, vk: &VerifierKey<E>) -> anyhow::Result<()> {
     self.inner_snark.verify(vk, &self.instance)?;
-    Ok(true)
+    Ok(())
   }
 }
 
@@ -230,8 +229,7 @@ mod tests {
     let proof = LiteProver::prove(&mut wasm_ctx, &pp, &pk)?;
 
     tracing::info!("running verifier");
-    let result = proof.verify(&vk)?;
-    assert!(result);
+    proof.verify(&vk)?;
     Ok(())
   }
 
@@ -260,8 +258,7 @@ mod tests {
     let vk: super::VK = serde_json::from_str(&vk_str)?;
 
     tracing::info!("running verifier");
-    let result = proof.verify(&vk)?;
-    assert!(result);
+    proof.verify(&vk)?;
     Ok(())
   }
 }
