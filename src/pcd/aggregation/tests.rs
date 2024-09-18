@@ -26,7 +26,7 @@ use super::Aggregator;
 fn test_aggregator() -> anyhow::Result<()> {
   init_logger();
 
-  let num_snarks = 1;
+  let num_snarks = 2;
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/example.wasm"))
     .build();
