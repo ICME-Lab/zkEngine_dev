@@ -50,8 +50,8 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  execution_proof: BatchedExecutionProof<E1, BS1, S2>,
-  mcc_proof: BatchedMCCProof<E1, S1, S2>,
+  pub(crate) execution_proof: BatchedExecutionProof<E1, BS1, S2>,
+  pub(crate) mcc_proof: BatchedMCCProof<E1, S1, S2>,
 }
 
 impl<E1, BS1, S1, S2> BatchedZKEProof<E1, BS1, S1, S2>
@@ -321,7 +321,7 @@ where
     let time = Instant::now();
 
     let compressed_proof = ivc_proof.compress(pp)?;
-    
+
     #[cfg(not(target_arch = "wasm32"))]
     tracing::info!("compressing took: {:?}", time.elapsed());
 

@@ -390,8 +390,9 @@ pub fn deca_batch_memory_trace(
 ) -> anyhow::Result<Vec<Vec<MemoryTableEntry>>> {
   // make sure `memory_trace_len` is a multiple of 10, otherwise make it a multiple of 10 but
   // appending dummy reads
-  if memory_trace.len() % 10 != 0 {
-    let num_to_append = 10 - (memory_trace.len() % 10);
+  let pre_mem_trace_len = memory_trace.len();
+  if pre_mem_trace_len % 10 != 0 {
+    let num_to_append = 10 - (pre_mem_trace_len % 10);
     for _ in 0..num_to_append {
       memory_trace.push(MemoryTableEntry {
         eid: Default::default(),
@@ -404,15 +405,15 @@ pub fn deca_batch_memory_trace(
       })
     }
   }
+
   // sanity check
   debug_assert!(memory_trace.len() % 10 == 0);
 
+  // Batch memory trace into 10 memory traces
   let step_size = memory_trace.len() / 10;
   let mut start = 0;
   let mut end = step_size;
-
   let mut batched_memory_trace = Vec::with_capacity(10);
-
   for _ in 0..10 {
     batched_memory_trace.push(memory_trace[start..end].to_vec());
     start = end;

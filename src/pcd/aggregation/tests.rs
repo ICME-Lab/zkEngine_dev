@@ -44,19 +44,19 @@ fn test_aggregator() -> anyhow::Result<()> {
   let (proof, public_values, _) =
     ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
-  // let (s1, U) = proof.execution_proof.agg_snark_data();
-  // // TODO: check if we can use the same vk
-  // let vk = pp.execution().vk().primary().clone();
-  // let agg_snark_data = AggregatorSNARKData::new(s1, vk, U);
-  // let snarks_data = vec![agg_snark_data];
+  let (s1, U) = proof.execution_proof.agg_snark_data();
+  // TODO: check if we can use the same vk
+  let vk = pp.execution().vk().primary().clone();
+  let agg_snark_data = AggregatorSNARKData::new(s1, vk, U);
+  let snarks_data = vec![agg_snark_data];
 
-  // let agg_pp =
-  //   aggregator::PublicParams::setup(&snarks_data, &default_ck_hint(), &default_ck_hint())?;
+  let agg_pp =
+    aggregator::PublicParams::setup(&snarks_data, &default_ck_hint(), &default_ck_hint())?;
 
-  // let (agg_pk, agg_vk) = AggregatedSNARK::<E1, AS1, AS2>::setup(&agg_pp)?;
-  // let snark = AggregatedSNARK::prove(&agg_pp, &agg_pk, &snarks_data)?;
+  let (agg_pk, agg_vk) = AggregatedSNARK::<E1, AS1, AS2>::setup(&agg_pp)?;
+  let snark = AggregatedSNARK::prove(&agg_pp, &agg_pk, &snarks_data)?;
 
-  // snark.verify(&agg_vk)?;
+  snark.verify(&agg_vk)?;
 
   Ok(())
 }
