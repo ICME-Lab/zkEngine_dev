@@ -22,7 +22,7 @@ use wasmi::mtable::MTable;
 use crate::{
   errors::ProofError,
   traits::{prover::Prover, snark::RecursiveSNARKTrait},
-  utils::{memory::create_lookup_table, nivc::batch_memory_trace},
+  utils::{memory::create_lookup_table, nivc::deca_batch_memory_trace},
 };
 
 /// Inner circuit
@@ -130,7 +130,7 @@ where
 
   #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("PP produced in {:?}", time.elapsed());
-  
+
   Ok(BatchedMCCPublicParams {
     pp,
     pk_and_vk: OnceCell::new(),
@@ -265,7 +265,7 @@ where
 {
   pub fn mcc_inputs(mtable: MTable) -> anyhow::Result<C1<E1>> {
     let (init_table, memory_trace, last_addr) = create_lookup_table(mtable);
-    let m_chunks = batch_memory_trace(memory_trace, last_addr)?;
+    let m_chunks = deca_batch_memory_trace(memory_trace, last_addr)?;
     let initial_intermediate_gamma = <E1 as Engine>::Scalar::from(1);
     let mut intermediate_gamma = initial_intermediate_gamma;
 
