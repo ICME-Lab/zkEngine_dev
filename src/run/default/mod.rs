@@ -47,8 +47,8 @@ where
   S1: RelaxedR1CSSNARKTrait<E1>,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>>,
 {
-  execution_proof: ExecutionProof<E1, BS1, S2>,
-  mcc_proof: MCCProof<E1, S1, S2>,
+  pub(crate) execution_proof: ExecutionProof<E1, BS1, S2>,
+  pub(crate) mcc_proof: MCCProof<E1, S1, S2>,
 }
 
 impl<E1, BS1, S1, S2> ZKEProof<E1, BS1, S1, S2>
