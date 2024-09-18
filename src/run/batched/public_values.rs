@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::traits::public_values::{PublicValuesTrait, ZKVMPublicValues};
 
 /// Public values used for proving batched MCC
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct MCCPublicValues<E1>
 where
@@ -42,7 +42,7 @@ where
 }
 
 /// Public values used for batched execution proving
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct ExecutionPublicValues<E1>
 where
@@ -79,7 +79,7 @@ where
 }
 
 /// Public values for the batched zkEngine
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct BatchedPublicValues<E1>
 where
