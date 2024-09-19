@@ -23,19 +23,22 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
+// TODO: make more generic, in turn more readable
+
+/// Output of the aggregation setup algorithm
 type SetupOutput<'a> = (
-  aggregator::PublicParams<<E as BackendEngine>::E1>,
+  aggregator::PublicParams<<E as BackendEngine>::E1>, // Public Params
   aggregator::ProverKey<
     <E as BackendEngine>::E1,
     <E as BackendEngine>::BS1,
     <E as BackendEngine>::BS2,
-  >,
+  >, // Prover Key
   aggregator::VerifierKey<
     <E as BackendEngine>::E1,
     <E as BackendEngine>::BS1,
     <E as BackendEngine>::BS2,
-  >,
-  Vec<AggregatorSNARKData<'a, <E as BackendEngine>::E1>>,
+  >, // Verifier Key
+  Vec<AggregatorSNARKData<'a, <E as BackendEngine>::E1>>, // SNARK Data
 );
 
 /// Implements methods to convert many SNARKS (of the same computation) into one [`AggregatedSNARK`]
@@ -65,9 +68,13 @@ impl Aggregator {
     pp: &'a PublicParams<AggregationEngine>,
     snarks: &[WasmSNARK<AggregationEngine>],
   ) -> anyhow::Result<SetupOutput<'a>> {
-    let mut snarks_data = Vec::with_capacity(snarks.len());
+    // Get verifiers key which will be passed in the verify circuit
+    //
+    // The verifier key for each proof to be aggregated is the same
     let vk = pp.execution().vk().primary();
 
+    // Convert SNARKS into data-structure ammenable to aggregation.
+    let mut snarks_data = Vec::with_capacity(snarks.len());
     for snark in snarks.iter() {
       let (s1, U) = snark.execution_proof.agg_snark_data();
 
@@ -75,10 +82,12 @@ impl Aggregator {
       snarks_data.push(agg_snark_data);
     }
 
+    // Get the public parameters of the verify circuit
     tracing::info!("Producing Aggregator public params...");
     let agg_pp =
       aggregator::PublicParams::setup(&snarks_data, &default_ck_hint(), &default_ck_hint())?;
 
+    // Get the prover and verifier keys for the proving/verifying of the verify circuit
     tracing::info!("Setting up Aggregator prover and verifier keys...");
     let (agg_pk, agg_vk) = AggregatedSNARK::<
       <E as BackendEngine>::E1,
@@ -91,6 +100,17 @@ impl Aggregator {
 
   /// Run SNARK's through verify circuit and produce final [`AggregatedSNARK`] on the R1CS of the
   /// verify circuit algorithm
+  ///
+  /// # Arguments
+  /// * `pp` - the public parameters for the aggregation computation (corresponding to the verify
+  ///   circuit)
+  /// * `pk` - the prover key for the aggregation (needed for final Aggregated SNARK)
+  /// * `snarks_data` - the data produced from converting the input SNARKS into data structure
+  ///   ammenable to aggregation
+  ///
+  /// # Returns
+  ///
+  /// Returns the final [`AggregatedSNARK`] which has a verify method
   pub fn prove(
     pp: &aggregator::PublicParams<<E as BackendEngine>::E1>,
     pk: &aggregator::ProverKey<
@@ -102,6 +122,7 @@ impl Aggregator {
   ) -> anyhow::Result<
     AggregatedSNARK<<E as BackendEngine>::E1, <E as BackendEngine>::BS1, <E as BackendEngine>::BS2>,
   > {
+    // Run verify circuit on SNARK's and produce final Aggregated SNARK
     tracing::info!("Proving Aggregated SNARK...");
     let snark = AggregatedSNARK::prove(pp, pk, snarks_data)?;
     Ok(snark)
