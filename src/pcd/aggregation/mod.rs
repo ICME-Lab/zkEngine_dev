@@ -20,9 +20,8 @@ use nova::{
 };
 
 use crate::{
-  run::batched::BatchedZKEProof,
-  traits::{public_values::ZKVMPublicParams, zkvm::ZKVM},
-  wasm::{args::WASMArgs, ctx::wasi::WasiWASMCtx},
+  run::batched::{BatchedZKEProof, BatchedZKEPublicParams},
+  traits::public_values::ZKVMPublicParams,
 };
 
 #[cfg(test)]
@@ -43,11 +42,11 @@ type AS2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E1>, EE2>;
 
 // TODO: use custom error
 
-type SetupOutput = (
+type SetupOutput<'a> = (
   aggregator::PublicParams<E1>,
   aggregator::ProverKey<E1, AS1, AS2>,
   aggregator::VerifierKey<E1, AS1, AS2>,
-  Vec<AggregatorSNARKData<E1>>,
+  Vec<AggregatorSNARKData<'a, E1>>,
 );
 
 /// Implements methods to convert many SNARKS (of the same computation) into one [`AggregatedSNARK`]
@@ -56,9 +55,9 @@ pub struct Aggregator;
 impl Aggregator {
   /// Runs setup algorithm for aggregation
   ///
-  /// (1. Get vk for SNARKs to be aggregated, 2. Convert SNARKS
-  /// into data-structure ammenable to aggregation, 3. Get public params of verify circuit 5. Get pk
-  /// and vk for verify circuit)
+  /// 1. Convert SNARKS into data-structure ammenable to aggregation.
+  /// 2. Get public params of verify circuit
+  /// 3. Get pk  vk for verify circuit
   ///
   /// # Arguments
   /// * `wasm_args` - configurations needed to run the WASM module. Corresponds to the WASM the
@@ -73,14 +72,16 @@ impl Aggregator {
   /// * `VerifierKey` - Key needed in verifying algorithm to verify the final [`AggregatedSNARK`]
   /// * `Vec<AggregatorSNARKData>` - data made from converting input SNARKS into their data needed
   ///   for Aggregating
-  pub fn setup(wasm_args: &WASMArgs, snarks: &[ZKEngine]) -> anyhow::Result<SetupOutput> {
+  pub fn setup<'a>(
+    pp: &'a BatchedZKEPublicParams<E1, BS1, S1, S2>,
+    snarks: &[ZKEngine],
+  ) -> anyhow::Result<SetupOutput<'a>> {
     let mut snarks_data = Vec::with_capacity(snarks.len());
-    let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
+    let vk = pp.execution().vk().primary();
 
     for snark in snarks.iter() {
       let (s1, U) = snark.execution_proof.agg_snark_data();
 
-      let vk = pp.execution().vk().primary().clone();
       let agg_snark_data = AggregatorSNARKData::new(s1, vk, U);
       snarks_data.push(agg_snark_data);
     }

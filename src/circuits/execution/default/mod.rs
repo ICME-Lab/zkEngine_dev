@@ -6,7 +6,6 @@ use std::time::Instant;
 use anyhow::anyhow;
 use nova::{
   r1cs::RelaxedR1CSInstance,
-  spartan::verify_circuit::aggregator::AggregatorSNARKData,
   supernova::{
     error::SuperNovaError,
     snark::{CompressedSNARK, ProverKey, VerifierKey},
