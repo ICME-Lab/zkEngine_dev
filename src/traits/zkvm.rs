@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 //! A module that defines the ZKVM trait and its builder.
 
 use nova::traits::CurveCycleEquipped;

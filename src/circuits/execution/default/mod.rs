@@ -228,6 +228,7 @@ where
   S1: BatchedRelaxedR1CSSNARKTrait<E1> + Clone,
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
+  #[allow(dead_code)]
   pub fn agg_snark_data(&self) -> (S1, Vec<RelaxedR1CSInstance<E1>>) {
     match self {
       Self::Compressed(snark) => {

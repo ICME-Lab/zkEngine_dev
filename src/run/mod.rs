@@ -10,8 +10,9 @@ mod tests;
 pub mod cli_utils {
   //! This module contains the CLI utilities for the zkEngine.
   use crate::{
-    traits::{be_engine::PastaEngine, zkvm::ZKVM},
+    traits::zkvm::ZKVM,
     wasm::{args::WASMArgs, ctx::wasi::WasiWASMCtx},
+    E,
   };
 
   use super::{
@@ -19,19 +20,6 @@ pub mod cli_utils {
     default::{ZKEExecutionProof, ZKEProof},
   };
   use crate::traits::wasm::ZKWASMArgs;
-  use nova::{
-    provider::{ipa_pc, PallasEngine},
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::Dual,
-  };
-
-  type E = PastaEngine;
-  type E1 = PallasEngine;
-  type EE1 = ipa_pc::EvaluationEngine<E1>;
-  type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
-  type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
-  type S1 = RelaxedR1CSSNARK<E1, EE1>;
-  type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
 
   /// Function for user to test the zkEngine
   ///
@@ -62,9 +50,8 @@ pub mod cli_utils {
         &pp,
       )?;
     } else {
-      let pp =
-        ZKEExecutionProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
-      let _ = ZKEExecutionProof::<E1, BS1, S1, S2>::prove_wasm_execution(
+      let pp = ZKEExecutionProof::<E>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
+      let _ = ZKEExecutionProof::<E>::prove_wasm_execution(
         &mut WasiWASMCtx::new_from_file(wasm_args)?,
         &pp,
       )?;
@@ -78,8 +65,8 @@ pub mod cli_utils {
       let pp = BatchedZKEProof::<E>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
       BatchedZKEProof::<E>::prove_wasm(&mut WasiWASMCtx::new_from_file(wasm_args)?, &pp)?;
     } else {
-      let pp = ZKEProof::<E1, BS1, S1, S2>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
-      ZKEProof::<E1, BS1, S1, S2>::prove_wasm(&mut WasiWASMCtx::new_from_file(wasm_args)?, &pp)?;
+      let pp = ZKEProof::<E>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
+      ZKEProof::<E>::prove_wasm(&mut WasiWASMCtx::new_from_file(wasm_args)?, &pp)?;
     }
     Ok(())
   }
