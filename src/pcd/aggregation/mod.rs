@@ -15,12 +15,9 @@ use nova::{
 };
 
 use crate::{
+  provider::{AggregationEngine, E},
   run::batched::{PublicParams, WasmSNARK},
-  traits::{
-    be_engine::{AggregationEngine, BackendEngine},
-    public_values::ZKVMPublicParams,
-  },
-  E,
+  traits::{be_engine::BackendEngine, public_values::ZKVMPublicParams},
 };
 
 #[cfg(test)]

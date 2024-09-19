@@ -1,8 +1,8 @@
 use zk_engine::{
+  provider::WasmSNARK,
   traits::zkvm::WasmSNARKTrait,
   utils::{logging::init_logger, wasm::wat2wasm},
   wasm::{args::WASMArgsBuilder, ctx::WASMCtx},
-  ZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -24,7 +24,7 @@ fn main() -> anyhow::Result<()> {
   let wasm_bytes = wat2wasm(wasm)?;
 
   // Run setup step for ZKVM
-  let pp = ZKEngine::setup(&mut WASMCtx::new_from_bytecode(&wasm_bytes, &args)?)?;
+  let pp = WasmSNARK::setup(&mut WASMCtx::new_from_bytecode(&wasm_bytes, &args)?)?;
 
   // Prove execution and run memory consistency checks
   //
@@ -32,7 +32,7 @@ fn main() -> anyhow::Result<()> {
   //
   // Above type alias's (for the backend config) get used here
   let (proof, public_values, _) =
-    ZKEngine::prove_wasm(&mut WASMCtx::new_from_bytecode(&wasm_bytes, &args)?, &pp)?;
+    WasmSNARK::prove_wasm(&mut WASMCtx::new_from_bytecode(&wasm_bytes, &args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;

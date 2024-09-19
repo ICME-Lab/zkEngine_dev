@@ -6,17 +6,13 @@
 mod circuits;
 pub mod errors;
 pub mod pcd;
+pub mod provider;
 pub mod run;
 pub mod snark;
 pub mod traits;
 pub mod utils;
 pub mod wasm;
 
-use run::{
-  batched::{self},
-  default::{self},
-};
-use traits::be_engine::PastaEngine;
 // re-export the wasi module
 pub use wasmi::TraceSliceValues;
 
@@ -25,11 +21,3 @@ pub use wasmi_wasi::WasiCtx;
 
 // re-export `nova`
 pub use nova;
-
-/// Backend Engine used for testing
-pub type E = PastaEngine;
-
-/// The default zkEngine type alias.
-pub type WasmSNARK = default::WasmSNARK<E>;
-/// The Batched zkEngine type alias.
-pub type BatchedWasmSNARK = batched::WasmSNARK<E>;

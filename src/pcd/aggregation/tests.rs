@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 use crate::{
+  provider::AggregationEngine,
   run::batched::WasmSNARK,
-  traits::{be_engine::AggregationEngine, zkvm::WasmSNARKTrait},
+  traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{
     args::{WASMArgs, WASMArgsBuilder},

@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
 use crate::{
+  provider::BatchedWasmSNARK,
   traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  BatchedWasmSNARK,
 };
 
 #[ignore]

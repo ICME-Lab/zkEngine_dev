@@ -10,9 +10,9 @@ mod tests;
 pub mod cli_utils {
   //! This module contains the CLI utilities for the zkEngine.
   use crate::{
+    provider::E,
     traits::zkvm::WasmSNARKTrait,
     wasm::{args::WASMArgs, ctx::wasi::WasiWASMCtx},
-    E,
   };
 
   use crate::traits::wasm::ZKWASMArgs;

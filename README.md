@@ -35,10 +35,10 @@ RUST_LOG=debug cargo +nightly run --release --example default
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
+  provider::WasmSNARK,
   traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  ZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -52,7 +52,7 @@ fn main() -> anyhow::Result<()> {
     .build();
 
   // Run setup step for ZKVM
-  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = WasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Prove execution and run memory consistency checks
   //
@@ -60,7 +60,7 @@ fn main() -> anyhow::Result<()> {
   //
   // Above type alias's (for the backend config) get used here
   let (proof, public_values, _) =
-    ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
+    WasmSNARK::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;
@@ -79,10 +79,10 @@ RUST_LOG=debug cargo +nightly run --release --example batched
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
+  provider::BatchedWasmSNARK,
   traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  BatchedZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -104,11 +104,11 @@ fn main() -> anyhow::Result<()> {
     .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
 
-  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedWasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Use `BatchedZKEProof` for batched proving
   let (proof, public_values, _) =
-    BatchedZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
+    BatchedWasmSNARK::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;
@@ -128,10 +128,10 @@ RUST_LOG=debug cargo +nightly run --release --example zkml
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
+  provider::BatchedWasmSNARK,
   traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  BatchedZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -143,11 +143,11 @@ fn main() -> anyhow::Result<()> {
     .build();
 
   // Create a WASM execution context for proving.
-  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedWasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
-  let (proof, public_values, _) = BatchedZKEngine::prove_wasm(&mut wasm_ctx, &pp)?;
+  let (proof, public_values, _) = BatchedWasmSNARK::prove_wasm(&mut wasm_ctx, &pp)?;
 
   let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))

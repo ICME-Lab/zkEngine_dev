@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use zk_engine::{
+  provider::{WasmSNARK, E},
   run::default::public_values::PublicValues,
   traits::{be_engine::BackendEngine, zkvm::WasmSNARKTrait},
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  ZKEngine, E,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -26,23 +26,23 @@ fn main() -> anyhow::Result<()> {
     .func_args(vec![String::from("10")]) // This will generate 152 opcodes
     .build();
 
-  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = WasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Use `BatchedZKEProof` for batched proving
   let (proof, public_values, _) =
-    ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
+    WasmSNARK::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Serialize the proof and public values
   let proof_str = serde_json::to_string(&proof)?;
   let public_values_str = serde_json::to_string(&public_values)?;
 
   // Deserialize the proof and public values
-  let proof: ZKEngine = serde_json::from_str(&proof_str)?;
+  let proof: WasmSNARK = serde_json::from_str(&proof_str)?;
   let public_values: PublicValues<<E as BackendEngine>::E1> =
     serde_json::from_str(&public_values_str)?;
 
   // Verify proof
-  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = WasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
   let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }

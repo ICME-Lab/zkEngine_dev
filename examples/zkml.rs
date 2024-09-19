@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use zk_engine::{
+  provider::BatchedWasmSNARK,
   traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  BatchedZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -15,11 +15,11 @@ fn main() -> anyhow::Result<()> {
     .build();
 
   // Create a WASM execution context for proving.
-  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedWasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
-  let (proof, public_values, _) = BatchedZKEngine::prove_wasm(&mut wasm_ctx, &pp)?;
+  let (proof, public_values, _) = BatchedWasmSNARK::prove_wasm(&mut wasm_ctx, &pp)?;
 
   let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))

@@ -439,11 +439,11 @@ mod tests {
   use nova::traits::Engine;
 
   use crate::{
+    provider::E,
     run::default::WasmSNARK,
     traits::{be_engine::BackendEngine, zkvm::WasmSNARKTrait},
     utils::logging::init_logger,
     wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-    E,
   };
 
   fn test_zk_engine_with<E>() -> anyhow::Result<()>

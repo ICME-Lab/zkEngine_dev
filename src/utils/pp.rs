@@ -47,10 +47,10 @@ mod tests {
   };
 
   use crate::{
+    provider::BatchedWasmSNARK,
     traits::zkvm::WasmSNARKTrait,
     utils::logging::init_logger,
     wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-    BatchedWasmSNARK,
   };
 
   use super::pp_hash_check;

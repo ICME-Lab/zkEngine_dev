@@ -440,16 +440,12 @@ mod tests {
   use nova::traits::Engine;
 
   use crate::{
+    provider::E,
     run::batched::WasmSNARK,
-    traits::{
-      be_engine::{BackendEngine, PastaEngine},
-      zkvm::WasmSNARKTrait,
-    },
+    traits::{be_engine::BackendEngine, zkvm::WasmSNARKTrait},
     utils::logging::init_logger,
     wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   };
-
-  type E = PastaEngine;
 
   fn test_zk_engine_with<E>() -> anyhow::Result<()>
   where
