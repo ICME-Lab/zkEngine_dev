@@ -35,10 +35,10 @@ RUST_LOG=debug cargo +nightly run --release --example default
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
-  traits::zkvm::ZKVM,
+  provider::WasmSNARK,
+  traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  ZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -52,14 +52,15 @@ fn main() -> anyhow::Result<()> {
     .build();
 
   // Run setup step for ZKVM
-  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = WasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Prove execution and run memory consistency checks
   //
   // Get proof for verification and corresponding public values
   //
   // Above type alias's (for the backend config) get used here
-  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
+  let (proof, public_values, _) =
+    WasmSNARK::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;
@@ -78,10 +79,10 @@ RUST_LOG=debug cargo +nightly run --release --example batched
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
-  traits::zkvm::ZKVM,
+  provider::BatchedWasmSNARK,
+  traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  BatchedZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -103,11 +104,11 @@ fn main() -> anyhow::Result<()> {
     .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
     .build();
 
-  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedWasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Use `BatchedZKEProof` for batched proving
   let (proof, public_values, _) =
-    BatchedZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
+    BatchedWasmSNARK::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;
@@ -127,10 +128,10 @@ RUST_LOG=debug cargo +nightly run --release --example zkml
 ```rust
 use std::path::PathBuf;
 use zk_engine::{
-  traits::zkvm::ZKVM,
+  provider::BatchedWasmSNARK,
+  traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  BatchedZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -142,73 +143,15 @@ fn main() -> anyhow::Result<()> {
     .build();
 
   // Create a WASM execution context for proving.
-  let pp = BatchedZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = BatchedWasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
-  let (proof, public_values, _) = BatchedZKEngine::prove_wasm(&mut wasm_ctx, &pp)?;
+  let (proof, public_values, _) = BatchedWasmSNARK::prove_wasm(&mut wasm_ctx, &pp)?;
 
   let result = proof.verify(public_values, &pp)?;
   Ok(assert!(result))
 }
 ```
-
-### Enable zero-knowledge
-
-To enable zero-knowlege see below code snippet on configaration.
-
-Example: 
-`type E1 = PallasEngine;` becomes -> `type E1 = ZKPallasEngine;`
-
-```bash
-RUST_LOG=debug cargo +nightly run --release --example zk
-````
-
-```rust
-use nova::provider::ZKPallasEngine;
-use std::path::PathBuf;
-use zk_engine::{
-  // Backend imports for ZK
-  nova::{
-    provider::ipa_pc,
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::Dual,
-  },
-  run::batched::BatchedZKEProof,
-  traits::zkvm::ZKVM,
-  utils::logging::init_logger,
-  wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-};
-
-
-// Configs to enable ZK
-type E1 = ZKPallasEngine;
-type EE1 = ipa_pc::EvaluationEngine<E1>;
-type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
-type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
-type S1 = RelaxedR1CSSNARK<E1, EE1>;
-type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
-
-type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
-
-fn main() -> anyhow::Result<()> {
-  init_logger();
-
-  let args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/misc/fib.wat"))
-    .invoke(Some(String::from("fib")))
-    .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
-    .build();
-
-  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
-
-  // ZKPallasEngine get's used here
-  let (proof, public_values, _) = ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
-
-  // Verify proof
-  let result = proof.verify(public_values, &pp)?;
-  Ok(assert!(result))
-}
-  ```
 
 

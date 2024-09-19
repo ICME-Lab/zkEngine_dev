@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use zk_engine::{
-  traits::zkvm::ZKVM,
+  provider::WasmSNARK,
+  traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  ZKEngine,
 };
 
 fn main() -> anyhow::Result<()> {
@@ -17,7 +17,7 @@ fn main() -> anyhow::Result<()> {
     .build();
 
   // Run setup step for ZKVM
-  let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let pp = WasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Prove execution and run memory consistency checks
   //
@@ -25,7 +25,7 @@ fn main() -> anyhow::Result<()> {
   //
   // Above type alias's (for the backend config) get used here
   let (proof, public_values, _) =
-    ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
+    WasmSNARK::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;

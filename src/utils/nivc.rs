@@ -380,43 +380,46 @@ pub fn batch_execution_trace(etable: &ETable) -> anyhow::Result<(Vec<Vec<StepInf
 }
 
 /// Util function to batch memory trace into exactly 10 steps
-pub fn batch_memory_trace(
-  memory_trace: Vec<MemoryTableEntry>,
+///
+/// #Panics
+///
+/// if memory_trace length is less than 10
+pub fn deca_batch_memory_trace(
+  mut memory_trace: Vec<MemoryTableEntry>,
   last_addr: usize,
 ) -> anyhow::Result<Vec<Vec<MemoryTableEntry>>> {
-  let mut batched_memory_trace = Vec::with_capacity(10);
+  // make sure `memory_trace_len` is a multiple of 10, otherwise make it a multiple of 10 but
+  // appending dummy reads
+  let pre_mem_trace_len = memory_trace.len();
+  if pre_mem_trace_len % 10 != 0 {
+    let num_to_append = 10 - (pre_mem_trace_len % 10);
+    for _ in 0..num_to_append {
+      memory_trace.push(MemoryTableEntry {
+        eid: Default::default(),
+        addr: last_addr,
+        value: 0,
+        atype: AccessType::Read,
+        emid: Default::default(),
+        is_mutable: false,
+        ltype: LocationType::Stack,
+      })
+    }
+  }
 
-  let step_size = memory_trace.len() / 9;
-  let remainder = memory_trace.len() % 9;
+  // sanity check
+  debug_assert!(memory_trace.len() % 10 == 0);
+
+  // Batch memory trace into 10 memory traces
+  let step_size = memory_trace.len() / 10;
   let mut start = 0;
   let mut end = step_size;
-  for i in 0..10 {
-    if i == 9 {
-      let mut memory_trace = memory_trace[start..].to_owned();
-      let dummy_step_len = step_size - remainder;
-
-      for _ in 0..dummy_step_len {
-        memory_trace.push(MemoryTableEntry {
-          eid: Default::default(),
-          addr: last_addr,
-          value: 0,
-          atype: AccessType::Read,
-          emid: Default::default(),
-          is_mutable: false,
-          ltype: LocationType::Stack,
-        })
-      }
-
-      batched_memory_trace.push(memory_trace);
-      break;
-    }
-
-    let memory_trace = memory_trace[start..end].to_owned();
-    batched_memory_trace.push(memory_trace);
+  let mut batched_memory_trace = Vec::with_capacity(10);
+  for _ in 0..10 {
+    batched_memory_trace.push(memory_trace[start..end].to_vec());
     start = end;
     end += step_size;
   }
-  tracing::trace!("number of steps to run after batching: 10");
+
   Ok(batched_memory_trace)
 }
 

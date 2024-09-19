@@ -2,6 +2,7 @@
 //!
 //! Methods to prepare and prove WASM files for distributed proving.
 
+pub mod aggregation;
 pub mod receipt;
 
 #[cfg(test)]

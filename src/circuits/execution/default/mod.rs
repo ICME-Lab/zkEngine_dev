@@ -5,6 +5,7 @@ use std::time::Instant;
 
 use anyhow::anyhow;
 use nova::{
+  r1cs::RelaxedR1CSInstance,
   supernova::{
     error::SuperNovaError,
     snark::{CompressedSNARK, ProverKey, VerifierKey},
@@ -97,7 +98,7 @@ where
   tracing::info!("producing PP...");
 
   let pp = SuperNovaPublicParams::setup(nc, &*default_ck_hint(), &*default_ck_hint());
-  
+
   #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("producing PP took: {:?}", time.elapsed());
 
@@ -216,6 +217,25 @@ where
     match self {
       Self::Recursive(_, _, zi) => Ok(zi),
       _ => Err(anyhow!("zi not found")),
+    }
+  }
+}
+
+impl<E1, S1, S2> ExecutionProof<E1, S1, S2>
+where
+  E1: CurveCycleEquipped,
+  <E1 as Engine>::Scalar: PartialOrd,
+  S1: BatchedRelaxedR1CSSNARKTrait<E1> + Clone,
+  S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
+{
+  #[allow(dead_code)]
+  pub fn agg_snark_data(&self) -> (S1, Vec<RelaxedR1CSInstance<E1>>) {
+    match self {
+      Self::Compressed(snark) => {
+        let (snark, U) = snark.primary_snark_and_U();
+        (snark, U)
+      }
+      _ => panic!("SNARK not compressed"),
     }
   }
 }

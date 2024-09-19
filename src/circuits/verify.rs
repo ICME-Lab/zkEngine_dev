@@ -1,6 +1,6 @@
 //! This module contains the circuit to verify proofs/receipts
 
-use std::{marker::PhantomData};
+use std::marker::PhantomData;
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -147,7 +147,7 @@ pub fn verify_receipts(receipts: &[Receipt]) -> anyhow::Result<String> {
   let start = Instant::now();
 
   let compressed_snark = CompressedSNARK::<_, S1, S2>::prove(&pp, &pk, &recursive_snark)?;
-  
+
   #[cfg(not(target_arch = "wasm32"))]
   tracing::info!("CompressedSNARK::prove took {:?}", start.elapsed());
 
