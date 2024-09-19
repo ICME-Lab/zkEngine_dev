@@ -64,7 +64,7 @@ where
   }
 }
 
-impl<E1, BS1, S1, S2> ZKVM<E1> for ZKEProof<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> ZKVM for ZKEProof<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   <E1 as Engine>::Scalar: PartialOrd + Ord,

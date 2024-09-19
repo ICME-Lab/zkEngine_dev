@@ -5,7 +5,7 @@ use nova::{
   traits::{
     evaluation::EvaluationEngineTrait,
     snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-    CurveCycleEquipped, Dual,
+    CurveCycleEquipped, Dual, Engine,
   },
 };
 
@@ -54,6 +54,3 @@ impl BackendEngine for AggregationEngine {
   type S1 = spartan::snark::RelaxedR1CSSNARK<Self::E1, Self::EE1>;
   type S2 = spartan::snark::RelaxedR1CSSNARK<Dual<Self::E1>, Self::EE2>;
 }
-
-/// Formalizes which backend engines can be used for aggregation
-pub trait AggregationEngineTrait: BackendEngine {}

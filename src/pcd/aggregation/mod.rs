@@ -13,7 +13,6 @@ use nova::{
   provider::{ipa_pc, PallasEngine},
   spartan::{
     self,
-    snark::RelaxedR1CSSNARK,
     verify_circuit::aggregator::{self, AggregatedSNARK, AggregatorSNARKData},
   },
   traits::{snark::default_ck_hint, Dual},
@@ -21,10 +20,7 @@ use nova::{
 
 use crate::{
   run::batched::{BatchedZKEProof, BatchedZKEPublicParams},
-  traits::{
-    be_engine::{AggregationEngine, PastaEngine},
-    public_values::ZKVMPublicParams,
-  },
+  traits::{be_engine::AggregationEngine, public_values::ZKVMPublicParams},
 };
 
 #[cfg(test)]
@@ -32,11 +28,9 @@ mod tests;
 //TODO: make ZKWasmSNARK a generic here
 
 type E1 = PallasEngine;
-type BS1 = spartan::verify_circuit::ipa_prover_poseidon::batched::BatchedRelaxedR1CSSNARK<E1>;
+
 type EE1 = ipa_pc::EvaluationEngine<E1>;
 type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
-type S1 = RelaxedR1CSSNARK<E1, EE1>;
-type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
 
 type E = AggregationEngine;
 type ZKEngine = BatchedZKEProof<E>;

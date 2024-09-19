@@ -5,7 +5,7 @@ use nova::traits::CurveCycleEquipped;
 use super::{prover::Prover, public_values::ZKVMPublicParams, wasm::ZKWASMContext};
 
 /// A trait that defines the behavior of a zkVM (zkWASM in our case).
-pub trait ZKVM<E1: CurveCycleEquipped>
+pub trait ZKVM
 where
   Self: Sized,
 {
@@ -53,7 +53,7 @@ where
   /// A type that contains the prover for the MCC proof.
   type MCCProver: Prover<E1>;
   /// A type that contains the zkVM proof and the public values.
-  type ZKVM: ZKVM<E1, PublicParams = Self::PublicParams, PublicValues = Self::PublicValues>;
+  type ZKVM: ZKVM<PublicParams = Self::PublicParams, PublicValues = Self::PublicValues>;
 
   /// A method that gets the execution trace of the WASM.
   fn get_trace(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self>;

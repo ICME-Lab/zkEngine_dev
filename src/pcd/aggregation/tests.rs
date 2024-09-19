@@ -1,11 +1,5 @@
 use std::path::PathBuf;
 
-use nova::{
-  provider::{ipa_pc, PallasEngine},
-  spartan::{self, snark::RelaxedR1CSSNARK},
-  traits::Dual,
-};
-
 use crate::{
   run::batched::BatchedZKEProof,
   traits::{be_engine::AggregationEngine, zkvm::ZKVM},

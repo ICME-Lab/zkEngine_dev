@@ -3,7 +3,7 @@
 //! Batched execution is a technique that allows the zkVM to execute multiple instructions in a
 //! single step.
 pub mod public_values;
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::time::Instant;
@@ -29,11 +29,7 @@ use crate::{
 };
 use anyhow::anyhow;
 use ff::Field;
-use nova::traits::{
-  circuit::TrivialCircuit,
-  snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-  CurveCycleEquipped, Dual, Engine,
-};
+use nova::traits::{circuit::TrivialCircuit, Engine};
 use public_values::{BatchedPublicValues, ExecutionPublicValues, MCCPublicValues};
 use serde::{Deserialize, Serialize};
 use wasmi::{etable::ETable, Tracer};
@@ -64,7 +60,7 @@ where
   }
 }
 
-impl<E> ZKVM<E::E1> for BatchedZKEProof<E>
+impl<E> ZKVM for BatchedZKEProof<E>
 where
   E: BackendEngine,
   <E::E1 as Engine>::Scalar: PartialOrd + Ord,
@@ -441,14 +437,7 @@ where
 mod tests {
   use std::path::PathBuf;
 
-  use nova::{
-    provider::{ipa_pc, PallasEngine, ZKPallasEngine},
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::{
-      snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-      Engine,
-    },
-  };
+  use nova::traits::Engine;
 
   use crate::{
     run::batched::BatchedZKEProof,
