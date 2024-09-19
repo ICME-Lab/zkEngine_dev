@@ -34,9 +34,6 @@ where
   ) -> anyhow::Result<bool>;
 }
 
-/// Output of ZKVMBuilder
-type ZKVMBuilderOutput = ();
-
 /// A trait to constrain the steps needed to build a zkVM proof.
 pub trait ZKVMBuilder<E1>
 where
