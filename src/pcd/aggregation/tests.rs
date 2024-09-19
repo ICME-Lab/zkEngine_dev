@@ -8,7 +8,7 @@ use nova::{
 
 use crate::{
   run::batched::BatchedZKEProof,
-  traits::zkvm::ZKVM,
+  traits::{be_engine::AggregationEngine, zkvm::ZKVM},
   utils::logging::init_logger,
   wasm::{
     args::{WASMArgs, WASMArgsBuilder},
@@ -69,14 +69,9 @@ fn test_aggregator_setup() -> anyhow::Result<()> {
   Ok(())
 }
 
-type E1 = PallasEngine;
-type BS1 = spartan::verify_circuit::ipa_prover_poseidon::batched::BatchedRelaxedR1CSSNARK<E1>;
-type EE1 = ipa_pc::EvaluationEngine<E1>;
-type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
-type S1 = RelaxedR1CSSNARK<E1, EE1>;
-type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
+type E = AggregationEngine;
 
-pub type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
+pub type ZKEngine = BatchedZKEProof<E>;
 
 fn gen_snarks(num_snarks: usize, args: &WASMArgs) -> anyhow::Result<Vec<ZKEngine>> {
   let mut snarks = Vec::with_capacity(num_snarks);

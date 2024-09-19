@@ -1,5 +1,5 @@
 //! This module contains the traits that are used in the zkEngine.
-mod be_engine;
+pub mod be_engine;
 pub(crate) mod prover;
 pub mod public_values;
 pub(crate) mod snark;

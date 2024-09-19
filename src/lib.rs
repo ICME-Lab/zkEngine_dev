@@ -18,6 +18,7 @@ use nova::{
   traits::Dual,
 };
 use run::{batched::BatchedZKEProof, default::ZKEProof};
+use traits::be_engine::PastaEngine;
 // re-export the wasi module
 pub use wasmi::TraceSliceValues;
 
@@ -38,5 +39,6 @@ type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
 /// The default zkEngine type alias.
 pub type ZKEngine = ZKEProof<E1, BS1, S1, S2>;
 
+type E = PastaEngine;
 /// The Batched zkEngine type alias.
-pub type BatchedZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
+pub type BatchedZKEngine = BatchedZKEProof<E>;

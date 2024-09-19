@@ -21,7 +21,10 @@ use nova::{
 
 use crate::{
   run::batched::{BatchedZKEProof, BatchedZKEPublicParams},
-  traits::public_values::ZKVMPublicParams,
+  traits::{
+    be_engine::{AggregationEngine, PastaEngine},
+    public_values::ZKVMPublicParams,
+  },
 };
 
 #[cfg(test)]
@@ -35,7 +38,8 @@ type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
 type S1 = RelaxedR1CSSNARK<E1, EE1>;
 type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
 
-type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
+type E = AggregationEngine;
+type ZKEngine = BatchedZKEProof<E>;
 
 type AS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
 type AS2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E1>, EE2>;
@@ -73,7 +77,7 @@ impl Aggregator {
   /// * `Vec<AggregatorSNARKData>` - data made from converting input SNARKS into their data needed
   ///   for Aggregating
   pub fn setup<'a>(
-    pp: &'a BatchedZKEPublicParams<E1, BS1, S1, S2>,
+    pp: &'a BatchedZKEPublicParams<E>,
     snarks: &[ZKEngine],
   ) -> anyhow::Result<SetupOutput<'a>> {
     let mut snarks_data = Vec::with_capacity(snarks.len());
