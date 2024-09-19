@@ -5,6 +5,8 @@ use nova::traits::CurveCycleEquipped;
 
 use super::{prover::Prover, public_values::ZKVMPublicParams, wasm::ZKWASMContext};
 
+// TODO: remove `anyhow Result` and use thiserror
+
 /// A trait that defines the behavior of a zkVM (zkWASM in our case).
 pub trait WasmSNARKTrait
 where
