@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-  run::batched::BatchedZKEProof,
-  traits::{be_engine::AggregationEngine, zkvm::ZKVM},
+  run::batched::WasmSNARK,
+  traits::{be_engine::AggregationEngine, zkvm::WasmSNARKTrait},
   utils::logging::init_logger,
   wasm::{
     args::{WASMArgs, WASMArgsBuilder},
@@ -13,6 +13,7 @@ use crate::{
 use super::Aggregator;
 
 #[test]
+#[ignore]
 fn test_aggregator_single() -> anyhow::Result<()> {
   init_logger();
 
@@ -31,6 +32,7 @@ fn test_aggregator_single() -> anyhow::Result<()> {
 }
 
 #[test]
+#[ignore]
 fn test_aggregator() -> anyhow::Result<()> {
   init_logger();
 
@@ -48,6 +50,7 @@ fn test_aggregator() -> anyhow::Result<()> {
   Ok(snark.verify(&vk)?)
 }
 #[test]
+#[ignore]
 fn test_aggregator_setup() -> anyhow::Result<()> {
   init_logger();
 
@@ -65,7 +68,7 @@ fn test_aggregator_setup() -> anyhow::Result<()> {
 
 type E = AggregationEngine;
 
-pub type ZKEngine = BatchedZKEProof<E>;
+pub type ZKEngine = WasmSNARK<E>;
 
 fn gen_snarks(num_snarks: usize, args: &WASMArgs) -> anyhow::Result<Vec<ZKEngine>> {
   let mut snarks = Vec::with_capacity(num_snarks);

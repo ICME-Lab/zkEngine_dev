@@ -23,7 +23,7 @@ use crate::{
     public_values::{PublicValuesTrait, ZKVMPublicParams, ZKVMPublicValues},
     snark::RecursiveSNARKTrait,
     wasm::ZKWASMContext,
-    zkvm::{ZKVMBuilder, ZKVM},
+    zkvm::{WasmSNARKTrait, ZKVMBuilder},
   },
   utils::{nivc::batch_execution_trace, wasm::print_pretty_results},
 };
@@ -37,7 +37,7 @@ use wasmi::{etable::ETable, Tracer};
 /// A proof that testifies the correctness of the WASM execution.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound = "")]
-pub struct BatchedZKEProof<E>
+pub struct WasmSNARK<E>
 where
   E: BackendEngine,
 {
@@ -45,7 +45,7 @@ where
   pub(crate) mcc_proof: BatchedMCCProof<E::E1, E::S1, E::S2>,
 }
 
-impl<E> BatchedZKEProof<E>
+impl<E> WasmSNARK<E>
 where
   E: BackendEngine,
 {
@@ -60,12 +60,12 @@ where
   }
 }
 
-impl<E> ZKVM for BatchedZKEProof<E>
+impl<E> WasmSNARKTrait for WasmSNARK<E>
 where
   E: BackendEngine,
   <E::E1 as Engine>::Scalar: PartialOrd + Ord,
 {
-  type PublicParams = BatchedZKEPublicParams<E>;
+  type PublicParams = PublicParams<E>;
   type PublicValues = BatchedPublicValues<E::E1>;
   fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self::PublicParams> {
     // Get execution trace (execution table)
@@ -94,7 +94,7 @@ where
     tracing::info!("Producing public params for MCC...");
     let mcc_pp = public_params(primary_circuits[0].clone(), TrivialCircuit::default())?;
 
-    Ok(BatchedZKEPublicParams {
+    Ok(PublicParams {
       execution_pp,
       mcc_pp,
     })
@@ -104,7 +104,7 @@ where
     ctx: &mut impl ZKWASMContext,
     pp: &Self::PublicParams,
   ) -> anyhow::Result<(Self, Self::PublicValues, Box<[wasmi::Value]>)> {
-    BatchedZKEProofBuilder::get_trace(ctx)?
+    WasmSNARKBuilder::get_trace(ctx)?
       .prove_execution(pp.execution())?
       .mcc(pp.mcc())?
       .build()
@@ -149,7 +149,7 @@ where
 /// Contains public parameters for both the execution and MCC proofs
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct BatchedZKEPublicParams<E>
+pub struct PublicParams<E>
 where
   E: BackendEngine,
 {
@@ -157,7 +157,7 @@ where
   mcc_pp: BatchedMCCPublicParams<E::E1, E::S1, E::S2>,
 }
 
-impl<E> ZKVMPublicParams<E::E1> for BatchedZKEPublicParams<E>
+impl<E> ZKVMPublicParams<E::E1> for PublicParams<E>
 where
   E: BackendEngine,
 {
@@ -174,7 +174,7 @@ where
 }
 
 /// A helper struct to construct a valid zkVM proof, which has a execution proof and a MCC proof.
-pub struct BatchedZKEProofBuilder<E>
+pub struct WasmSNARKBuilder<E>
 where
   E: BackendEngine,
 {
@@ -187,7 +187,7 @@ where
   mcc_public_values: Option<MCCPublicValues<E::E1>>,
 }
 
-impl<E> BatchedZKEProofBuilder<E>
+impl<E> WasmSNARKBuilder<E>
 where
   E: BackendEngine,
 {
@@ -196,15 +196,15 @@ where
   }
 }
 
-impl<E> ZKVMBuilder<E::E1> for BatchedZKEProofBuilder<E>
+impl<E> ZKVMBuilder<E::E1> for WasmSNARKBuilder<E>
 where
   E: BackendEngine,
   <E::E1 as Engine>::Scalar: PartialOrd + Ord,
 {
   type ExecutionProver = BatchedExecutionProver<E::E1, E::BS1, E::S2>;
   type MCCProver = BatchedMCCProver<E::E1, E::S1, E::S2>;
-  type ZKVM = BatchedZKEProof<E>;
-  type PublicParams = BatchedZKEPublicParams<E>;
+  type ZKVM = WasmSNARK<E>;
+  type PublicParams = PublicParams<E>;
   type PublicValues = BatchedPublicValues<E::E1>;
 
   fn get_trace(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self> {
@@ -308,7 +308,7 @@ where
     Ok(self)
   }
 
-  fn build(self) -> anyhow::Result<(BatchedZKEProof<E>, Self::PublicValues, Box<[wasmi::Value]>)> {
+  fn build(self) -> anyhow::Result<(WasmSNARK<E>, Self::PublicValues, Box<[wasmi::Value]>)> {
     // Validate that all proofs and public values are present
     let execution_proof = self
       .execution_proof
@@ -326,7 +326,7 @@ where
 
     // Return proof and public values
     let public_values = BatchedPublicValues::new(execution_public_values, mcc_public_values);
-    let proof = BatchedZKEProof::new(execution_proof, mcc_proof);
+    let proof = WasmSNARK::new(execution_proof, mcc_proof);
 
     Ok((proof, public_values, self.wasm_func_results))
   }
@@ -334,11 +334,11 @@ where
 
 /// Execution proof output
 type ExecutionProofOutput<E> = (
-  BatchedZKEExecutionProof<E>,
+  WasmExecutionSNARK<E>,
   ExecutionPublicValues<<E as BackendEngine>::E1>,
 );
 
-impl<E> BatchedZKEProofBuilder<E>
+impl<E> WasmSNARKBuilder<E>
 where
   E: BackendEngine,
 {
@@ -353,7 +353,7 @@ where
       .ok_or(anyhow!("Execution public values not found"))?;
 
     // Return proof and public values
-    let proof = BatchedZKEExecutionProof::new(execution_proof);
+    let proof = WasmExecutionSNARK::new(execution_proof);
 
     Ok((proof, execution_public_values))
   }
@@ -361,14 +361,14 @@ where
 /// A proof that testifies the correct execution of a WASM program
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound = "")]
-pub struct BatchedZKEExecutionProof<E>
+pub struct WasmExecutionSNARK<E>
 where
   E: BackendEngine,
 {
   execution_proof: BatchedExecutionProof<E::E1, E::BS1, E::S2>,
 }
 
-impl<E> BatchedZKEExecutionProof<E>
+impl<E> WasmExecutionSNARK<E>
 where
   E: BackendEngine,
 {
@@ -377,7 +377,7 @@ where
   }
 }
 
-impl<E> BatchedZKEExecutionProof<E>
+impl<E> WasmExecutionSNARK<E>
 where
   E: BackendEngine,
   <E::E1 as Engine>::Scalar: PartialOrd + Ord,
@@ -404,7 +404,7 @@ where
     ctx: &mut impl ZKWASMContext,
     pp: &BatchedExecutionPublicParams<E::E1, E::BS1, E::S2>,
   ) -> anyhow::Result<(Self, ExecutionPublicValues<E::E1>)> {
-    BatchedZKEProofBuilder::get_trace(ctx)?
+    WasmSNARKBuilder::get_trace(ctx)?
       .prove_execution(pp)?
       .build_execution_proof()
   }
@@ -440,10 +440,10 @@ mod tests {
   use nova::traits::Engine;
 
   use crate::{
-    run::batched::BatchedZKEProof,
+    run::batched::WasmSNARK,
     traits::{
       be_engine::{BackendEngine, PastaEngine},
-      zkvm::ZKVM,
+      zkvm::WasmSNARKTrait,
     },
     utils::logging::init_logger,
     wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
@@ -464,11 +464,11 @@ mod tests {
       .func_args(vec![String::from("1000")])
       .build();
 
-    let pp = BatchedZKEProof::<E>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+    let pp = WasmSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
     let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
-    let (proof, public_values, _) = BatchedZKEProof::<E>::prove_wasm(&mut wasm_ctx, &pp)?;
+    let (proof, public_values, _) = WasmSNARK::<E>::prove_wasm(&mut wasm_ctx, &pp)?;
 
     let result = proof.verify(public_values, &pp)?;
     Ok(assert!(result))

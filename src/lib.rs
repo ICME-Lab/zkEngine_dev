@@ -12,7 +12,10 @@ pub mod traits;
 pub mod utils;
 pub mod wasm;
 
-use run::{batched::BatchedZKEProof, default::ZKEProof};
+use run::{
+  batched::{self},
+  default::{self},
+};
 use traits::be_engine::PastaEngine;
 // re-export the wasi module
 pub use wasmi::TraceSliceValues;
@@ -27,6 +30,6 @@ pub use nova;
 pub type E = PastaEngine;
 
 /// The default zkEngine type alias.
-pub type ZKEngine = ZKEProof<E>;
+pub type ZKEngine = default::WasmSNARK<E>;
 /// The Batched zkEngine type alias.
-pub type BatchedZKEngine = BatchedZKEProof<E>;
+pub type BatchedZKEngine = batched::WasmSNARK<E>;

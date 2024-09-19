@@ -15,17 +15,16 @@ use nova::{
 };
 
 use crate::{
-  run::batched::{BatchedZKEProof, BatchedZKEPublicParams},
+  run::batched::{PublicParams, WasmSNARK},
   traits::{
-    be_engine::{AggregationEngine, BackendEngine, PastaEngine},
+    be_engine::{AggregationEngine, BackendEngine},
     public_values::ZKVMPublicParams,
   },
+  E,
 };
 
 #[cfg(test)]
 mod tests;
-
-type E = PastaEngine;
 
 // TODO: use custom error
 
@@ -68,8 +67,8 @@ impl Aggregator {
   /// * `Vec<AggregatorSNARKData>` - data made from converting input SNARKS into their data needed
   ///   for Aggregating
   pub fn setup<'a>(
-    pp: &'a BatchedZKEPublicParams<AggregationEngine>,
-    snarks: &[BatchedZKEProof<AggregationEngine>],
+    pp: &'a PublicParams<AggregationEngine>,
+    snarks: &[WasmSNARK<AggregationEngine>],
   ) -> anyhow::Result<SetupOutput<'a>> {
     let mut snarks_data = Vec::with_capacity(snarks.len());
     let vk = pp.execution().vk().primary();

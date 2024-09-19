@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::{
-  traits::zkvm::ZKVM,
+  traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   BatchedZKEngine,
