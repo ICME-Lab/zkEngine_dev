@@ -75,9 +75,11 @@ impl Aggregator {
       snarks_data.push(agg_snark_data);
     }
 
+    tracing::info!("Producing Aggregator public params...");
     let agg_pp =
       aggregator::PublicParams::setup(&snarks_data, &default_ck_hint(), &default_ck_hint())?;
 
+    tracing::info!("Setting up Aggregator prover and verifier keys...");
     let (agg_pk, agg_vk) = AggregatedSNARK::<
       <E as BackendEngine>::E1,
       <E as BackendEngine>::BS1,
@@ -100,6 +102,7 @@ impl Aggregator {
   ) -> anyhow::Result<
     AggregatedSNARK<<E as BackendEngine>::E1, <E as BackendEngine>::BS1, <E as BackendEngine>::BS2>,
   > {
+    tracing::info!("Proving Aggregated SNARK...");
     let snark = AggregatedSNARK::prove(pp, pk, snarks_data)?;
     Ok(snark)
   }
