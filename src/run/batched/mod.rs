@@ -37,9 +37,6 @@ use public_values::{BatchedPublicValues, ExecutionPublicValues, MCCPublicValues}
 use serde::{Deserialize, Serialize};
 use wasmi::{etable::ETable, Tracer};
 
-/// Type alias for public values produced by the proving system
-type PV<E1> = BatchedPublicValues<E1>;
-
 /// A proof that testifies the correctness of the WASM execution.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound = "")]
@@ -72,7 +69,7 @@ where
   }
 }
 
-impl<E1, BS1, S1, S2> ZKVM<E1, PV<E1>> for BatchedZKEProof<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> ZKVM<E1> for BatchedZKEProof<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   <E1 as Engine>::Scalar: PartialOrd + Ord,
@@ -81,7 +78,7 @@ where
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
   type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
-
+  type PublicValues = BatchedPublicValues<E1>;
   fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self::PublicParams> {
     // Get execution trace (execution table)
     let (etable, _) = ctx.build_execution_trace()?;
@@ -118,14 +115,18 @@ where
   fn prove_wasm(
     ctx: &mut impl ZKWASMContext,
     pp: &Self::PublicParams,
-  ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
+  ) -> anyhow::Result<(Self, Self::PublicValues, Box<[wasmi::Value]>)> {
     BatchedZKEProofBuilder::get_trace(ctx)?
       .prove_execution(pp.execution())?
       .mcc(pp.mcc())?
       .build()
   }
 
-  fn verify(self, public_values: PV<E1>, pp: &Self::PublicParams) -> anyhow::Result<bool> {
+  fn verify(
+    self,
+    public_values: Self::PublicValues,
+    pp: &Self::PublicParams,
+  ) -> anyhow::Result<bool> {
     tracing::info!("Verifying proof...");
     // Get execution and MCC proofs
     let execution_proof = self.execution_proof;
@@ -219,7 +220,7 @@ where
   }
 }
 
-impl<E1, BS1, S1, S2> ZKVMBuilder<E1, PV<E1>> for BatchedZKEProofBuilder<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> ZKVMBuilder<E1> for BatchedZKEProofBuilder<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   <E1 as Engine>::Scalar: PartialOrd + Ord,
@@ -231,6 +232,7 @@ where
   type MCCProver = BatchedMCCProver<E1, S1, S2>;
   type ZKVM = BatchedZKEProof<E1, BS1, S1, S2>;
   type PublicParams = BatchedZKEPublicParams<E1, BS1, S1, S2>;
+  type PublicValues = BatchedPublicValues<E1>;
 
   fn get_trace(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self> {
     let (etable, wasm_func_results) = ctx.build_execution_trace()?;
@@ -337,7 +339,7 @@ where
     self,
   ) -> anyhow::Result<(
     BatchedZKEProof<E1, BS1, S1, S2>,
-    PV<E1>,
+    Self::PublicValues,
     Box<[wasmi::Value]>,
   )> {
     // Validate that all proofs and public values are present

@@ -35,8 +35,6 @@ use public_values::{ExecutionPublicValues, MCCPublicValues, PublicValues};
 use serde::{Deserialize, Serialize};
 use wasmi::{etable::ETable, Tracer};
 
-type PV<E1> = PublicValues<E1>;
-
 /// A proof that testifies the correct execution of a WASM program
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound = "")]
@@ -66,7 +64,7 @@ where
   }
 }
 
-impl<E1, BS1, S1, S2> ZKVM<E1, PV<E1>> for ZKEProof<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> ZKVM<E1> for ZKEProof<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   <E1 as Engine>::Scalar: PartialOrd + Ord,
@@ -75,6 +73,7 @@ where
   S2: RelaxedR1CSSNARKTrait<Dual<E1>> + Clone,
 {
   type PublicParams = ZKEPublicParams<E1, BS1, S1, S2>;
+  type PublicValues = PublicValues<E1>;
 
   fn setup(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self::PublicParams> {
     let (etable, _) = ctx.build_execution_trace()?;
@@ -112,14 +111,18 @@ where
   fn prove_wasm(
     ctx: &mut impl ZKWASMContext,
     pp: &Self::PublicParams,
-  ) -> anyhow::Result<(Self, PV<E1>, Box<[wasmi::Value]>)> {
+  ) -> anyhow::Result<(Self, Self::PublicValues, Box<[wasmi::Value]>)> {
     ZKEProofBuilder::get_trace(ctx)?
       .prove_execution(pp.execution())?
       .mcc(pp.mcc())?
       .build()
   }
 
-  fn verify(self, public_values: PV<E1>, pp: &Self::PublicParams) -> anyhow::Result<bool> {
+  fn verify(
+    self,
+    public_values: Self::PublicValues,
+    pp: &Self::PublicParams,
+  ) -> anyhow::Result<bool> {
     tracing::info!("Verifying proof...");
 
     // Get execution and MCC proofs
@@ -214,7 +217,7 @@ where
   }
 }
 
-impl<E1, BS1, S1, S2> ZKVMBuilder<E1, PV<E1>> for ZKEProofBuilder<E1, BS1, S1, S2>
+impl<E1, BS1, S1, S2> ZKVMBuilder<E1> for ZKEProofBuilder<E1, BS1, S1, S2>
 where
   E1: CurveCycleEquipped,
   <E1 as Engine>::Scalar: PartialOrd + Ord,
@@ -226,6 +229,7 @@ where
   type MCCProver = MCCProver<E1, S1, S2>;
   type ZKVM = ZKEProof<E1, BS1, S1, S2>;
   type PublicParams = ZKEPublicParams<E1, BS1, S1, S2>;
+  type PublicValues = PublicValues<E1>;
 
   fn get_trace(ctx: &mut impl ZKWASMContext) -> anyhow::Result<Self> {
     let (etable, wasm_func_res) = ctx.build_execution_trace()?;
@@ -325,7 +329,13 @@ where
     Ok(self)
   }
 
-  fn build(self) -> anyhow::Result<(ZKEProof<E1, BS1, S1, S2>, PV<E1>, Box<[wasmi::Value]>)> {
+  fn build(
+    self,
+  ) -> anyhow::Result<(
+    ZKEProof<E1, BS1, S1, S2>,
+    Self::PublicValues,
+    Box<[wasmi::Value]>,
+  )> {
     // Validate that all proofs and public values are present
     let execution_proof = self
       .execution_proof
