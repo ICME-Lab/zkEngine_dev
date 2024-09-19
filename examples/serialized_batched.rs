@@ -1,26 +1,11 @@
 use std::path::PathBuf;
 use zk_engine::{
-  nova::{
-    provider::{ipa_pc, PallasEngine},
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::Dual,
-  },
-  run::batched::{public_values::BatchedPublicValues, BatchedZKEProof},
-  traits::zkvm::ZKVM,
+  run::batched::public_values::BatchedPublicValues,
+  traits::{be_engine::BackendEngine, zkvm::WasmSNARKTrait},
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-  BatchedZKEngine,
+  BatchedZKEngine, E,
 };
-
-type E1 = PallasEngine;
-type EE1 = ipa_pc::EvaluationEngine<E1>;
-type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
-type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
-type S1 = RelaxedR1CSSNARK<E1, EE1>;
-type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
-
-/// The default zkEngine type alias.
-pub type ZKEngine = BatchedZKEProof<E1, BS1, S1, S2>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
@@ -52,8 +37,9 @@ fn main() -> anyhow::Result<()> {
   let public_values_str = serde_json::to_string(&public_values)?;
 
   // Deserialize the proof and public values
-  let proof: BatchedZKEProof<E1, BS1, S1, S2> = serde_json::from_str(&proof_str)?;
-  let public_values: BatchedPublicValues<E1> = serde_json::from_str(&public_values_str)?;
+  let proof: BatchedZKEngine = serde_json::from_str(&proof_str)?;
+  let public_values: BatchedPublicValues<<E as BackendEngine>::E1> =
+    serde_json::from_str(&public_values_str)?;
 
   // Verify proof
   let result = proof.verify(public_values, &pp)?;

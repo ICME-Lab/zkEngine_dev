@@ -1,25 +1,11 @@
 use std::path::PathBuf;
 use zk_engine::{
-  nova::{
-    provider::{ipa_pc, PallasEngine},
-    spartan::{self, snark::RelaxedR1CSSNARK},
-    traits::Dual,
-  },
-  run::default::{public_values::PublicValues, ZKEProof},
-  traits::zkvm::ZKVM,
+  run::default::public_values::PublicValues,
+  traits::{be_engine::BackendEngine, zkvm::WasmSNARKTrait},
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
+  ZKEngine, E,
 };
-
-type E1 = PallasEngine;
-type EE1 = ipa_pc::EvaluationEngine<E1>;
-type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
-type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
-type S1 = RelaxedR1CSSNARK<E1, EE1>;
-type S2 = RelaxedR1CSSNARK<Dual<E1>, EE2>;
-
-/// The default zkEngine type alias.
-pub type ZKEngine = ZKEProof<E1, BS1, S1, S2>;
 
 fn main() -> anyhow::Result<()> {
   init_logger();
@@ -51,8 +37,9 @@ fn main() -> anyhow::Result<()> {
   let public_values_str = serde_json::to_string(&public_values)?;
 
   // Deserialize the proof and public values
-  let proof: ZKEProof<E1, BS1, S1, S2> = serde_json::from_str(&proof_str)?;
-  let public_values: PublicValues<E1> = serde_json::from_str(&public_values_str)?;
+  let proof: ZKEngine = serde_json::from_str(&proof_str)?;
+  let public_values: PublicValues<<E as BackendEngine>::E1> =
+    serde_json::from_str(&public_values_str)?;
 
   // Verify proof
   let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;

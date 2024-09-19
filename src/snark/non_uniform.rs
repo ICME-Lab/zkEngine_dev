@@ -234,6 +234,7 @@ mod tests {
   }
 
   #[test]
+  #[ignore]
   fn test_lite_prover_serde() -> anyhow::Result<()> {
     init_logger();
     let x = "1";

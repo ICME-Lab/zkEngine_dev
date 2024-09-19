@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use zk_engine::{
-  traits::zkvm::ZKVM,
+  traits::zkvm::WasmSNARKTrait,
   utils::logging::init_logger,
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   BatchedZKEngine,

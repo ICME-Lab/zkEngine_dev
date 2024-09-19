@@ -1,11 +1,10 @@
 use zk_engine::{
-  traits::zkvm::ZKVM,
+  traits::zkvm::WasmSNARKTrait,
   utils::{logging::init_logger, wasm::wat2wasm},
   wasm::{args::WASMArgsBuilder, ctx::WASMCtx},
   ZKEngine,
 };
 
-#[no_mangle]
 fn main() -> anyhow::Result<()> {
   init_logger();
 
