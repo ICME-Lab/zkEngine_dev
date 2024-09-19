@@ -5,7 +5,7 @@ use nova::{
   traits::{
     evaluation::EvaluationEngineTrait,
     snark::{BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-    CurveCycleEquipped, Dual, Engine,
+    CurveCycleEquipped, Dual,
   },
 };
 
@@ -20,8 +20,11 @@ pub trait BackendEngine {
   /// Secondary PCS
   type EE2: EvaluationEngineTrait<Dual<Self::E1>>;
 
-  /// Final Spartan SNARK used at the end of NIVC
+  /// Final primary Spartan SNARK used at the end of NIVC
   type BS1: BatchedRelaxedR1CSSNARKTrait<Self::E1> + Clone;
+
+  /// Final secondary Spartan SNARK used at the end of NIVC
+  type BS2: BatchedRelaxedR1CSSNARKTrait<Dual<Self::E1>> + Clone;
 
   /// Final primary Spartan SNARK used at the end of IVC
   type S1: RelaxedR1CSSNARKTrait<Self::E1> + Clone;
@@ -38,6 +41,7 @@ impl BackendEngine for PastaEngine {
   type EE1 = ipa_pc::EvaluationEngine<Self::E1>;
   type EE2 = ipa_pc::EvaluationEngine<Dual<Self::E1>>;
   type BS1 = spartan::batched::BatchedRelaxedR1CSSNARK<Self::E1, Self::EE1>;
+  type BS2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<Self::E1>, Self::EE2>;
   type S1 = spartan::snark::RelaxedR1CSSNARK<Self::E1, Self::EE1>;
   type S2 = spartan::snark::RelaxedR1CSSNARK<Dual<Self::E1>, Self::EE2>;
 }
@@ -51,6 +55,8 @@ impl BackendEngine for AggregationEngine {
   type EE2 = ipa_pc::EvaluationEngine<Dual<Self::E1>>;
   type BS1 =
     spartan::verify_circuit::ipa_prover_poseidon::batched::BatchedRelaxedR1CSSNARK<Self::E1>;
+  type BS2 =
+    spartan::verify_circuit::ipa_prover_poseidon::batched::BatchedRelaxedR1CSSNARK<Dual<Self::E1>>;
   type S1 = spartan::snark::RelaxedR1CSSNARK<Self::E1, Self::EE1>;
   type S2 = spartan::snark::RelaxedR1CSSNARK<Dual<Self::E1>, Self::EE2>;
 }

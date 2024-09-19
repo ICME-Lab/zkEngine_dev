@@ -10,41 +10,38 @@
 //! These SNARKS that are meant to be aggregated have to prove the same WASM computation
 
 use nova::{
-  provider::{ipa_pc, PallasEngine},
-  spartan::{
-    self,
-    verify_circuit::aggregator::{self, AggregatedSNARK, AggregatorSNARKData},
-  },
-  traits::{snark::default_ck_hint, Dual},
+  spartan::verify_circuit::aggregator::{self, AggregatedSNARK, AggregatorSNARKData},
+  traits::snark::default_ck_hint,
 };
 
 use crate::{
   run::batched::{BatchedZKEProof, BatchedZKEPublicParams},
-  traits::{be_engine::AggregationEngine, public_values::ZKVMPublicParams},
+  traits::{
+    be_engine::{AggregationEngine, BackendEngine, PastaEngine},
+    public_values::ZKVMPublicParams,
+  },
 };
 
 #[cfg(test)]
 mod tests;
-//TODO: make ZKWasmSNARK a generic here
 
-type E1 = PallasEngine;
-
-type EE1 = ipa_pc::EvaluationEngine<E1>;
-type EE2 = ipa_pc::EvaluationEngine<Dual<E1>>;
-
-type E = AggregationEngine;
-type ZKEngine = BatchedZKEProof<E>;
-
-type AS1 = spartan::batched::BatchedRelaxedR1CSSNARK<E1, EE1>;
-type AS2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E1>, EE2>;
+type E = PastaEngine;
 
 // TODO: use custom error
 
 type SetupOutput<'a> = (
-  aggregator::PublicParams<E1>,
-  aggregator::ProverKey<E1, AS1, AS2>,
-  aggregator::VerifierKey<E1, AS1, AS2>,
-  Vec<AggregatorSNARKData<'a, E1>>,
+  aggregator::PublicParams<<E as BackendEngine>::E1>,
+  aggregator::ProverKey<
+    <E as BackendEngine>::E1,
+    <E as BackendEngine>::BS1,
+    <E as BackendEngine>::BS2,
+  >,
+  aggregator::VerifierKey<
+    <E as BackendEngine>::E1,
+    <E as BackendEngine>::BS1,
+    <E as BackendEngine>::BS2,
+  >,
+  Vec<AggregatorSNARKData<'a, <E as BackendEngine>::E1>>,
 );
 
 /// Implements methods to convert many SNARKS (of the same computation) into one [`AggregatedSNARK`]
@@ -71,8 +68,8 @@ impl Aggregator {
   /// * `Vec<AggregatorSNARKData>` - data made from converting input SNARKS into their data needed
   ///   for Aggregating
   pub fn setup<'a>(
-    pp: &'a BatchedZKEPublicParams<E>,
-    snarks: &[ZKEngine],
+    pp: &'a BatchedZKEPublicParams<AggregationEngine>,
+    snarks: &[BatchedZKEProof<AggregationEngine>],
   ) -> anyhow::Result<SetupOutput<'a>> {
     let mut snarks_data = Vec::with_capacity(snarks.len());
     let vk = pp.execution().vk().primary();
@@ -87,7 +84,11 @@ impl Aggregator {
     let agg_pp =
       aggregator::PublicParams::setup(&snarks_data, &default_ck_hint(), &default_ck_hint())?;
 
-    let (agg_pk, agg_vk) = AggregatedSNARK::<E1, AS1, AS2>::setup(&agg_pp)?;
+    let (agg_pk, agg_vk) = AggregatedSNARK::<
+      <E as BackendEngine>::E1,
+      <E as BackendEngine>::BS1,
+      <E as BackendEngine>::BS2,
+    >::setup(&agg_pp)?;
 
     Ok((agg_pp, agg_pk, agg_vk, snarks_data))
   }
@@ -95,10 +96,16 @@ impl Aggregator {
   /// Run SNARK's through verify circuit and produce final [`AggregatedSNARK`] on the R1CS of the
   /// verify circuit algorithm
   pub fn prove(
-    pp: &aggregator::PublicParams<E1>,
-    pk: &aggregator::ProverKey<E1, AS1, AS2>,
-    snarks_data: &[AggregatorSNARKData<E1>],
-  ) -> anyhow::Result<AggregatedSNARK<E1, AS1, AS2>> {
+    pp: &aggregator::PublicParams<<E as BackendEngine>::E1>,
+    pk: &aggregator::ProverKey<
+      <E as BackendEngine>::E1,
+      <E as BackendEngine>::BS1,
+      <E as BackendEngine>::BS2,
+    >,
+    snarks_data: &[AggregatorSNARKData<<E as BackendEngine>::E1>],
+  ) -> anyhow::Result<
+    AggregatedSNARK<<E as BackendEngine>::E1, <E as BackendEngine>::BS1, <E as BackendEngine>::BS2>,
+  > {
     let snark = AggregatedSNARK::prove(pp, pk, snarks_data)?;
     Ok(snark)
   }
