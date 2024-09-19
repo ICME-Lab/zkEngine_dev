@@ -33,7 +33,7 @@ fn test_aggregator() -> anyhow::Result<()> {
   // Get public parameters for the SNARKs to be aggregated
   //
   // The Orchestrator Node (ON)/Aggregating node needs to run this to obtain the public
-  // parameters for the internal SNARKs, which will then be used as inputs to the verify circuit
+  // parameters for the intermediate SNARKs, which will then be used as inputs to the verify circuit
   let wasm_pp = WasmSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   // Get the public params, prover key, verifier key and data needed for aggregation
