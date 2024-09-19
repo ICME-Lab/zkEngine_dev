@@ -50,7 +50,7 @@ mod tests {
     traits::zkvm::WasmSNARKTrait,
     utils::logging::init_logger,
     wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
-    BatchedZKEngine,
+    BatchedWasmSNARK,
   };
 
   use super::pp_hash_check;
@@ -74,7 +74,7 @@ mod tests {
     let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
     let mut cloned_wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
 
-    let pp = BatchedZKEngine::setup(&mut wasm_ctx)?;
+    let pp = BatchedWasmSNARK::setup(&mut wasm_ctx)?;
     let digest = pp.execution_pp.digest();
 
     let verified = pp_hash_check::<E1, BS1<_>, S2<E1>>(&mut cloned_wasm_ctx, digest)?;

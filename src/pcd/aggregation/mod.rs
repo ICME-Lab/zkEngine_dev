@@ -26,8 +26,6 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-// TODO: use custom error
-
 type SetupOutput<'a> = (
   aggregator::PublicParams<<E as BackendEngine>::E1>,
   aggregator::ProverKey<

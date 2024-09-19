@@ -12,6 +12,9 @@ use crate::{
 
 use super::Aggregator;
 
+/// Use Aggregation Engine as backend for proving the SNARK's to be aggregated
+type E = AggregationEngine;
+
 #[test]
 #[ignore]
 fn test_aggregator_single() -> anyhow::Result<()> {
@@ -21,7 +24,7 @@ fn test_aggregator_single() -> anyhow::Result<()> {
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/example.wasm"))
     .build();
-  let wasm_pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let wasm_pp = WasmSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   let snarks = gen_snarks(num_snarks, &args)?;
   tracing::info!("setting up aggregator");
@@ -40,7 +43,7 @@ fn test_aggregator() -> anyhow::Result<()> {
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/example.wasm"))
     .build();
-  let wasm_pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  let wasm_pp = WasmSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
   let snarks = gen_snarks(num_snarks, &args)?;
   tracing::info!("setting up aggregator");
@@ -49,33 +52,13 @@ fn test_aggregator() -> anyhow::Result<()> {
 
   Ok(snark.verify(&vk)?)
 }
-#[test]
-#[ignore]
-fn test_aggregator_setup() -> anyhow::Result<()> {
-  init_logger();
 
-  let num_snarks = 1;
-  let args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/example.wasm"))
-    .build();
-  let wasm_pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
-
-  let snarks = gen_snarks(num_snarks, &args)?;
-  tracing::info!("setting up aggregator");
-  let (_pp, _pk, _vk, _snarks_data) = Aggregator::setup(&wasm_pp, &snarks)?;
-  Ok(())
-}
-
-type E = AggregationEngine;
-
-pub type ZKEngine = WasmSNARK<E>;
-
-fn gen_snarks(num_snarks: usize, args: &WASMArgs) -> anyhow::Result<Vec<ZKEngine>> {
+fn gen_snarks(num_snarks: usize, args: &WASMArgs) -> anyhow::Result<Vec<WasmSNARK<E>>> {
   let mut snarks = Vec::with_capacity(num_snarks);
   for _ in 0..num_snarks {
-    let pp = ZKEngine::setup(&mut WasiWASMCtx::new_from_file(args)?)?;
+    let pp = WasmSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(args)?)?;
 
-    let (snark, _, _) = ZKEngine::prove_wasm(&mut WasiWASMCtx::new_from_file(args)?, &pp)?;
+    let (snark, _, _) = WasmSNARK::<E>::prove_wasm(&mut WasiWASMCtx::new_from_file(args)?, &pp)?;
 
     snarks.push(snark)
   }

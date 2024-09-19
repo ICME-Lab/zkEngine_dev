@@ -30,6 +30,6 @@ pub use nova;
 pub type E = PastaEngine;
 
 /// The default zkEngine type alias.
-pub type ZKEngine = default::WasmSNARK<E>;
+pub type WasmSNARK = default::WasmSNARK<E>;
 /// The Batched zkEngine type alias.
-pub type BatchedZKEngine = batched::WasmSNARK<E>;
+pub type BatchedWasmSNARK = batched::WasmSNARK<E>;
