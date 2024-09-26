@@ -23,7 +23,6 @@ use nova::{
 use crate::{
   provider::{AggregationEngine, E},
   run::batched::{PublicParams, WasmSNARK},
-  //   traits::{be_engine::BackendEngine, public_values::ZKVMPublicParams},
 };
 
 #[cfg(test)]
@@ -46,15 +45,17 @@ type CompressedOutput = (
 pub struct Aggregator;
 
 impl Aggregator {
-  /// Prepare input SNARK's for aggregation
+  /// Prepare input SNARK's into format amenable to aggregation
+  ///
+  /// This requires the PP for the "input"/"child" SNARKs (the SNARKs to be aggregated)
   pub fn prepare_snarks<'a>(
-    pp: &'a PublicParams<AggregationEngine>,
+    wasm_pp: &'a PublicParams<AggregationEngine>,
     snarks: &[WasmSNARK<AggregationEngine>],
   ) -> anyhow::Result<Vec<AggregatorSNARKData<'a, PallasEngine>>> {
     // Get verifiers key which will be passed in the verify circuit
     //
     // The verifier key for each proof to be aggregated is the same
-    let vk = pp.execution().vk().primary();
+    let vk = wasm_pp.execution().vk().primary();
 
     // Convert SNARKS into data-structure ammenable to aggregation.
     let mut snarks_data = Vec::with_capacity(snarks.len());

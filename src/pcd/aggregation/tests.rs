@@ -84,6 +84,11 @@ fn test_aggregator() -> anyhow::Result<()> {
   let time = Instant::now();
   tracing::info!("Aggregating SNARKs");
   // Pass in the previous recursive SNARK here to continue aggregation
+  //
+  // * NOTE
+  //
+  // PP does not have to be re-generated and we pass in the previous recursive SNARK to continue
+  // aggregation
   let new_recursive_snark = Aggregator::prove(&pp, &more_inputs, Some(recursive_snark))?;
   tracing::info!("Aggregation took: {:?}", time.elapsed());
 
