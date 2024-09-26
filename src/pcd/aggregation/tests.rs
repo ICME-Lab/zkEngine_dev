@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
+
+use anyhow::anyhow;
 
 use crate::{
   provider::AggregationEngine,
@@ -33,36 +35,72 @@ fn test_aggregator() -> anyhow::Result<()> {
   // Get public parameters for the SNARKs to be aggregated
   //
   // The Orchestrator Node (ON)/Aggregating node needs to run this to obtain the public
-  // parameters for the intermediate SNARKs, which will then be used as inputs to the verify circuit
+  // parameters for the intermediate SNARKs, which will then be used as inputs to the verify
+  // circuit
   let wasm_pp = WasmSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
 
-  // Get the public params, prover key, verifier key and data needed for aggregation
-  tracing::info!("setting up aggregator");
-  let (agg_pp, agg_pk, agg_vk, snarks_data) = Aggregator::setup(&wasm_pp, &snarks)?;
+  // Prepare SNARKs into a format ammenable to aggregation
+  let snarks_data = Aggregator::prepare_snarks(&wasm_pp, &snarks)?;
 
-  // Start the aggregation process and produce the final SNARK
-  let snark = Aggregator::prove(&agg_pp, &agg_pk, &snarks_data)?;
+  // Create inputs for public params and recursive SNARK
+  let inputs = Aggregator::build_verify_circuits(&snarks_data)?;
 
-  Ok(snark.verify(&agg_vk)?)
-}
+  // Generate the public parameters for the aggregator
+  let time = Instant::now();
+  tracing::info!("producing aggregator pp");
+  let pp = {
+    let (circuit_iop, circuit_ffa) = inputs.first().ok_or(anyhow!("No circuits"))?;
+    Aggregator::public_params(circuit_iop, circuit_ffa)?
+  };
+  tracing::info!("Time to create pp: {:?}", time.elapsed());
 
-#[test]
-#[ignore]
-fn test_aggregator_single() -> anyhow::Result<()> {
-  init_logger();
+  // This is where aggregation happens
+  let time = Instant::now();
+  tracing::info!("Aggregating SNARKs");
+  // Pass in None as the previous recursive SNARK since this is the first round of aggregation
+  let recursive_snark = Aggregator::prove(&pp, &inputs, None)?;
+  tracing::info!("Aggregation took: {:?}", time.elapsed());
 
-  let num_snarks = 1;
-  let args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/example.wasm"))
-    .build();
-  let wasm_pp = WasmSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
+  // Compress the recursive SNARK into a SNARK that will be used for verification
+  //
+  // This is the SNARK that will be sent to the client if they want an intermediate SNARK for the
+  // aggregation
+  let time = Instant::now();
+  tracing::info!("Compressing the final SNARK");
+  let (intermediate_final_snark, intermediate_vk) = Aggregator::compress(&pp, &recursive_snark)?;
+  tracing::info!("time to compress: {:?}", time.elapsed());
 
-  let snarks = gen_snarks(num_snarks, &args)?;
-  tracing::info!("setting up aggregator");
-  let (pp, pk, vk, snarks_data) = Aggregator::setup(&wasm_pp, &snarks)?;
-  let snark = Aggregator::prove(&pp, &pk, &snarks_data)?;
+  intermediate_final_snark.verify(&intermediate_vk, recursive_snark.num_steps())?;
 
-  Ok(snark.verify(&vk)?)
+  /*
+   * ROUND 2
+   * More incoming SNARKs to be aggregated
+   */
+  let more_snarks = gen_snarks(num_snarks, &args)?;
+
+  let more_snarks_data = Aggregator::prepare_snarks(&wasm_pp, &more_snarks)?;
+  let more_inputs = Aggregator::build_verify_circuits(&more_snarks_data)?;
+
+  let time = Instant::now();
+  tracing::info!("Aggregating SNARKs");
+  // Pass in the previous recursive SNARK here to continue aggregation
+  //
+  // * NOTE
+  //
+  // PP does not have to be re-generated and we pass in the previous recursive SNARK to continue
+  // aggregation
+  let new_recursive_snark = Aggregator::prove(&pp, &more_inputs, Some(recursive_snark))?;
+  tracing::info!("Aggregation took: {:?}", time.elapsed());
+
+  // You can compress here again to get the final SNARK that will be generated once all SNARKs have
+  // been aggregated
+  let time = Instant::now();
+  tracing::info!("Compressing the final SNARK");
+  let (final_snark, vk) = Aggregator::compress(&pp, &new_recursive_snark)?;
+  tracing::info!("time to compress: {:?}", time.elapsed());
+  final_snark.verify(&vk, new_recursive_snark.num_steps())?;
+
+  Ok(())
 }
 
 fn gen_snarks(num_snarks: usize, args: &WASMArgs) -> anyhow::Result<Vec<WasmSNARK<E>>> {
