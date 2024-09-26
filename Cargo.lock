@@ -54,7 +54,7 @@ checksum = "10f00e1f6e58a40e807377c75c6a7f97bf9044fab57816f2414e6f5f4499d7b8"
 [[package]]
 name = "arecibo"
 version = "0.2.0"
-source = "git+https://github.com/wyattbenno777/arecibo?branch=wyatt_dev#8f7bdb8f0483540ed545c2887cd6cc263eb8bcd1"
+source = "git+https://github.com/wyattbenno777/arecibo?branch=wyatt_dev#eb29f75259d0096ef4ed817cc00a3f043e29362f"
 dependencies = [
  "abomonation",
  "abomonation_derive_ng",

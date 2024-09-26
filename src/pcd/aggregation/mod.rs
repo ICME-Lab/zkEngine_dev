@@ -9,65 +9,48 @@
 //!
 //! These SNARKS that are meant to be aggregated have to prove the same WASM computation
 
+use crate::traits::{be_engine::BackendEngine, public_values::ZKVMPublicParams};
 use nova::{
-  spartan::verify_circuit::aggregator::{self, AggregatedSNARK, AggregatorSNARKData},
-  traits::snark::default_ck_hint,
+  errors::NovaError,
+  provider::PallasEngine,
+  spartan::verify_circuit::aggregator::{
+    build_verify_circuits, AggregatedVerifierKey, AggregatorPublicParams, AggregatorSNARKData,
+    CompressedAggregatedSNARK, FFACircuit, IOPCircuit, RecursiveAggregatedSNARK,
+  },
+  traits::snark::RelaxedR1CSSNARKTrait,
 };
 
 use crate::{
   provider::{AggregationEngine, E},
   run::batched::{PublicParams, WasmSNARK},
-  traits::{be_engine::BackendEngine, public_values::ZKVMPublicParams},
+  //   traits::{be_engine::BackendEngine, public_values::ZKVMPublicParams},
 };
 
 #[cfg(test)]
 mod tests;
 
-// TODO: make more generic, in turn more readable
-
-/// Output of the aggregation setup algorithm
-type SetupOutput<'a> = (
-  aggregator::PublicParams<<E as BackendEngine>::E1>, // Public Params
-  aggregator::ProverKey<
+type CompressedOutput = (
+  CompressedAggregatedSNARK<
     <E as BackendEngine>::E1,
-    <E as BackendEngine>::BS1,
-    <E as BackendEngine>::BS2,
-  >, // Prover Key
-  aggregator::VerifierKey<
+    <E as BackendEngine>::S1,
+    <E as BackendEngine>::S2,
+  >,
+  AggregatedVerifierKey<
     <E as BackendEngine>::E1,
-    <E as BackendEngine>::BS1,
-    <E as BackendEngine>::BS2,
-  >, // Verifier Key
-  Vec<AggregatorSNARKData<'a, <E as BackendEngine>::E1>>, // SNARK Data
+    <E as BackendEngine>::S1,
+    <E as BackendEngine>::S2,
+  >,
 );
 
-/// Implements methods to convert many SNARKS (of the same computation) into one [`AggregatedSNARK`]
+/// Implements methods to convert many SNARKS (of the same computation) into one SNARK
 pub struct Aggregator;
 
 impl Aggregator {
-  /// Runs setup algorithm for aggregation
-  ///
-  /// 1. Convert SNARKS into data-structure ammenable to aggregation.
-  /// 2. Get public params of verify circuit
-  /// 3. Get pk  vk for verify circuit
-  ///
-  /// # Arguments
-  /// * `wasm_args` - configurations needed to run the WASM module. Corresponds to the WASM the
-  ///   SNARKS are proving
-  /// * `snarks` - the SNARKS to be aggregated
-  ///
-  /// # Returns
-  ///
-  /// Returns a tuple containing the following:
-  /// * `PublicParams` - the public parameters for the aggregation computation
-  /// * `ProverKey` - Key needed in proving algorithm to produce final [`AggregatedSNARK`]
-  /// * `VerifierKey` - Key needed in verifying algorithm to verify the final [`AggregatedSNARK`]
-  /// * `Vec<AggregatorSNARKData>` - data made from converting input SNARKS into their data needed
-  ///   for Aggregating
-  pub fn setup<'a>(
+  /// Prepare input SNARK's for aggregation
+  pub fn prepare_snarks<'a>(
     pp: &'a PublicParams<AggregationEngine>,
     snarks: &[WasmSNARK<AggregationEngine>],
-  ) -> anyhow::Result<SetupOutput<'a>> {
+  ) -> anyhow::Result<Vec<AggregatorSNARKData<'a, PallasEngine>>> {
     // Get verifiers key which will be passed in the verify circuit
     //
     // The verifier key for each proof to be aggregated is the same
@@ -82,49 +65,74 @@ impl Aggregator {
       snarks_data.push(agg_snark_data);
     }
 
-    // Get the public parameters of the verify circuit
-    tracing::info!("Producing Aggregator public params...");
-    let agg_pp =
-      aggregator::PublicParams::setup(&snarks_data, &default_ck_hint(), &default_ck_hint())?;
-
-    // Get the prover and verifier keys for the proving/verifying of the verify circuit
-    tracing::info!("Setting up Aggregator prover and verifier keys...");
-    let (agg_pk, agg_vk) = AggregatedSNARK::<
-      <E as BackendEngine>::E1,
-      <E as BackendEngine>::BS1,
-      <E as BackendEngine>::BS2,
-    >::setup(&agg_pp)?;
-
-    Ok((agg_pp, agg_pk, agg_vk, snarks_data))
+    Ok(snarks_data)
   }
 
-  /// Run SNARK's through verify circuit and produce final [`AggregatedSNARK`] on the R1CS of the
-  /// verify circuit algorithm
+  /// Build the verify circuits
+  pub fn build_verify_circuits<'a>(
+    snarks_data: &'a [AggregatorSNARKData<PallasEngine>],
+  ) -> anyhow::Result<Vec<(IOPCircuit<'a, PallasEngine>, FFACircuit<'a, PallasEngine>)>> {
+    // Get the public parameters of the verify circuit
+    Ok(build_verify_circuits(snarks_data)?)
+  }
+
+  /// Create the public parameters of the verify circuit
+  pub fn public_params(
+    circuit_iop: &IOPCircuit<PallasEngine>,
+    circuit_ffa: &FFACircuit<PallasEngine>,
+  ) -> anyhow::Result<AggregatorPublicParams<PallasEngine>> {
+    // Get the public parameters of the verify circuit
+    Ok(AggregatorPublicParams::setup(
+      circuit_iop,
+      circuit_ffa,
+      &*<E as BackendEngine>::S1::ck_floor(),
+      &*<E as BackendEngine>::S2::ck_floor(),
+    )?)
+  }
+
+  /// Prove Aggregation computation
   ///
-  /// # Arguments
-  /// * `pp` - the public parameters for the aggregation computation (corresponding to the verify
-  ///   circuit)
-  /// * `pk` - the prover key for the aggregation (needed for final Aggregated SNARK)
-  /// * `snarks_data` - the data produced from converting the input SNARKS into data structure
-  ///   ammenable to aggregation
+  /// Runs verify circuit for each SNARK and aggregates them into one SNARK
   ///
-  /// # Returns
-  ///
-  /// Returns the final [`AggregatedSNARK`] which has a verify method
+  /// Inputs a RecursiveAggregatedSNARK that is used to keep aggregation process "open" if need be
   pub fn prove(
-    pp: &aggregator::PublicParams<<E as BackendEngine>::E1>,
-    pk: &aggregator::ProverKey<
+    pp: &AggregatorPublicParams<PallasEngine>,
+    circuits: &[(IOPCircuit<'_, PallasEngine>, FFACircuit<'_, PallasEngine>)],
+    mut rs_option: Option<RecursiveAggregatedSNARK<PallasEngine>>,
+  ) -> anyhow::Result<RecursiveAggregatedSNARK<PallasEngine>> {
+    for (iop_circuit, ffa_circuit) in circuits.iter() {
+      let mut rs = rs_option
+        .unwrap_or_else(|| RecursiveAggregatedSNARK::new(pp, iop_circuit, ffa_circuit).unwrap());
+
+      rs.prove_step(pp, iop_circuit, ffa_circuit)?;
+      rs_option = Some(rs)
+    }
+
+    debug_assert!(rs_option.is_some());
+    let rs = rs_option.ok_or(NovaError::UnSat)?;
+    let num_steps = rs.num_steps();
+    rs.verify(pp, num_steps)?;
+
+    Ok(rs)
+  }
+
+  /// Compress the recursive Aggregated SNARK (this is the SNARK that will be sent to the client if
+  /// they want an intermediate SNARK for the aggregation or at the end of the aggregation)
+  pub fn compress(
+    pp: &AggregatorPublicParams<PallasEngine>,
+    rs: &RecursiveAggregatedSNARK<PallasEngine>,
+  ) -> anyhow::Result<CompressedOutput> {
+    let (pk, vk) = CompressedAggregatedSNARK::<
       <E as BackendEngine>::E1,
-      <E as BackendEngine>::BS1,
-      <E as BackendEngine>::BS2,
-    >,
-    snarks_data: &[AggregatorSNARKData<<E as BackendEngine>::E1>],
-  ) -> anyhow::Result<
-    AggregatedSNARK<<E as BackendEngine>::E1, <E as BackendEngine>::BS1, <E as BackendEngine>::BS2>,
-  > {
-    // Run verify circuit on SNARK's and produce final Aggregated SNARK
-    tracing::info!("Proving Aggregated SNARK...");
-    let snark = AggregatedSNARK::prove(pp, pk, snarks_data)?;
-    Ok(snark)
+      <E as BackendEngine>::S1,
+      <E as BackendEngine>::S2,
+    >::setup(pp)?;
+    let snark = CompressedAggregatedSNARK::<
+      <E as BackendEngine>::E1,
+      <E as BackendEngine>::S1,
+      <E as BackendEngine>::S2,
+    >::prove(pp, &pk, rs)?;
+
+    Ok((snark, vk))
   }
 }
