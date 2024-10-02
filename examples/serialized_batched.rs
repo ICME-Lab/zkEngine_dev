@@ -1,9 +1,9 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 use zk_engine::{
   provider::{BatchedWasmSNARK, E},
   run::batched::public_values::BatchedPublicValues,
   traits::{be_engine::BackendEngine, zkvm::WasmSNARKTrait},
-  utils::logging::init_logger,
+  utils::{logging::init_logger, save::save_string},
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
 };
 
@@ -20,10 +20,11 @@ fn main() -> anyhow::Result<()> {
   // fib(n: i32) -> i32;
   //
   // This means the higher the user input is for `n` the more opcodes will need to be proven
+  let time = Instant::now();
   let args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/misc/fib.wat"))
     .invoke(Some(String::from("fib")))
-    .func_args(vec![String::from("1000")]) // This will generate 16,000 + opcodes
+    .func_args(vec![String::from("1200")]) // This will generate 16,000 + opcodes
     .build();
 
   let pp = BatchedWasmSNARK::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
@@ -31,9 +32,10 @@ fn main() -> anyhow::Result<()> {
   // Use `BatchedZKEProof` for batched proving
   let (proof, public_values, _) =
     BatchedWasmSNARK::prove_wasm(&mut WasiWASMCtx::new_from_file(&args)?, &pp)?;
-
+  println!("Proving time: {:?}", time.elapsed());
   // Serialize the proof and public values
   let proof_str = serde_json::to_string(&proof)?;
+  save_string(proof_str.clone(), "proof.json")?;
   let public_values_str = serde_json::to_string(&public_values)?;
 
   // Deserialize the proof and public values
