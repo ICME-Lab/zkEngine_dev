@@ -21,7 +21,7 @@ use nova::{
   },
   spartan::{
     self,
-    ipa_batched_ppsnark::{ProverKey, VerifierKey},
+    tiny_batched_ppsnark::{ProverKey, VerifierKey},
   },
   supernova::{NonUniformCircuit, StepCircuit},
   traits::{commitment::CommitmentEngineTrait, snark::BatchedRelaxedR1CSSNARKTrait, Engine},
@@ -29,9 +29,7 @@ use nova::{
 use serde::{Deserialize, Serialize};
 
 type E = PallasEngine;
-type SNARK = spartan::ipa_batched_ppsnark::BatchedRelaxedR1CSSNARK<E>;
-
-#[derive(Debug, Serialize, Deserialize)]
+type SNARK = spartan::tiny_batched_ppsnark::BatchedRelaxedR1CSSNARK<E>;
 
 /// Verifier key for the non-uniform circuits
 pub struct VK {

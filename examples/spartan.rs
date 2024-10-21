@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::fs;
 
 use zk_engine::{
   snark::non_uniform::LiteProver,
@@ -18,6 +19,10 @@ fn main() -> anyhow::Result<()> {
 
   tracing::info!("running setup");
   let (pk, vk, pp) = LiteProver::setup(&mut WASMCtx::new_from_file(&args)?)?;
+
+  //let pp_str = serde_json::to_string(&pp)?;
+  //println!("Number of opcodes in the execution trace: {}", &pp);
+  //fs::write("pp.json", &pp_str)?;
 
   let mut wasm_ctx = WASMCtx::new_from_file(&args)?;
 
