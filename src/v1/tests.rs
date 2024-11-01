@@ -5,6 +5,7 @@ use wasmi::Tracer;
 use crate::{
   traits::wasm::ZKWASMArgs,
   utils::wasm::{decode_func_args, prepare_func_results},
+  v1::utils::tracing::unwrap_rc_refcell,
   wasm::args::WASMArgsBuilder,
 };
 
@@ -47,5 +48,10 @@ fn test_tracing() -> Result<(), ZKWASMError> {
   func.call_with_trace(&mut store, &func_args, &mut func_results, tracer.clone())?;
 
   println!("{:?}", func_results);
+
+  let tracer = unwrap_rc_refcell(tracer);
+  let execution_trace = tracer.into_execution_trace();
+
+  println!("{:#?}", execution_trace);
   Ok(())
 }

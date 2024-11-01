@@ -21,7 +21,7 @@ impl Tracer {
     }
 
     /// Extract the execution trace from the tracer
-    pub(crate) fn into_execution_trace(self) -> Vec<WitnessVM> {
+    pub fn into_execution_trace(self) -> Vec<WitnessVM> {
         self.execution_trace
     }
 
@@ -44,7 +44,7 @@ impl Tracer {
 
 /// The VM state at each step of execution
 #[derive(Clone, Debug, Default)]
-pub(crate) struct WitnessVM {
+pub struct WitnessVM {
     /// Stack pointer before execution
     pub(crate) pre_sp: usize,
     /// Program counter (InstructionPtr) before execution

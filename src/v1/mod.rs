@@ -3,3 +3,4 @@
 pub mod error;
 #[cfg(test)]
 mod tests;
+mod utils;
