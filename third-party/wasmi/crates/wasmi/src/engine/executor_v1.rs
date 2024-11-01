@@ -1,6 +1,7 @@
 use super::{
     bytecode::{BranchOffset, F64Const32},
     const_pool::ConstRef,
+    executor::{CallKind, CallOutcome, ReturnOutcome, WasmOutcome},
     CompiledFunc,
     ConstPoolView,
 };
@@ -38,55 +39,14 @@ use crate::{
     Instance,
     StoreInner,
     Table,
+    Tracer,
 };
-use core::cmp::{self};
+use alloc::rc::Rc;
+use core::{
+    cell::RefCell,
+    cmp::{self},
+};
 use wasmi_core::{Pages, UntypedValue};
-
-/// The outcome of a Wasm execution.
-///
-/// # Note
-///
-/// A Wasm execution includes everything but host calls.
-/// In other words: Everything in between host calls is a Wasm execution.
-#[derive(Debug, Copy, Clone)]
-pub enum WasmOutcome {
-    /// The Wasm execution has ended and returns to the host side.
-    Return,
-    /// The Wasm execution calls a host function.
-    Call { host_func: Func, instance: Instance },
-}
-
-/// The outcome of a Wasm execution.
-///
-/// # Note
-///
-/// A Wasm execution includes everything but host calls.
-/// In other words: Everything in between host calls is a Wasm execution.
-#[derive(Debug, Copy, Clone)]
-pub enum CallOutcome {
-    /// The Wasm execution continues in Wasm.
-    Continue,
-    /// The Wasm execution calls a host function.
-    Call { host_func: Func, instance: Instance },
-}
-
-/// The kind of a function call.
-#[derive(Debug, Copy, Clone)]
-pub enum CallKind {
-    /// A nested function call.
-    Nested,
-    /// A tailing function call.
-    Tail,
-}
-
-/// The outcome of a Wasm return statement.
-#[derive(Debug, Copy, Clone)]
-pub enum ReturnOutcome {
-    /// The call returns to a nested Wasm caller.
-    Wasm,
-    /// The call returns back to the host.
-    Host,
-}
 
 /// Executes the given function `frame`.
 ///
@@ -107,6 +67,31 @@ pub fn execute_wasm<'ctx, 'engine>(
     code_map: &'engine CodeMap,
     const_pool: ConstPoolView<'engine>,
     resource_limiter: &'ctx mut ResourceLimiterRef<'ctx>,
+) -> Result<WasmOutcome, TrapCode> {
+    Executor::new(ctx, cache, value_stack, call_stack, code_map, const_pool)
+        .execute(resource_limiter)
+}
+
+/// Executes the given function `frame`.
+///
+/// # Note
+///
+/// This executes Wasm instructions until either the execution calls
+/// into a host function or the Wasm execution has come to an end.
+///
+/// # Errors
+///
+/// If the Wasm execution traps.
+#[inline(never)]
+pub fn execute_wasm_with_trace<'ctx, 'engine>(
+    ctx: &'ctx mut StoreInner,
+    cache: &'engine mut InstanceCache,
+    value_stack: &'engine mut ValueStack,
+    call_stack: &'engine mut CallStack,
+    code_map: &'engine CodeMap,
+    const_pool: ConstPoolView<'engine>,
+    resource_limiter: &'ctx mut ResourceLimiterRef<'ctx>,
+    tracer: Rc<RefCell<Tracer>>,
 ) -> Result<WasmOutcome, TrapCode> {
     Executor::new(ctx, cache, value_stack, call_stack, code_map, const_pool)
         .execute(resource_limiter)

@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::{cell::RefCell, path::PathBuf, rc::Rc};
+
+use wasmi::Tracer;
 
 use crate::{
   traits::wasm::ZKWASMArgs,
@@ -20,6 +22,7 @@ fn test_tracing() -> Result<(), ZKWASMError> {
   let engine = wasmi::Engine::default();
   let linker = <wasmi::Linker<()>>::new(&engine);
   let module = wasmi::Module::new(&engine, &wasm[..])?;
+  let tracer = Rc::new(RefCell::new(Tracer::new()));
 
   // build wasi ctx to add to linker.
 
@@ -41,7 +44,7 @@ fn test_tracing() -> Result<(), ZKWASMError> {
   let mut func_results = prepare_func_results(&ty);
 
   // Call the function to invoke.
-  func.call(&mut store, &func_args, &mut func_results)?;
+  func.call_with_trace(&mut store, &func_args, &mut func_results, tracer.clone())?;
 
   println!("{:?}", func_results);
   Ok(())

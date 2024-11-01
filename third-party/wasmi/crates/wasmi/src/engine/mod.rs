@@ -65,10 +65,12 @@ use crate::{
     Func,
     FuncType,
     StoreContextMut,
+    Tracer,
     TracerV0,
 };
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicU32, Ordering};
+use executor_v1::execute_wasm_with_trace;
 use spin::{Mutex, RwLock};
 use std::{cell::RefCell, rc::Rc};
 use wasmi_arena::{ArenaIndex, GuardedEntity};
@@ -334,6 +336,42 @@ impl Engine {
     {
         self.inner.execute_func(ctx, func, params, results)
     }
+
+    /// Executes the given [`Func`] with parameters `params`.
+    ///
+    /// Stores the execution result into `results` upon a successful execution.
+    ///
+    /// # Note
+    ///
+    /// - Assumes that the `params` and `results` are well typed.
+    ///   Type checks are done at the [`Func::call`] API or when creating
+    ///   a new [`TypedFunc`] instance via [`Func::typed`].
+    /// - The `params` out parameter is in a valid but unspecified state if this
+    ///   function returns with an error.
+    ///
+    /// # Errors
+    ///
+    /// - If `params` are overflowing or underflowing the expected amount of parameters.
+    /// - If the given `results` do not match the the length of the expected results of `func`.
+    /// - When encountering a Wasm or host trap during the execution of `func`.
+    ///
+    /// [`TypedFunc`]: [`crate::TypedFunc`]
+    #[inline]
+    pub(crate) fn execute_func_with_trace<T, Results>(
+        &self,
+        ctx: StoreContextMut<T>,
+        func: &Func,
+        params: impl CallParams,
+        results: Results,
+        tracer: Rc<RefCell<Tracer>>,
+    ) -> Result<<Results as CallResults>::Results, Trap>
+    where
+        Results: CallResults,
+    {
+        self.inner
+            .execute_func_with_trace(ctx, func, params, results, tracer)
+    }
+
     /// Executes the given [`Func`] with parameters `params`.
     ///
     /// Stores the execution result into `results` upon a successful execution.
@@ -706,6 +744,32 @@ impl EngineInner {
     /// # Errors
     ///
     /// If the Wasm execution traps or runs out of resources.
+    fn execute_func_with_trace<T, Results>(
+        &self,
+        ctx: StoreContextMut<T>,
+        func: &Func,
+        params: impl CallParams,
+        results: Results,
+        tracer: Rc<RefCell<Tracer>>,
+    ) -> Result<<Results as CallResults>::Results, Trap>
+    where
+        Results: CallResults,
+    {
+        match self.config().engine_backend() {
+            EngineBackend::StackMachine => {
+                self.execute_func_stackmach_with_trace(ctx, func, params, results, tracer)
+            }
+            EngineBackend::RegisterMachine => self.execute_func_regmach(ctx, func, params, results),
+        }
+    }
+
+    /// Executes the given [`Func`] with the given `params` and returns the `results`.
+    ///
+    /// Uses the [`StoreContextMut`] for context information about the Wasm [`Store`].
+    ///
+    /// # Errors
+    ///
+    /// If the Wasm execution traps or runs out of resources.
     fn execute_func_with_trace_v0<T, Results>(
         &self,
         ctx: StoreContextMut<T>,
@@ -747,6 +811,34 @@ impl EngineInner {
         let mut stack = self.stacks.lock().reuse_or_new();
         let results = EngineExecutor::new(&res, &mut stack)
             .execute_func(ctx, func, params, results)
+            .map_err(TaggedTrap::into_trap);
+        self.stacks.lock().recycle(stack);
+        results
+    }
+
+    /// Executes the given [`Func`] with the given `params` and returns the `results`.
+    ///
+    /// - Uses the `wasmi` stack-machine based engine backend.
+    /// - Uses the [`StoreContextMut`] for context information about the Wasm [`Store`].
+    ///
+    /// # Errors
+    ///
+    /// If the Wasm execution traps or runs out of resources.
+    fn execute_func_stackmach_with_trace<T, Results>(
+        &self,
+        ctx: StoreContextMut<T>,
+        func: &Func,
+        params: impl CallParams,
+        results: Results,
+        tracer: Rc<RefCell<Tracer>>,
+    ) -> Result<<Results as CallResults>::Results, Trap>
+    where
+        Results: CallResults,
+    {
+        let res = self.res.read();
+        let mut stack = self.stacks.lock().reuse_or_new();
+        let results = EngineExecutor::new(&res, &mut stack)
+            .execute_func_with_trace(ctx, func, params, results, tracer)
             .map_err(TaggedTrap::into_trap);
         self.stacks.lock().recycle(stack);
         results
@@ -1034,6 +1126,48 @@ impl<'engine> EngineExecutor<'engine> {
     /// - If the given `params` do not match the expected parameters of `func`.
     /// - If the given `results` do not match the the length of the expected results of `func`.
     /// - When encountering a Wasm or host trap during the execution of `func`.
+    fn execute_func_with_trace<T, Results>(
+        &mut self,
+        mut ctx: StoreContextMut<T>,
+        func: &Func,
+        params: impl CallParams,
+        results: Results,
+        tracer: Rc<RefCell<Tracer>>,
+    ) -> Result<<Results as CallResults>::Results, TaggedTrap>
+    where
+        Results: CallResults,
+    {
+        self.stack.reset();
+        self.stack.values.extend(params.call_params());
+        match ctx.as_context().store.inner.resolve_func(func) {
+            FuncEntity::Wasm(wasm_func) => {
+                self.stack
+                    .prepare_wasm_call(wasm_func, &self.res.code_map)?;
+                self.execute_wasm_func_with_trace(ctx.as_context_mut(), tracer)?;
+            }
+            FuncEntity::Host(host_func) => {
+                let host_func = *host_func;
+                self.stack.call_host(
+                    ctx.as_context_mut(),
+                    host_func,
+                    None,
+                    &self.res.func_types,
+                )?;
+            }
+        };
+        let results = self.write_results_back(results);
+        Ok(results)
+    }
+
+    /// Executes the given [`Func`] using the given `params`.
+    ///
+    /// Stores the execution result into `results` upon a successful execution.
+    ///
+    /// # Errors
+    ///
+    /// - If the given `params` do not match the expected parameters of `func`.
+    /// - If the given `results` do not match the the length of the expected results of `func`.
+    /// - When encountering a Wasm or host trap during the execution of `func`.
     fn execute_func_with_trace_v0<T, Results>(
         &mut self,
         mut ctx: StoreContextMut<T>,
@@ -1184,6 +1318,61 @@ impl<'engine> EngineExecutor<'engine> {
     ///
     /// When encountering a Wasm or host trap during the execution of `func`.
     #[inline(never)]
+    fn execute_wasm_func_with_trace<T>(
+        &mut self,
+        mut ctx: StoreContextMut<T>,
+        tracer: Rc<RefCell<Tracer>>,
+    ) -> Result<(), TaggedTrap> {
+        let mut cache = self
+            .stack
+            .frames
+            .peek()
+            .map(FuncFrame::instance)
+            .map(InstanceCache::from)
+            .expect("must have frame on the call stack");
+        loop {
+            match self.execute_wasm_with_trace(ctx.as_context_mut(), &mut cache, tracer.clone())? {
+                WasmOutcome::Return => return Ok(()),
+                WasmOutcome::Call {
+                    ref host_func,
+                    instance,
+                } => {
+                    let func = host_func;
+                    let host_func = match ctx.as_context().store.inner.resolve_func(func) {
+                        FuncEntity::Wasm(_) => unreachable!("`func` must be a host function"),
+                        FuncEntity::Host(host_func) => *host_func,
+                    };
+                    let result = self.stack.call_host(
+                        ctx.as_context_mut(),
+                        host_func,
+                        Some(&instance),
+                        &self.res.func_types,
+                    );
+                    if self.stack.frames.peek().is_some() {
+                        // Case: There is a frame on the call stack.
+                        //
+                        // This is the default case and we can easily make host function
+                        // errors return a resumable call handle.
+                        result.map_err(|trap| TaggedTrap::host(*func, trap))?;
+                    } else {
+                        // Case: No frame is on the call stack. (edge case)
+                        //
+                        // This can happen if the host function was called by a tail call.
+                        // In this case we treat host function errors the same as if we called
+                        // the host function as root and do not allow to resume the call.
+                        result.map_err(TaggedTrap::Wasm)?;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Executes the top most Wasm function on the [`Stack`] until the [`Stack`] is empty.
+    ///
+    /// # Errors
+    ///
+    /// When encountering a Wasm or host trap during the execution of `func`.
+    #[inline(never)]
     fn execute_wasm_func_with_trace_v0<T>(
         &mut self,
         mut ctx: StoreContextMut<T>,
@@ -1279,6 +1468,52 @@ impl<'engine> EngineExecutor<'engine> {
             code_map,
             const_pool,
             &mut resource_limiter,
+        )
+        .map_err(make_trap)
+    }
+
+    /// Executes the given function `frame`.
+    ///
+    /// # Note
+    ///
+    /// This executes Wasm instructions until either the execution calls
+    /// into a host function or the Wasm execution has come to an end.
+    ///
+    /// # Errors
+    ///
+    /// If the Wasm execution traps.
+    #[inline(always)]
+    fn execute_wasm_with_trace<T>(
+        &mut self,
+        ctx: StoreContextMut<T>,
+        cache: &mut InstanceCache,
+        tracer: Rc<RefCell<Tracer>>,
+    ) -> Result<WasmOutcome, Trap> {
+        /// Converts a [`TrapCode`] into a [`Trap`].
+        ///
+        /// This function exists for performance reasons since its `#[cold]`
+        /// annotation has severe effects on performance.
+        #[inline]
+        #[cold]
+        fn make_trap(code: TrapCode) -> Trap {
+            code.into()
+        }
+
+        let (store_inner, mut resource_limiter) = ctx.store.store_inner_and_resource_limiter_ref();
+        let value_stack = &mut self.stack.values;
+        let call_stack = &mut self.stack.frames;
+        let code_map = &self.res.code_map;
+        let const_pool = self.res.const_pool.view();
+
+        execute_wasm_with_trace(
+            store_inner,
+            cache,
+            value_stack,
+            call_stack,
+            code_map,
+            const_pool,
+            &mut resource_limiter,
+            tracer,
         )
         .map_err(make_trap)
     }
