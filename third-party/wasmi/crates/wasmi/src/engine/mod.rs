@@ -6,6 +6,7 @@ pub mod code_map;
 mod config;
 mod const_pool;
 pub mod executor;
+pub mod executor_v1;
 mod func_args;
 mod func_builder;
 mod func_types;
