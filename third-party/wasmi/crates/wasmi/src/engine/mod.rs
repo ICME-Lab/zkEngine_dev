@@ -38,7 +38,7 @@ use self::{
     cache::InstanceCache,
     code_map::CodeMap,
     const_pool::{ConstPool, ConstPoolView, ConstRef},
-    executor::{execute_wasm, execute_wasm_with_trace, WasmOutcome},
+    executor::{execute_wasm, execute_wasm_with_trace_v0, WasmOutcome},
     func_types::FuncTypeRegistry,
     regmach::{
         bytecode::Instruction as Instruction2,
@@ -354,7 +354,7 @@ impl Engine {
     ///
     /// [`TypedFunc`]: [`crate::TypedFunc`]
     #[inline]
-    pub(crate) fn execute_func_with_trace<T, Results>(
+    pub(crate) fn execute_func_with_trace_v0<T, Results>(
         &self,
         ctx: StoreContextMut<T>,
         func: &Func,
@@ -366,7 +366,7 @@ impl Engine {
         Results: CallResults,
     {
         self.inner
-            .execute_func_with_trace(ctx, func, params, results, tracer)
+            .execute_func_with_trace_v0(ctx, func, params, results, tracer)
     }
 
     /// Executes the given [`Func`] resumably with parameters `params` and returns.
@@ -706,7 +706,7 @@ impl EngineInner {
     /// # Errors
     ///
     /// If the Wasm execution traps or runs out of resources.
-    fn execute_func_with_trace<T, Results>(
+    fn execute_func_with_trace_v0<T, Results>(
         &self,
         ctx: StoreContextMut<T>,
         func: &Func,
@@ -719,7 +719,7 @@ impl EngineInner {
     {
         match self.config().engine_backend() {
             EngineBackend::StackMachine => {
-                self.execute_func_stackmach_with_trace(ctx, func, params, results, tracer)
+                self.execute_func_stackmach_with_trace_v0(ctx, func, params, results, tracer)
             }
             EngineBackend::RegisterMachine => self.execute_func_regmach(ctx, func, params, results),
         }
@@ -760,7 +760,7 @@ impl EngineInner {
     /// # Errors
     ///
     /// If the Wasm execution traps or runs out of resources.
-    fn execute_func_stackmach_with_trace<T, Results>(
+    fn execute_func_stackmach_with_trace_v0<T, Results>(
         &self,
         ctx: StoreContextMut<T>,
         func: &Func,
@@ -774,7 +774,7 @@ impl EngineInner {
         let res = self.res.read();
         let mut stack = self.stacks.lock().reuse_or_new();
         let results = EngineExecutor::new(&res, &mut stack)
-            .execute_func_with_trace(ctx, func, params, results, tracer)
+            .execute_func_with_trace_v0(ctx, func, params, results, tracer)
             .map_err(TaggedTrap::into_trap);
         self.stacks.lock().recycle(stack);
         results
@@ -1034,7 +1034,7 @@ impl<'engine> EngineExecutor<'engine> {
     /// - If the given `params` do not match the expected parameters of `func`.
     /// - If the given `results` do not match the the length of the expected results of `func`.
     /// - When encountering a Wasm or host trap during the execution of `func`.
-    fn execute_func_with_trace<T, Results>(
+    fn execute_func_with_trace_v0<T, Results>(
         &mut self,
         mut ctx: StoreContextMut<T>,
         func: &Func,
@@ -1057,7 +1057,7 @@ impl<'engine> EngineExecutor<'engine> {
                 self.stack
                     .prepare_wasm_call(wasm_func, &self.res.code_map)?;
                 self.tracer_extend_stack(tracer.clone(), wasm_func, pre_sp);
-                self.execute_wasm_func_with_trace(ctx.as_context_mut(), tracer)?;
+                self.execute_wasm_func_with_trace_v0(ctx.as_context_mut(), tracer)?;
             }
             FuncEntity::Host(..) => unimplemented!(),
         };
@@ -1184,7 +1184,7 @@ impl<'engine> EngineExecutor<'engine> {
     ///
     /// When encountering a Wasm or host trap during the execution of `func`.
     #[inline(never)]
-    fn execute_wasm_func_with_trace<T>(
+    fn execute_wasm_func_with_trace_v0<T>(
         &mut self,
         mut ctx: StoreContextMut<T>,
         tracer: Rc<RefCell<TracerV0>>,
@@ -1197,7 +1197,11 @@ impl<'engine> EngineExecutor<'engine> {
             .map(InstanceCache::from)
             .expect("must have frame on the call stack");
         loop {
-            match self.execute_wasm_with_trace(ctx.as_context_mut(), &mut cache, tracer.clone())? {
+            match self.execute_wasm_with_trace_v0(
+                ctx.as_context_mut(),
+                &mut cache,
+                tracer.clone(),
+            )? {
                 WasmOutcome::Return => return Ok(()),
                 WasmOutcome::Call {
                     ref host_func,
@@ -1208,7 +1212,7 @@ impl<'engine> EngineExecutor<'engine> {
                         FuncEntity::Wasm(_) => unreachable!("`func` must be a host function"),
                         FuncEntity::Host(host_func) => *host_func,
                     };
-                    let result = self.stack.call_host_with_trace(
+                    let result = self.stack.call_host_with_trace_v0(
                         ctx.as_context_mut(),
                         host_func,
                         Some(&instance),
@@ -1290,7 +1294,7 @@ impl<'engine> EngineExecutor<'engine> {
     ///
     /// If the Wasm execution traps.
     #[inline(always)]
-    fn execute_wasm_with_trace<T>(
+    fn execute_wasm_with_trace_v0<T>(
         &mut self,
         ctx: StoreContextMut<T>,
         cache: &mut InstanceCache,
@@ -1312,7 +1316,7 @@ impl<'engine> EngineExecutor<'engine> {
         let code_map = &self.res.code_map;
         let const_pool = self.res.const_pool.view();
 
-        execute_wasm_with_trace(
+        execute_wasm_with_trace_v0(
             store_inner,
             cache,
             value_stack,

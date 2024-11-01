@@ -64,7 +64,7 @@ where
 
     // Instantiate the module and trace WASM linear memory and global memory initializations
     let instance = linker
-      .instantiate_with_tracer(&mut store, &module, tracer.clone())?
+      .instantiate_with_trace_v0(&mut store, &module, tracer.clone())?
       .start(&mut store)?;
 
     // Return the new instance of `WasiWASMCtx`
@@ -117,7 +117,7 @@ where
 
     // Instantiate the module and trace WASM linear memory and global memory initializations
     let instance = linker
-      .instantiate_with_tracer(&mut store, &module, tracer.clone())?
+      .instantiate_with_trace_v0(&mut store, &module, tracer.clone())?
       .start(&mut store)?;
 
     // Return the new instance of `WasiWASMCtx`
@@ -226,7 +226,7 @@ impl<WA: ZKWASMArgs + Clone> ZKWASMContext for WasiWASMCtx<WA> {
 
     // Call the function to invoke.
     // Gets the execution trace.
-    func.call_with_trace(
+    func.call_with_trace_v0(
       self.store_mut(),
       &func_args,
       &mut func_results,

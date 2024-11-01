@@ -40,7 +40,7 @@ use crate::{
     module::DEFAULT_MEMORY_INDEX,
     store::ResourceLimiterRef,
     table::TableEntity,
-    tracer::{
+    tracer_v0::{
         continuations::ImageID,
         mtable::{MemoryReadSize, MemoryStoreSize, VarType},
     },
@@ -147,7 +147,7 @@ pub fn execute_wasm<'ctx, 'engine>(
 ///
 /// If the Wasm execution traps.
 #[inline(never)]
-pub fn execute_wasm_with_trace<'ctx, 'engine>(
+pub fn execute_wasm_with_trace_v0<'ctx, 'engine>(
     ctx: &'ctx mut StoreInner,
     cache: &'engine mut InstanceCache,
     value_stack: &'engine mut ValueStack,

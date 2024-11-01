@@ -236,7 +236,7 @@ impl Stack {
     /// - If the host function returns a host side error or trap.
     /// - If the value stack overflowed upon pushing parameters or results.
     #[inline(always)]
-    pub fn call_host_with_trace<T>(
+    pub fn call_host_with_trace_v0<T>(
         &mut self,
         ctx: StoreContextMut<T>,
         host_func: HostFuncEntity,

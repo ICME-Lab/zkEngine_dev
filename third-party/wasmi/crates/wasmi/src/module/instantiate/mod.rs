@@ -94,7 +94,7 @@ impl Module {
     ///
     /// [`Linker`]: struct.Linker.html
     /// [`Func`]: [`crate::Func`]
-    pub(crate) fn instantiate_with_tracer<I>(
+    pub(crate) fn instantiate_with_trace_v0<I>(
         &self,
         mut context: impl AsContextMut,
         externals: I,

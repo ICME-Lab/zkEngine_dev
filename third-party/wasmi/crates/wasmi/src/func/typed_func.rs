@@ -109,7 +109,7 @@ where
         )
     }
 
-    pub fn call_with_trace(
+    pub fn call_with_trace_v0(
         &self,
         mut ctx: impl AsContextMut,
         params: Params,
@@ -120,7 +120,7 @@ where
             .store
             .engine()
             .clone()
-            .execute_func_with_trace(
+            .execute_func_with_trace_v0(
                 ctx.as_context_mut(),
                 &self.func,
                 params,

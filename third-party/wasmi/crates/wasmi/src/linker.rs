@@ -668,7 +668,7 @@ impl<T> Linker<T> {
     ///
     /// - If the linker does not define imports of the instantiated [`Module`].
     /// - If any imported item does not satisfy its type requirements.
-    pub fn instantiate_with_tracer(
+    pub fn instantiate_with_trace_v0(
         &self,
         mut context: impl AsContextMut<UserState = T>,
         module: &Module,
@@ -681,7 +681,7 @@ impl<T> Linker<T> {
             .imports()
             .map(|import| self.process_import(&mut context, import))
             .collect::<Result<Vec<Extern>, Error>>()?;
-        module.instantiate_with_tracer(context, externals, tracer)
+        module.instantiate_with_trace_v0(context, externals, tracer)
     }
 
     /// Processes a single [`Module`] import.

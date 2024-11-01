@@ -420,7 +420,7 @@ impl Func {
     ///   inputs required by the function signature of `self`.
     /// - If the number of output values does not match the expected number of
     ///   outputs required by the function signature of `self`.
-    pub fn call_with_trace<T>(
+    pub fn call_with_trace_v0<T>(
         &self,
         mut ctx: impl AsContextMut<UserState = T>,
         inputs: &[Value],
@@ -433,7 +433,7 @@ impl Func {
             .store
             .engine()
             .clone()
-            .execute_func_with_trace(ctx.as_context_mut(), self, inputs, outputs, tracer)?;
+            .execute_func_with_trace_v0(ctx.as_context_mut(), self, inputs, outputs, tracer)?;
         Ok(())
     }
 

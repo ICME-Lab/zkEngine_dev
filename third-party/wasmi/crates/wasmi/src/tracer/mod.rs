@@ -1,176 +1,64 @@
-pub mod continuations;
-pub mod etable;
-pub mod mtable;
+use core::cmp;
 
-use crate::{AsContext, Global, Memory};
-use mtable::imtable::IMTable;
-use wasmi_core::UntypedValue;
+use crate::engine::bytecode::Instruction;
 
-use self::{
-    continuations::{ImageID, MemorySnapshot},
-    etable::ETable,
-    mtable::{memory_event_of_step, LocationType, MTable},
-};
-
-/// Represents a slice range of the execution trace
-///
-/// Also used to store the start and end indexes of the memory snapshot
-#[derive(Debug, Clone, Default, Copy)]
-pub struct TraceSliceValues {
-    /// Start opcode
-    pub(crate) start: usize,
-    /// End opcode
-    pub(crate) end: usize,
+#[derive(Debug, Clone, Default)]
+/// Hold the execution trace from VM execution and manages other miscellaneous
+/// information needed by the zkWASM
+pub struct Tracer {
+    /// Holds the VM state at each timestamp of the execution
+    pub(crate) execution_trace: Vec<WitnessVM>,
+    /// This is used to maintain the max stack address. We use this to
+    /// construct the IS for MCC
+    max_sp: usize,
 }
 
-impl TraceSliceValues {
-    /// Build new `TraceSliceValues`
-    pub fn new(start: usize, end: usize) -> Self {
-        TraceSliceValues { start, end }
+impl Tracer {
+    /// Creates a new [`TracerV0`] for generating execution trace during VM
+    /// execution
+    pub fn new() -> Self {
+        Tracer::default()
     }
 
-    /// Get start value
-    pub fn start(&self) -> usize {
-        self.start
+    /// Extract the execution trace from the tracer
+    pub(crate) fn into_execution_trace(self) -> Vec<WitnessVM> {
+        self.execution_trace
     }
 
-    /// Get end value
-    pub fn end(&self) -> usize {
-        self.end
+    /// Used during execution to get the current timestamp of the execution step
+    pub(crate) fn ts(&self) -> usize {
+        self.execution_trace.len()
     }
 
-    /// Setter for start value
-    pub fn set_start(&mut self, start: usize) {
-        self.start = start;
+    /// Check if executions step sp is greater than maintained tracers max_sp.
+    /// If so update tracers max sp
+    pub(crate) fn update_max_sp(&mut self, new_sp: usize) {
+        self.max_sp = cmp::max(self.max_sp, new_sp);
     }
 
-    /// Setter for end value
-    pub fn set_end(&mut self, end: usize) {
-        self.end = end;
+    /// Getter for max_sp
+    pub(crate) fn max_sp(&self) -> usize {
+        self.max_sp
     }
 }
 
-/// Builds execution trace
-#[derive(Debug)]
-pub struct TracerV0 {
-    /// Initial memory table
-    imtable: IMTable,
-    /// Execution table
-    pub etable: ETable,
-    /// Function inputs used for memory trace initialization
-    pub fn_inputs: Vec<UntypedValue>,
-    /// Stores memory snapshot at specified points in the execution trace.
-    ///
-    /// Used for continuations.
-    pub memory_snapshot: MemorySnapshot,
-}
-
-impl TracerV0 {
-    // Initialize execution trace builder
-    pub fn new(trace_slice_values: TraceSliceValues) -> Self {
-        // Build memory snapshot with slice values
-        // Which end and start opcodes to take snapshot at
-        let memory_snapshot = MemorySnapshot::new(trace_slice_values);
-
-        // Build init tracer
-        TracerV0 {
-            imtable: IMTable::default(),
-            etable: ETable::default(),
-            fn_inputs: Vec::new(),
-            memory_snapshot,
-        }
-    }
-
-    /// Push initial heap/linear WASM memory to tracer for MCC
-    pub fn push_init_memory(&mut self, memref: Memory, context: impl AsContext) {
-        let pages: u32 = memref.ty(&context).initial_pages().into();
-        for i in 0..(pages * 8192) {
-            let mut buf = [0u8; 8];
-            memref
-                .read(&context, (i * 8).try_into().unwrap(), &mut buf)
-                .unwrap();
-            self.imtable
-                .push(i as usize, u64::from_le_bytes(buf), LocationType::Heap);
-        }
-    }
-
-    /// Push global memory values to tracer for MCC
-    pub fn push_global(&mut self, globalidx: usize, globalref: &Global, context: impl AsContext) {
-        let value = UntypedValue::from(globalref.get(&context));
-        self.imtable
-            .push(globalidx, value.to_bits(), LocationType::Global);
-    }
-
-    /// Push local memory values to tracer for MCC
-    pub fn push_len_locals(&mut self, len_locals: usize, pre_sp: usize) {
-        let n = len_locals + self.fn_inputs.len();
-        for i in 0..n {
-            if i < self.fn_inputs.len() {
-                self.imtable
-                    .push(pre_sp + i, self.fn_inputs[i].to_bits(), LocationType::Stack);
-            } else {
-                self.imtable.push(pre_sp + i, 0, LocationType::Stack);
-            }
-        }
-    }
-
-    /// Set WASM function inputs for MCC
-    pub fn set_inputs(&mut self, inputs: Vec<UntypedValue>) {
-        self.fn_inputs = inputs;
-    }
-
-    /// Get memory trace from execution trace
-    pub fn mtable(&self) -> MTable {
-        let mentries = self
-            .etable
-            .entries()
-            .iter()
-            .map(|eentry| memory_event_of_step(eentry, &mut 1))
-            .collect::<Vec<Vec<_>>>()
-            .concat();
-
-        MTable::new_with_imtable(mentries, &self.imtable)
-    }
-
-    /// Getter for shard start value
-    pub fn shard_start(&self) -> usize {
-        self.memory_snapshot.start()
-    }
-
-    /// Getter for shard end value
-    pub fn shard_end(&self) -> usize {
-        self.memory_snapshot.end()
-    }
-
-    /// Setter for memory snapshot input ImageID
-    pub fn set_memory_snapshot_input(&mut self, input: ImageID) {
-        self.memory_snapshot.set_system_state_input(input);
-    }
-
-    /// Setter for memory snapshot ouput ImageID
-    pub fn set_memory_snapshot_output(&mut self, output: ImageID) {
-        self.memory_snapshot.set_system_state_output(output);
-    }
-
-    /// Getter for memory snapshot output ImageID
-    pub fn memory_snapshot_output(&self) -> &ImageID {
-        self.memory_snapshot.system_state_output()
-    }
-
-    /// Getter for memory snapshot
-    pub fn memory_snapshot(&self) -> &MemorySnapshot {
-        &self.memory_snapshot
-    }
-
-    /// Get Execution Table
-    ///
-    /// Performs a clone
-    pub fn etable(&self) -> ETable {
-        self.etable.clone()
-    }
-
-    /// Get reference to `IMTable`
-    pub fn imtable(&self) -> &IMTable {
-        &self.imtable
-    }
+/// The VM state at each step of execution
+#[derive(Clone, Debug, Default)]
+pub(crate) struct WitnessVM {
+    /// Stack pointer before execution
+    pub(crate) pre_sp: usize,
+    /// Program counter (InstructionPtr) before execution
+    pub(crate) pc: usize,
+    /// Explict trace of instruction. Used to determine read and write for MCC
+    pub(crate) instr: Instruction,
+    /// Unique index for the opcode type
+    pub(crate) J: u64,
+    /// Timestamp of execution
+    pub(crate) ts: usize,
+    /// First argument value.
+    pub(crate) X: u64,
+    /// Second argument value.
+    pub(crate) Y: u64,
+    /// Result of instuction.
+    pub(crate) Z: u64,
 }

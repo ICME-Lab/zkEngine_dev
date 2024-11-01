@@ -93,7 +93,7 @@ mod store;
 mod table;
 
 mod tracer;
-mod tracer_v1;
+mod tracer_v0;
 mod value;
 
 /// Definitions from the `wasmi_core` crate.
@@ -156,7 +156,7 @@ pub use self::{
     },
     store::{AsContext, AsContextMut, Store, StoreContext, StoreContextMut},
     table::{Table, TableType},
-    tracer::{continuations, etable, mtable, TraceSliceValues, TracerV0},
+    tracer_v0::{continuations, etable, mtable, TraceSliceValues, TracerV0},
     value::Value,
 };
 use self::{
