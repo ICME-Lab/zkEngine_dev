@@ -33,10 +33,10 @@ use crate::{
     func::FuncEntity,
     store::ResourceLimiterRef,
     table::TableEntity,
+    tracer::WitnessVM,
     FuelConsumptionMode,
     Func,
     FuncRef,
-    Instance,
     StoreInner,
     Table,
     Tracer,
@@ -59,6 +59,7 @@ use wasmi_core::{Pages, UntypedValue};
 ///
 /// If the Wasm execution traps.
 #[inline(never)]
+#[allow(dead_code)]
 pub fn execute_wasm<'ctx, 'engine>(
     ctx: &'ctx mut StoreInner,
     cache: &'engine mut InstanceCache,
@@ -68,8 +69,16 @@ pub fn execute_wasm<'ctx, 'engine>(
     const_pool: ConstPoolView<'engine>,
     resource_limiter: &'ctx mut ResourceLimiterRef<'ctx>,
 ) -> Result<WasmOutcome, TrapCode> {
-    Executor::new(ctx, cache, value_stack, call_stack, code_map, const_pool)
-        .execute(resource_limiter)
+    Executor::new(
+        ctx,
+        cache,
+        value_stack,
+        call_stack,
+        code_map,
+        const_pool,
+        None,
+    )
+    .execute(resource_limiter)
 }
 
 /// Executes the given function `frame`.
@@ -93,8 +102,16 @@ pub fn execute_wasm_with_trace<'ctx, 'engine>(
     resource_limiter: &'ctx mut ResourceLimiterRef<'ctx>,
     tracer: Rc<RefCell<Tracer>>,
 ) -> Result<WasmOutcome, TrapCode> {
-    Executor::new(ctx, cache, value_stack, call_stack, code_map, const_pool)
-        .execute(resource_limiter)
+    Executor::new(
+        ctx,
+        cache,
+        value_stack,
+        call_stack,
+        code_map,
+        const_pool,
+        Some(tracer),
+    )
+    .execute(resource_limiter)
 }
 
 /// The function signature of Wasm load operations.
@@ -147,6 +164,8 @@ struct Executor<'ctx, 'engine> {
     code_map: &'engine CodeMap,
     /// A read-only view to a pool of constant values.
     const_pool: ConstPoolView<'engine>,
+    /// This is used to build an execution trace from the WASM module.
+    tracer: Option<Rc<RefCell<Tracer>>>,
 }
 
 macro_rules! forward_call {
@@ -174,6 +193,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         call_stack: &'engine mut CallStack,
         code_map: &'engine CodeMap,
         const_pool: ConstPoolView<'engine>,
+        tracer: Option<Rc<RefCell<Tracer>>>,
     ) -> Self {
         let frame = call_stack.pop().expect("must have frame on the call stack");
         let sp = value_stack.stack_ptr();
@@ -187,6 +207,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             call_stack,
             code_map,
             const_pool,
+            tracer,
         }
     }
 
@@ -197,8 +218,37 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         resource_limiter: &'ctx mut ResourceLimiterRef<'ctx>,
     ) -> Result<WasmOutcome, TrapCode> {
         use Instruction as Instr;
+        // "Fetch, Decode, Execute" loop
         loop {
-            match *self.ip.get() {
+            let instr = unsafe { &*self.ip.ptr };
+
+            // Get the pre-execution VM state at this timestamp
+            let mut vm = if self.tracer.is_some() {
+                // run this fn to get the usize value of [`ValueStackPtr`]
+                self.sync_stack_ptr();
+
+                // Capture/Trace the necessary pre-execution values
+                self.execute_instr_pre(self.value_stack.stack_ptr, 0)
+            } else {
+                WitnessVM::default()
+            };
+
+            // used to trace VM state change
+            macro_rules! trace_post_state_change {
+                () => {
+                    if let Some(tracer) = self.tracer.clone() {
+                        let mut tracer = tracer.borrow_mut();
+                        // Maintain the maximum stackptr address
+                        tracer.update_max_sp(vm.pre_sp);
+
+                        // Get post instruction VM state changes
+                        self.execute_instr_post(&mut vm, instr, tracer.ts());
+                        tracer.execution_trace.push(vm);
+                    }
+                };
+            }
+
+            match *instr {
                 Instr::LocalGet(local_depth) => self.visit_local_get(local_depth),
                 Instr::LocalSet(local_depth) => self.visit_local_set(local_depth),
                 Instr::LocalTee(local_depth) => self.visit_local_tee(local_depth),
@@ -413,6 +463,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 Instr::I64Extend16S => self.visit_i64_extend16_s(),
                 Instr::I64Extend32S => self.visit_i64_extend32_s(),
             }
+            trace_post_state_change!()
         }
     }
 
@@ -1607,5 +1658,47 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         fn visit_i64_div_u(i64_div_u);
         fn visit_i64_rem_s(i64_rem_s);
         fn visit_i64_rem_u(i64_rem_u);
+    }
+}
+
+impl<'ctx, 'engine> Executor<'ctx, 'engine> {
+    /// Used to capture necessary values before state change
+    fn execute_instr_pre(&self, pre_sp: usize, pc: usize) -> WitnessVM {
+        use Instruction as Instr;
+
+        let mut vm = WitnessVM::default();
+
+        let instruction = unsafe { &*self.ip.ptr };
+
+        vm.pre_sp = pre_sp;
+        vm.pc = pc;
+        vm.instr = *instruction;
+        vm.J = instruction.index_j();
+
+        match *instruction {
+            Instr::I64Const32(val) => vm.Z = val as u64,
+            Instr::I64Add | Instr::I64Mul | Instr::I64Sub => {
+                vm.X = self.sp.nth_back(2).to_bits();
+                vm.Y = self.sp.nth_back(1).to_bits();
+            }
+            Instr::Return(..) => {}
+            _ => unimplemented!(),
+        }
+
+        vm
+    }
+
+    /// Trace the affected values in the VM state change post instruction
+    /// execution
+    fn execute_instr_post(&self, vm: &mut WitnessVM, instr: &Instruction, ts: usize) {
+        use Instruction as Instr;
+        vm.ts = ts;
+
+        match *instr {
+            Instr::I64Add | Instr::I64Mul | Instr::I64Sub => {
+                vm.Z = self.sp.last().to_bits();
+            }
+            _ => {}
+        }
     }
 }

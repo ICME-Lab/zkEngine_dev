@@ -23,7 +23,7 @@ pub struct ValueStack {
     /// All currently live stack entries.
     entries: Vec<UntypedValue>,
     /// Index of the first free place in the stack.
-    stack_ptr: usize,
+    pub stack_ptr: usize,
     /// The maximum value stack height.
     ///
     /// # Note
