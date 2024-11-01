@@ -93,6 +93,7 @@ mod store;
 mod table;
 
 mod tracer;
+mod tracer_v1;
 mod value;
 
 /// Definitions from the `wasmi_core` crate.

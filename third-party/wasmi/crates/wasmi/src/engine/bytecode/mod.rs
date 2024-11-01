@@ -33,7 +33,7 @@ use wasmi_core::F32;
 ///
 /// For example the `BrTable` instruction is unrolled into separate instructions
 /// each representing either the `BrTable` head or one of its branching targets.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum Instruction {
     LocalGet(LocalDepth),
     LocalSet(LocalDepth),
@@ -74,6 +74,7 @@ pub enum Instruction {
     /// branch instructions as determined by [`BranchTableTargets`]. Branch
     /// instructions that may follow are [`Instruction::Br] and [`Instruction::Return`].
     BrTable(BranchTableTargets),
+    #[default]
     Unreachable,
     ConsumeFuel(BlockFuel),
     Return(DropKeep),
