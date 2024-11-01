@@ -37,7 +37,7 @@ impl Tracer {
     }
 
     /// Getter for max_sp
-    pub(crate) fn max_sp(&self) -> usize {
+    pub fn max_sp(&self) -> usize {
         self.max_sp
     }
 }
