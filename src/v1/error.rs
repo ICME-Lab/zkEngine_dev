@@ -15,4 +15,13 @@ pub enum ZKWASMError {
   /// Anyhow Error
   #[error("AnyhowError")]
   AnyhowError(#[from] anyhow::Error),
+  /// Wasmi Error
+  #[error("WasmiError")]
+  WasmiError(wasmi::Error),
+}
+
+impl From<wasmi::Error> for ZKWASMError {
+  fn from(error: wasmi::Error) -> Self {
+    Self::WasmiError(error)
+  }
 }
