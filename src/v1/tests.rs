@@ -25,8 +25,6 @@ fn test_tracing() -> Result<(), ZKWASMError> {
   let module = wasmi::Module::new(&engine, &wasm[..])?;
   let tracer = Rc::new(RefCell::new(Tracer::new()));
 
-  // build wasi ctx to add to linker.
-
   // Create a new store & add wasi through the linker
   let mut store = wasmi::Store::new(&engine, ());
 
