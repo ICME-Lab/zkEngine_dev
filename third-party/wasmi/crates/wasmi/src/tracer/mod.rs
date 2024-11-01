@@ -1,3 +1,4 @@
+#![allow(non_snake_case)]
 use core::cmp;
 
 use crate::engine::bytecode::Instruction;

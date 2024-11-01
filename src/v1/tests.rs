@@ -4,8 +4,6 @@ use nova::provider::Bn256EngineIPA;
 use wasmi::Tracer;
 
 use crate::{
-  traits::wasm::ZKWASMArgs,
-  utils::wasm::{decode_func_args, prepare_func_results},
   v1::utils::tracing::{execute_wasm, unwrap_rc_refcell},
   wasm::args::WASMArgsBuilder,
 };

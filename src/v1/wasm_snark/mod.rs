@@ -52,7 +52,7 @@ where
     // Execute WASM module and build execution trace documenting vm state at
     // each step
     let tracer = Rc::new(RefCell::new(Tracer::new()));
-    let _ = execute_wasm(program, tracer.clone())?;
+    execute_wasm(program, tracer.clone())?;
     let tracer = unwrap_rc_refcell(tracer);
     let max_sp = tracer.max_sp();
     let execution_trace = tracer.into_execution_trace();
