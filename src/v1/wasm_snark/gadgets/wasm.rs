@@ -24,9 +24,6 @@ where
   // I64Mul
   alu_mul(cs.namespace(|| "alu_mul"), X, Y, ZJ)?;
 
-  // I64Sub
-  alu_sub(cs.namespace(|| "alu_sub"), X, Y, ZJ)?;
-
   Ok(())
 }
 
@@ -81,6 +78,8 @@ where
   ZJ.push(mul(cs.namespace(|| "X+Y"), X, Y)?);
   Ok(())
 }
+
+// TODO: handle signed results
 
 /// Subtracts the two argument values
 pub fn alu_sub<CS, F>(

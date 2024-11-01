@@ -424,7 +424,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 4;
+    pub const MAX_J: u64 = 3;
 
     pub fn index_j(&self) -> u64 {
         match self {
