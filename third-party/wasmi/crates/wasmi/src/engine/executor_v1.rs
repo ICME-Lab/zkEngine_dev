@@ -228,7 +228,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 self.sync_stack_ptr();
 
                 // Capture/Trace the necessary pre-execution values
-                self.execute_instr_pre(self.value_stack.stack_ptr, 0)
+                self.execute_instr_pre(self.value_stack.stack_ptr, 0) // TODO: Get pc/ip
             } else {
                 WitnessVM::default()
             };
