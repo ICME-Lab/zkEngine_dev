@@ -76,6 +76,7 @@ where
       .into_iter()
       .map(|vm| {
         let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts);
+        // TODO don't extend to pass into F_ops, this is just for testing for now
         RS.extend(step_rs.clone());
         WS.extend(step_ws.clone());
 
