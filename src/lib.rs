@@ -11,6 +11,7 @@ pub mod run;
 pub mod snark;
 pub mod traits;
 pub mod utils;
+pub mod v1;
 pub mod wasm;
 
 // re-export the wasi module
