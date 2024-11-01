@@ -1,5 +1,6 @@
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
+use nova::provider::Bn256EngineIPA;
 use wasmi::Tracer;
 
 use crate::{
@@ -9,7 +10,22 @@ use crate::{
   wasm::args::WASMArgsBuilder,
 };
 
-use super::error::ZKWASMError;
+use super::{error::ZKWASMError, wasm_snark::WasmSNARK};
+
+/// Curve Cycle to prove/verify on
+pub type E = Bn256EngineIPA;
+
+#[test]
+fn test_wasm_snark() -> Result<(), ZKWASMError> {
+  let program = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/ams_isa.wat"))
+    .build();
+
+  let pp = WasmSNARK::<E>::setup();
+
+  let _snark = WasmSNARK::<E>::prove(&pp, &program)?;
+  Ok(())
+}
 
 #[test]
 fn test_tracing() -> Result<(), ZKWASMError> {

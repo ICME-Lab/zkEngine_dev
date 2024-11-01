@@ -46,19 +46,19 @@ impl Tracer {
 #[derive(Clone, Debug, Default)]
 pub struct WitnessVM {
     /// Stack pointer before execution
-    pub(crate) pre_sp: usize,
+    pub pre_sp: usize,
     /// Program counter (InstructionPtr) before execution
-    pub(crate) pc: usize,
+    pub pc: usize,
     /// Explict trace of instruction. Used to determine read and write for MCC
-    pub(crate) instr: Instruction,
+    pub instr: Instruction,
     /// Unique index for the opcode type
-    pub(crate) J: u64,
+    pub J: u64,
     /// Timestamp of execution
-    pub(crate) ts: usize,
+    pub ts: usize,
     /// First argument value.
-    pub(crate) X: u64,
+    pub X: u64,
     /// Second argument value.
-    pub(crate) Y: u64,
+    pub Y: u64,
     /// Result of instuction.
-    pub(crate) Z: u64,
+    pub Z: u64,
 }

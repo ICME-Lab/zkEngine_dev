@@ -115,6 +115,7 @@ pub mod errors {
 
 pub use self::{
     engine::{
+        bytecode::Instruction,
         Config,
         Engine,
         EngineBackend,
@@ -156,7 +157,7 @@ pub use self::{
     },
     store::{AsContext, AsContextMut, Store, StoreContext, StoreContextMut},
     table::{Table, TableType},
-    tracer::Tracer,
+    tracer::{Tracer, WitnessVM},
     tracer_v0::{continuations, etable, mtable, TraceSliceValues, TracerV0},
     value::Value,
 };
