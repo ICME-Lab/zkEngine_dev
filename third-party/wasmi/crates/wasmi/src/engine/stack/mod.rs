@@ -13,7 +13,7 @@ use crate::{
     AsContext,
     Instance,
     StoreContextMut,
-    Tracer,
+    TracerV0,
 };
 use alloc::rc::Rc;
 use core::{
@@ -242,7 +242,7 @@ impl Stack {
         host_func: HostFuncEntity,
         instance: Option<&Instance>,
         func_types: &FuncTypeRegistry,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<(), Trap> {
         // The host function signature is required for properly
         // adjusting, inspecting and manipulating the value stack.

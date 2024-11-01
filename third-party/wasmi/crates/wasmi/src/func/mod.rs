@@ -22,7 +22,7 @@ use super::{
     StoreContext,
     Stored,
 };
-use crate::{core::Trap, engine::ResumableCall, Engine, Error, Tracer, Value};
+use crate::{core::Trap, engine::ResumableCall, Engine, Error, TracerV0, Value};
 use alloc::sync::Arc;
 use core::{fmt, fmt::Debug, num::NonZeroU32};
 use std::{cell::RefCell, rc::Rc};
@@ -425,7 +425,7 @@ impl Func {
         mut ctx: impl AsContextMut<UserState = T>,
         inputs: &[Value],
         outputs: &mut [Value],
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<(), Error> {
         self.verify_and_prepare_inputs_outputs(ctx.as_context(), inputs, outputs)?;
         // Note: Cloning an [`Engine`] is intentionally a cheap operation.

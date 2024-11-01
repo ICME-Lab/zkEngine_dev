@@ -17,7 +17,7 @@ use crate::{
     MemoryType,
     Module,
     TableType,
-    Tracer,
+    TracerV0,
     Value,
 };
 use alloc::{
@@ -672,7 +672,7 @@ impl<T> Linker<T> {
         &self,
         mut context: impl AsContextMut<UserState = T>,
         module: &Module,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<InstancePre, Error> {
         assert!(Engine::same(self.engine(), context.as_context().engine()));
         // TODO: possibly add further resource limtation here on number of externals.

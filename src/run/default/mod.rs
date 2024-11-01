@@ -30,7 +30,7 @@ use ff::Field;
 use nova::traits::{circuit::TrivialCircuit, Engine};
 use public_values::{ExecutionPublicValues, MCCPublicValues, PublicValues};
 use serde::{Deserialize, Serialize};
-use wasmi::{etable::ETable, Tracer};
+use wasmi::{etable::ETable, TracerV0};
 
 /// A proof that testifies the correct execution of a WASM program
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -179,7 +179,7 @@ where
   E: BackendEngine,
 {
   etable: ETable,
-  tracer: Rc<RefCell<Tracer>>,
+  tracer: Rc<RefCell<TracerV0>>,
   wasm_func_res: Box<[wasmi::Value]>,
   execution_proof: Option<ExecutionProof<E::E1, E::BS1, E::S2>>,
   execution_public_values: Option<ExecutionPublicValues<E::E1>>,

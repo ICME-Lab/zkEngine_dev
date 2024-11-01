@@ -4,7 +4,7 @@ use crate::{
     AsContext,
     AsContextMut,
     Error,
-    Tracer,
+    TracerV0,
     TypedResumableCall,
 };
 use alloc::rc::Rc;
@@ -113,7 +113,7 @@ where
         &self,
         mut ctx: impl AsContextMut,
         params: Params,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<Results, Trap> {
         // Note: Cloning an [`Engine`] is intentionally a cheap operation.
         ctx.as_context()

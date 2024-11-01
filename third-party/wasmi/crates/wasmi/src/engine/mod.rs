@@ -65,7 +65,7 @@ use crate::{
     Func,
     FuncType,
     StoreContextMut,
-    Tracer,
+    TracerV0,
 };
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -360,7 +360,7 @@ impl Engine {
         func: &Func,
         params: impl CallParams,
         results: Results,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<<Results as CallResults>::Results, Trap>
     where
         Results: CallResults,
@@ -712,7 +712,7 @@ impl EngineInner {
         func: &Func,
         params: impl CallParams,
         results: Results,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<<Results as CallResults>::Results, Trap>
     where
         Results: CallResults,
@@ -766,7 +766,7 @@ impl EngineInner {
         func: &Func,
         params: impl CallParams,
         results: Results,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<<Results as CallResults>::Results, Trap>
     where
         Results: CallResults,
@@ -1040,7 +1040,7 @@ impl<'engine> EngineExecutor<'engine> {
         func: &Func,
         params: impl CallParams,
         results: Results,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<<Results as CallResults>::Results, TaggedTrap>
     where
         Results: CallResults,
@@ -1067,7 +1067,7 @@ impl<'engine> EngineExecutor<'engine> {
 
     fn tracer_extend_stack(
         &mut self,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
         wasm_func: &WasmFuncEntity,
         pre_sp: usize,
     ) {
@@ -1187,7 +1187,7 @@ impl<'engine> EngineExecutor<'engine> {
     fn execute_wasm_func_with_trace<T>(
         &mut self,
         mut ctx: StoreContextMut<T>,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<(), TaggedTrap> {
         let mut cache = self
             .stack
@@ -1294,7 +1294,7 @@ impl<'engine> EngineExecutor<'engine> {
         &mut self,
         ctx: StoreContextMut<T>,
         cache: &mut InstanceCache,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<WasmOutcome, Trap> {
         /// Converts a [`TrapCode`] into a [`Trap`].
         ///

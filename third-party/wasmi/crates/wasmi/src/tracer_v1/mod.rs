@@ -14,7 +14,7 @@ pub struct Tracer {
 }
 
 impl Tracer {
-    /// Creates a new [`Tracer`] for generating execution trace during VM
+    /// Creates a new [`TracerV0`] for generating execution trace during VM
     /// execution
     pub fn new() -> Self {
         Tracer::default()

@@ -24,7 +24,7 @@ use crate::{
     InstanceEntityBuilder,
     Memory,
     Table,
-    Tracer,
+    TracerV0,
     Value,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -98,7 +98,7 @@ impl Module {
         &self,
         mut context: impl AsContextMut,
         externals: I,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<InstancePre, Error>
     where
         I: IntoIterator<Item = Extern>,

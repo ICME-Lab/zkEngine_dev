@@ -1,6 +1,6 @@
 //! Contains definitions for a zkWASM execution context, to get an execution trace
 use std::{cell::RefCell, rc::Rc};
-use wasmi::{etable::ETable, Func, FuncType, Store, TraceSliceValues, Tracer};
+use wasmi::{etable::ETable, Func, FuncType, Store, TraceSliceValues, TracerV0};
 
 /// The trait to define what you need to run a WASM module and to expose the WASM modules bytecode.
 ///
@@ -45,7 +45,7 @@ pub trait ZKWASMContext {
   fn func(&self, fn_name: &str) -> anyhow::Result<Func>;
 
   /// returns a struct that is used to build the execution trace.
-  fn tracer(&self) -> anyhow::Result<Rc<RefCell<Tracer>>>;
+  fn tracer(&self) -> anyhow::Result<Rc<RefCell<TracerV0>>>;
 
   /// builds and returns a struct that contains the execution trace and the invoked functions
   /// result.

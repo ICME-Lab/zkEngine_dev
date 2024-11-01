@@ -52,7 +52,7 @@ impl TraceSliceValues {
 
 /// Builds execution trace
 #[derive(Debug)]
-pub struct Tracer {
+pub struct TracerV0 {
     /// Initial memory table
     imtable: IMTable,
     /// Execution table
@@ -65,7 +65,7 @@ pub struct Tracer {
     pub memory_snapshot: MemorySnapshot,
 }
 
-impl Tracer {
+impl TracerV0 {
     // Initialize execution trace builder
     pub fn new(trace_slice_values: TraceSliceValues) -> Self {
         // Build memory snapshot with slice values
@@ -73,7 +73,7 @@ impl Tracer {
         let memory_snapshot = MemorySnapshot::new(trace_slice_values);
 
         // Build init tracer
-        Tracer {
+        TracerV0 {
             imtable: IMTable::default(),
             etable: ETable::default(),
             fn_inputs: Vec::new(),

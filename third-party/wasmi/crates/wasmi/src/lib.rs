@@ -156,7 +156,7 @@ pub use self::{
     },
     store::{AsContext, AsContextMut, Store, StoreContext, StoreContextMut},
     table::{Table, TableType},
-    tracer::{continuations, etable, mtable, TraceSliceValues, Tracer},
+    tracer::{continuations, etable, mtable, TraceSliceValues, TracerV0},
     value::Value,
 };
 use self::{
