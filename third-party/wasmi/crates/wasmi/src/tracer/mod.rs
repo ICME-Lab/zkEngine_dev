@@ -26,11 +26,6 @@ impl Tracer {
         self.execution_trace
     }
 
-    /// Used during execution to get the current timestamp of the execution step
-    pub(crate) fn ts(&self) -> usize {
-        self.execution_trace.len()
-    }
-
     /// Check if executions step sp is greater than maintained tracers max_sp.
     /// If so update tracers max sp
     pub(crate) fn update_max_sp(&mut self, new_sp: usize) {
@@ -54,8 +49,6 @@ pub struct WitnessVM {
     pub instr: Instruction,
     /// Unique index for the opcode type
     pub J: u64,
-    /// Timestamp of execution
-    pub ts: usize,
     /// First argument value.
     pub X: u64,
     /// Second argument value.

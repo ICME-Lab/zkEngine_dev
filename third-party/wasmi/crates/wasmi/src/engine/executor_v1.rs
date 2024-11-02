@@ -242,7 +242,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         tracer.update_max_sp(vm.pre_sp);
 
                         // Get post instruction VM state changes
-                        self.execute_instr_post(&mut vm, instr, tracer.ts());
+                        self.execute_instr_post(&mut vm, instr);
                         tracer.execution_trace.push(vm);
                     }
                 };
@@ -1690,9 +1690,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
     /// Trace the affected values in the VM state change post instruction
     /// execution
-    fn execute_instr_post(&self, vm: &mut WitnessVM, instr: &Instruction, ts: usize) {
+    fn execute_instr_post(&self, vm: &mut WitnessVM, instr: &Instruction) {
         use Instruction as Instr;
-        vm.ts = ts;
 
         match *instr {
             Instr::I64Add | Instr::I64Mul => {
