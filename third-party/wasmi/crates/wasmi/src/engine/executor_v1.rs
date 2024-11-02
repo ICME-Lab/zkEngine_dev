@@ -228,7 +228,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 self.sync_stack_ptr();
 
                 // Capture/Trace the necessary pre-execution values
-                self.execute_instr_pre(self.value_stack.stack_ptr, 0) // TODO: Get pc/ip
+                self.execute_instr_pre(self.value_stack.stack_ptr, self.pc())
             } else {
                 WitnessVM::default()
             };
@@ -1677,7 +1677,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
         match *instruction {
             Instr::I64Const32(val) => vm.Z = val as u64,
-            Instr::I64Add | Instr::I64Mul | Instr::I64Sub => {
+            Instr::I64Add | Instr::I64Mul => {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
@@ -1695,10 +1695,19 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         vm.ts = ts;
 
         match *instr {
-            Instr::I64Add | Instr::I64Mul | Instr::I64Sub => {
+            Instr::I64Add | Instr::I64Mul => {
                 vm.Z = self.sp.last().to_bits();
             }
             _ => {}
         }
+    }
+
+    /// Get `usize` value for the pc
+    fn pc(&self) -> usize {
+        let base_ptr = self.code_map.instrs.as_ptr();
+        // SAFETY: Within Wasm bytecode execution we are guaranteed by
+        //         Wasm validation and `wasmi` codegen to never run out
+        //         of valid bounds using this method.
+        (unsafe { self.ip.ptr.offset_from(base_ptr) }) as usize
     }
 }
