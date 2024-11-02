@@ -24,7 +24,7 @@ pub fn step_RS_WS(
 
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
-    _ => {}
+    _ => unimplemented!("{:?}", instr),
   }
 
   (RS, WS)

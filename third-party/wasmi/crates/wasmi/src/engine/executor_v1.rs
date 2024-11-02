@@ -1676,6 +1676,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         vm.J = instruction.index_j();
 
         match *instruction {
+            Instr::LocalGet(..) => {}
             Instr::I64Const32(val) => vm.Z = val as u64,
             Instr::I64Add | Instr::I64Mul => {
                 vm.X = self.sp.nth_back(2).to_bits();

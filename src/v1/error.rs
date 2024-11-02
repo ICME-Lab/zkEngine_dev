@@ -18,6 +18,9 @@ pub enum ZKWASMError {
   /// Wasmi Error
   #[error("WasmiError")]
   WasmiError(wasmi::Error),
+  /// Failed to load WASM module
+  #[error("WasmError")]
+  WASMError(String),
 }
 
 impl From<wasmi::Error> for ZKWASMError {

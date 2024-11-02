@@ -1,7 +1,7 @@
 use crate::{
   traits::wasm::ZKWASMArgs,
   utils::wasm::{decode_func_args, prepare_func_results},
-  v1::error::ZKWASMError,
+  v1::{error::ZKWASMError, wasm_ctx::WASMCtx},
   wasm::args::WASMArgs,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -16,13 +16,11 @@ pub fn unwrap_rc_refcell<T>(last_elem: Rc<RefCell<T>>) -> T {
 
 // TODO: refactor this
 /// Execute a WASM module & extract the execution trace
-pub fn execute_wasm(args: &WASMArgs, tracer: Rc<RefCell<Tracer>>) -> Result<(), ZKWASMError> {
-  let wasm = args.bytecode().map_err(ZKWASMError::AnyhowError)?;
-
+pub fn execute_wasm(wasm_ctx: &WASMCtx, tracer: Rc<RefCell<Tracer>>) -> Result<(), ZKWASMError> {
   // Setup and parse the wasm bytecode.
   let engine = wasmi::Engine::default();
   let linker = <wasmi::Linker<()>>::new(&engine);
-  let module = wasmi::Module::new(&engine, &wasm[..])?;
+  let module = wasmi::Module::new(&engine, &wasm_ctx.program[..])?;
 
   // Create a new store & add wasi through the linker
   let mut store = wasmi::Store::new(&engine, ());
@@ -30,15 +28,17 @@ pub fn execute_wasm(args: &WASMArgs, tracer: Rc<RefCell<Tracer>>) -> Result<(), 
   // Instantiate the module and trace WASM linear memory and global memory initializations
   let instance = linker.instantiate(&mut store, &module)?.start(&mut store)?;
 
-  let func = instance.get_func(&store, args.invoke()).ok_or_else(|| {
-    ZKWASMError::WasmiError(wasmi::Error::Func(
-      wasmi::errors::FuncError::ExportedFuncNotFound,
-    ))
-  })?;
+  let func = instance
+    .get_func(&store, &wasm_ctx.meta_data.invoke)
+    .ok_or_else(|| {
+      ZKWASMError::WasmiError(wasmi::Error::Func(
+        wasmi::errors::FuncError::ExportedFuncNotFound,
+      ))
+    })?;
 
   // Prepare i/o
   let ty = func.ty(&store);
-  let func_args = decode_func_args(&ty, &args.func_args())?;
+  let func_args = decode_func_args(&ty, &wasm_ctx.meta_data.func_args)?;
   let mut func_results = prepare_func_results(&ty);
 
   // Call the function to invoke.

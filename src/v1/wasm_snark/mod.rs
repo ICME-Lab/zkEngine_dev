@@ -23,7 +23,7 @@ use crate::{
   wasm::args::WASMArgs,
 };
 
-use super::error::ZKWASMError;
+use super::{error::ZKWASMError, wasm_ctx::WASMCtx};
 
 mod gadgets;
 mod mcc;
@@ -51,7 +51,7 @@ where
   }
 
   /// Produce a SNARK for WASM program input
-  pub fn prove(pp: &PublicParams<E>, program: &WASMArgs) -> Result<RecursiveSNARK<E>, ZKWASMError> {
+  pub fn prove(pp: &PublicParams<E>, program: &WASMCtx) -> Result<RecursiveSNARK<E>, ZKWASMError> {
     // Execute WASM module and build execution trace documenting vm state at
     // each step
     let tracer = Rc::new(RefCell::new(Tracer::new()));

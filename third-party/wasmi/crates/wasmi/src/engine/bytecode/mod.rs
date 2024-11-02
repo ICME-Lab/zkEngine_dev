@@ -434,6 +434,7 @@ impl Instruction {
             Self::I64Mul => 3,
             Self::I64Sub => 4,
             Self::Return(..) => 5,
+            Self::LocalGet(..) => 0, // make it non-nop
             _ => {
                 println!("{:?}", self);
                 unimplemented!()

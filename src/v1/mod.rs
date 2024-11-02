@@ -4,4 +4,5 @@ pub mod error;
 #[cfg(test)]
 mod tests;
 mod utils;
+pub mod wasm_ctx;
 pub mod wasm_snark;
