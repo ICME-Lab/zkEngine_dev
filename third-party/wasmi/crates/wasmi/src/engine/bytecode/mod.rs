@@ -424,15 +424,16 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 3;
+    pub const MAX_J: u64 = 4;
 
     pub fn index_j(&self) -> u64 {
         match self {
-            Self::I64Const32(..) => 0,
-            Self::I64Add => 1,
-            Self::I64Mul => 2,
-            Self::I64Sub => 3,
-            Self::Return(..) => 4,
+            Self::Unreachable => 0,
+            Self::I64Const32(..) => 1,
+            Self::I64Add => 2,
+            Self::I64Mul => 3,
+            Self::I64Sub => 4,
+            Self::Return(..) => 5,
             _ => {
                 println!("{:?}", self);
                 unimplemented!()

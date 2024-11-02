@@ -3,7 +3,10 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
-use gadgets::wasm::{alu, imm_const_opc, parse_J};
+use gadgets::{
+  utils::alloc_zero,
+  wasm::{alu, imm_const_opc, parse_J},
+};
 use itertools::Itertools;
 use mcc::{
   multiset_ops::{avt_tuple_to_scalar_vec, step_RS_WS},
@@ -202,14 +205,16 @@ where
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
     let inst_j = self.vm.J;
+    let zero = alloc_zero(cs.namespace(|| "zero"));
 
     // Allocate the witness
     let (X, Y, Z) = self.alloc_witness(cs.namespace(|| "alloc_witness"))?;
 
     let J_bits = parse_J(cs.namespace(|| "parse_J"), inst_j)?;
 
-    // different values Z could be
+    // different values Z could be. Push unreachable as the first output
     let mut ZJ = Vec::new();
+    ZJ.push(zero);
 
     // I64Const
     imm_const_opc(cs.namespace(|| "imm_const_opc"), &Z, &mut ZJ)?;
