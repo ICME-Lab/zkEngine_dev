@@ -4,7 +4,7 @@ use nova::provider::Bn256EngineIPA;
 use wasmi::Tracer;
 
 use crate::{
-  utils::wasm::wat2wasm,
+  utils::{logging::init_logger, wasm::wat2wasm},
   v1::utils::tracing::{execute_wasm, unwrap_rc_refcell},
 };
 
@@ -28,6 +28,7 @@ fn test_wasm_snark_basic_arith() -> Result<(), ZKWASMError> {
 
 #[test]
 fn get_local() {
+  init_logger();
   let wasm = wat2wasm(
     r#"
     (module

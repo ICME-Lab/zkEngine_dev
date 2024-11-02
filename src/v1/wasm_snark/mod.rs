@@ -50,6 +50,7 @@ where
     )
   }
 
+  #[tracing::instrument(skip_all, name = "WasmSNARK::prove")]
   /// Produce a SNARK for WASM program input
   pub fn prove(pp: &PublicParams<E>, program: &WASMCtx) -> Result<RecursiveSNARK<E>, ZKWASMError> {
     // Execute WASM module and build execution trace documenting vm state at
@@ -59,6 +60,7 @@ where
     let tracer = unwrap_rc_refcell(tracer);
     let max_sp = tracer.max_sp();
     let execution_trace = tracer.into_execution_trace();
+    tracing::debug!("{:#?}", execution_trace);
 
     /*
      * Get MCC values:

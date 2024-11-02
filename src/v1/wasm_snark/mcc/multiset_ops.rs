@@ -15,8 +15,9 @@ pub fn step_RS_WS(
   let mut WS: Vec<(usize, u64, u64)> = Vec::new();
 
   match instr {
+    Instruction::LocalGet(..) => {}
     Instruction::I64Const32(_) => {
-      write_op(vm.pre_sp, vm.Z, global_ts, FS, &mut RS, &mut WS);
+      write_op(vm.pre_sp, vm.I, global_ts, FS, &mut RS, &mut WS);
     }
     Instruction::I64Add | Instruction::I64Mul | Instruction::I64Sub => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);

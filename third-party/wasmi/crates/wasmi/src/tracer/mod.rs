@@ -43,7 +43,7 @@ impl Tracer {
 pub struct WitnessVM {
     /// Stack pointer before execution
     pub pre_sp: usize,
-    /// Program counter (InstructionPtr) before execution
+    /// Program counter ([`InstructionPtr`]) before execution
     pub pc: usize,
     /// Explict trace of instruction. Used to determine read and write for MCC
     pub instr: Instruction,
@@ -51,10 +51,13 @@ pub struct WitnessVM {
     pub J: u64,
     /// Immediate instruction value
     pub I: u64,
-    /// First argument value.
+    /// First argument value. Holds an instructions"read" value.
     pub X: u64,
-    /// Second argument value.
+    /// Second argument value.Holds an instructions"read" value.
     pub Y: u64,
-    /// Result of instuction.
+    /// Result of instuction. Used to hold the result of a computation instruction.
+    /// Also is used to hold an instructions "write" value.
     pub Z: u64,
+    /// Holds a "push" or "write" value, for example when an instruction pushes a value on the stack
+    pub P: u64,
 }
