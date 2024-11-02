@@ -49,6 +49,8 @@ pub struct WitnessVM {
     pub instr: Instruction,
     /// Unique index for the opcode type
     pub J: u64,
+    /// Immediate instruction value
+    pub I: u64,
     /// First argument value.
     pub X: u64,
     /// Second argument value.
