@@ -54,7 +54,7 @@ where
   /// Produce a SNARK for WASM program input
   pub fn prove(pp: &PublicParams<E>, program: &WASMCtx) -> Result<RecursiveSNARK<E>, ZKWASMError> {
     // Execute WASM module and build execution trace documenting vm state at
-    // each step
+    // each step. Also get meta-date from execution like the max height of the [`ValueStack`]
     let tracer = Rc::new(RefCell::new(Tracer::new()));
     execute_wasm(program, tracer.clone())?;
     let tracer = unwrap_rc_refcell(tracer);
