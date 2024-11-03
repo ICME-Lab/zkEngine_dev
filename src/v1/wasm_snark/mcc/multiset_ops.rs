@@ -1,7 +1,8 @@
 use ff::PrimeField;
 use wasmi::{Instruction, WitnessVM};
 
-/// Get the RS & WS for a single execution step
+/// Get the RS & WS for a single execution step. A RS (read-set) & a WS (write-set) are of the form
+/// of a vector of (address, value, timestamp) tuples
 pub fn step_RS_WS(
   vm: &WitnessVM,
   FS: &mut [(u64, u64)],
