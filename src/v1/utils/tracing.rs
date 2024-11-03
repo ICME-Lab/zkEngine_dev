@@ -1,8 +1,6 @@
 use crate::{
-  traits::wasm::ZKWASMArgs,
   utils::wasm::{decode_func_args, prepare_func_results},
   v1::{error::ZKWASMError, wasm_ctx::WASMCtx},
-  wasm::args::WASMArgs,
 };
 use std::{cell::RefCell, rc::Rc};
 use wasmi::Tracer;
