@@ -246,11 +246,11 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let fe_switch = if J == self.vm.J { F::ONE } else { F::ZERO };
+    let switch_fe = if J == self.vm.J { F::ONE } else { F::ZERO };
 
     Ok((
-      AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(fe_switch))?,
-      fe_switch,
+      AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch_fe))?,
+      switch_fe,
     ))
   }
 
