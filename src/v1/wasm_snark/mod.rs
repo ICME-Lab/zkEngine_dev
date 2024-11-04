@@ -201,6 +201,7 @@ impl Default for WASMTransitionCircuit {
   fn default() -> Self {
     Self {
       vm: WitnessVM::default(),
+      // max memory ops per recursive step is 8
       RS: vec![(0, 0, 0); 4],
       WS: vec![(0, 0, 0); 4],
     }
