@@ -1,7 +1,8 @@
 //! Implements SNARK proving the WASM module computation
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper::gadgets::Assignment;
+use bellpepper_core::{boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
 use gadgets::{
   utils::alloc_zero,
@@ -16,7 +17,7 @@ use nova::{
   nebula::rs::{PublicParams, RecursiveSNARK, StepCircuit},
   traits::{snark::default_ck_hint, CurveCycleEquipped, TranscriptEngineTrait},
 };
-use wasmi::{Instruction, Tracer, WitnessVM};
+use wasmi::{Instruction as Instr, Tracer, WitnessVM};
 
 use crate::{
   v1::utils::tracing::{execute_wasm, unwrap_rc_refcell},
@@ -27,6 +28,9 @@ use super::{error::ZKWASMError, wasm_ctx::WASMCtx};
 
 mod gadgets;
 mod mcc;
+
+/// Maximum number of memory ops allowed per step of the zkVM
+pub const MEMORY_OPS_PER_STEP: usize = 8;
 
 /// A SNARK that proves the correct execution of a WASM modules execution
 pub struct WasmSNARK<E>
@@ -60,7 +64,7 @@ where
     let tracer = unwrap_rc_refcell(tracer);
     let max_sp = tracer.max_sp();
     let execution_trace = tracer.into_execution_trace();
-    tracing::debug!("{:#?}", execution_trace);
+    tracing::debug!("max_sp: {max_sp}, execution trace: {:#?}", execution_trace);
 
     /*
      * Get MCC values:
@@ -186,11 +190,21 @@ where
 }
 
 /// Multiplexer circuit for WASM module's computation
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct WASMTransitionCircuit {
   vm: WitnessVM,
   RS: Vec<(usize, u64, u64)>,
   WS: Vec<(usize, u64, u64)>,
+}
+
+impl Default for WASMTransitionCircuit {
+  fn default() -> Self {
+    Self {
+      vm: WitnessVM::default(),
+      RS: vec![(0, 0, 0); 4],
+      WS: vec![(0, 0, 0); 4],
+    }
+  }
 }
 
 impl<F> StepCircuit<F> for WASMTransitionCircuit
@@ -206,48 +220,7 @@ where
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    let inst_j = self.vm.J;
-    let zero = alloc_zero(cs.namespace(|| "zero"));
-
-    // Allocate the witness
-    let (X, Y, Z) = self.alloc_witness(cs.namespace(|| "alloc_witness"))?;
-
-    let J_bits = parse_J(cs.namespace(|| "parse_J"), inst_j)?;
-
-    // different values Z could be. Push unreachable as the first output
-    let mut ZJ = Vec::new();
-    ZJ.push(zero);
-
-    // I64Const
-    imm_const_opc(cs.namespace(|| "imm_const_opc"), &Z, &mut ZJ)?;
-
-    alu(cs.namespace(|| "alu"), &X, &Y, &mut ZJ)?;
-
-    // constrain Z according to instruction index J
-    let mut JZ = Vec::new();
-    for j in 0..Instruction::MAX_J {
-      let JZ_j = AllocatedNum::alloc(cs.namespace(|| format!("JZ{j}")), || {
-        Ok(F::from(if j == inst_j { self.vm.Z } else { 0 }))
-      })?;
-
-      cs.enforce(
-        || format!("J={j} * Z{j} = JZ{j}"),
-        |lc| lc + J_bits[j as usize].get_variable(),
-        |lc| lc + ZJ[j as usize].get_variable(),
-        |lc| lc + JZ_j.get_variable(),
-      );
-
-      JZ.push(JZ_j)
-    }
-
-    // Z = Z[J]
-    cs.enforce(
-      || "Z = Z[J]",
-      |lc| JZ.iter().fold(lc, |lc, JZ_j| lc + JZ_j.get_variable()),
-      |lc| lc + CS::one(),
-      |lc| lc + Z.get_variable(),
-    );
-
+    self.visit_const(cs.namespace(|| "visit_const"))?;
     Ok(z.to_vec())
   }
 
@@ -266,26 +239,119 @@ where
 }
 
 impl WASMTransitionCircuit {
-  /// Allocate the witness variables
-  pub fn alloc_witness<CS, F>(
-    &self,
-    mut cs: CS,
-  ) -> Result<
-    (
-      AllocatedNum<F>, // X
-      AllocatedNum<F>, // Y
-      AllocatedNum<F>, // Z
-    ),
-    SynthesisError,
-  >
+  /// Allocate if switch is on or off depending on the instruction
+  fn alloc_switch<CS, F>(&self, cs: &mut CS, J: u64) -> Result<(AllocatedNum<F>, F), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let X = AllocatedNum::alloc(cs.namespace(|| "X"), || Ok(F::from(self.vm.X)))?;
-    let Y = AllocatedNum::alloc(cs.namespace(|| "Y"), || Ok(F::from(self.vm.Y)))?;
-    let Z = AllocatedNum::alloc(cs.namespace(|| "Z"), || Ok(F::from(self.vm.Z)))?;
+    let fe_switch = if J == self.vm.J { F::ONE } else { F::ZERO };
 
-    Ok((X, Y, Z))
+    Ok((
+      AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(fe_switch))?,
+      fe_switch,
+    ))
+  }
+
+  /// Allocate a num into the zkWASM CS
+  fn alloc_num<CS, F, A, AR, Fo>(
+    cs: &mut CS,
+    annotation: A,
+    value: Fo,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+    A: FnOnce() -> AR,
+    AR: Into<String>,
+    Fo: FnOnce() -> Result<F, SynthesisError>,
+  {
+    AllocatedNum::alloc(cs.namespace(annotation), || {
+      let res = value()?;
+      Ok(res * switch)
+    })
+  }
+
+  /// Allocate a (addr, val, timestamp) tuple into the CS
+  fn alloc_avt<CS, F>(
+    mut cs: CS,
+    avt: &(usize, u64, u64),
+    switch: F,
+  ) -> Result<(AllocatedNum<F>, AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let addr = Self::alloc_num(&mut cs, || "addr", || Ok(F::from(avt.0 as u64)), switch)?;
+    let val = Self::alloc_num(&mut cs, || "val", || Ok(F::from(avt.1)), switch)?;
+    let ts = Self::alloc_num(&mut cs, || "ts", || Ok(F::from(avt.2)), switch)?;
+
+    Ok((addr, val, ts))
+  }
+
+  /// Perform a write to zkVM read-write memory.  For a write operation, the advice is (a, v, rt)
+  /// and (a, v′, wt); F checks that the address a and the value v′ match the address and value it
+  /// wishes to write. Otherwise, F ignores the remaining components in the provided advice.
+  fn write<CS, F>(
+    mut cs: CS,
+    addr: &AllocatedNum<F>,
+    val: &AllocatedNum<F>,
+    advice_addr: &AllocatedNum<F>,
+    advice_val: &AllocatedNum<F>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    // F checks that the address a  match the address it wishes to write to.
+    cs.enforce(
+      || "addr == advice_addr",
+      |lc| lc + addr.get_variable(),
+      |lc| lc + CS::one(),
+      |lc| lc + advice_addr.get_variable(),
+    );
+
+    // F checks that the value v′ match value it wishes to write.
+    cs.enforce(
+      || "val == advice_val",
+      |lc| lc + val.get_variable(),
+      |lc| lc + CS::one(),
+      |lc| lc + advice_val.get_variable(),
+    );
+
+    Ok(())
+  }
+
+  /// Push a const onto the stack
+  pub fn visit_const<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Const32(0) }.index_j();
+    let (switch, switch_fe) = self.alloc_switch(&mut cs, J)?;
+
+    let (advice_addr, advice_val, _) =
+      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.WS[0], switch_fe)?;
+
+    let pre_sp = Self::alloc_num(
+      &mut cs,
+      || "pre_sp",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch_fe,
+    )?;
+
+    let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch_fe)?;
+
+    Self::write(
+      cs.namespace(|| "push I on stack"),
+      &pre_sp,
+      &I,
+      &advice_addr,
+      &advice_val,
+    )?;
+
+    Ok(())
   }
 }

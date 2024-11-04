@@ -14,26 +14,13 @@ use super::{error::ZKWASMError, wasm_ctx::WASMCtxBuilder, wasm_snark::WasmSNARK}
 pub type E = Bn256EngineIPA;
 
 #[test]
-fn test_wasm_snark_basic_arith() -> Result<(), ZKWASMError> {
-  let wasm_ctx = WASMCtxBuilder::default()
-    .file_path(PathBuf::from("wasm/nebula/basic_arith.wat"))?
-    .invoke("main")
-    .build();
-
-  let pp = WasmSNARK::<E>::setup();
-
-  let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx)?;
-  Ok(())
-}
-
-#[test]
-fn get_local() {
+fn test_implicit_return_with_value() {
   init_logger();
   let wasm = wat2wasm(
     r#"
     (module
-        (func (export "main") (param i32) (result i32)
-            local.get 0
+        (func (export "main") (result i64)
+            i64.const 100
         )
     )
 "#,
@@ -43,7 +30,6 @@ fn get_local() {
   let wasm_ctx = WASMCtxBuilder::default()
     .bytecode(wasm)
     .invoke("main")
-    .func_args(vec!["42".to_string()])
     .build();
 
   let pp = WasmSNARK::<E>::setup();
@@ -51,21 +37,40 @@ fn get_local() {
   let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
 }
 
-#[test]
-fn test_tracing() -> Result<(), ZKWASMError> {
-  let wasm_ctx = WASMCtxBuilder::default()
-    .file_path(PathBuf::from("wasm/nebula/basic_arith.wat"))?
-    .invoke("main")
-    .build();
+// #[test]
+// fn test_basic_arith() -> Result<(), ZKWASMError> {
+//   let wasm_ctx = WASMCtxBuilder::default()
+//     .file_path(PathBuf::from("wasm/nebula/basic_arith.wat"))?
+//     .invoke("main")
+//     .build();
 
-  let tracer = Rc::new(RefCell::new(Tracer::new()));
-  execute_wasm(&wasm_ctx, tracer.clone())?;
+//   let pp = WasmSNARK::<E>::setup();
 
-  let tracer = unwrap_rc_refcell(tracer);
-  println!("max sp: {:#?}", tracer.max_sp());
-  let execution_trace = tracer.into_execution_trace();
+//   let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx)?;
+//   Ok(())
+// }
 
-  println!("{:#?}", execution_trace);
+// #[test]
+// fn test_get_local() {
+//   init_logger();
+//   let wasm = wat2wasm(
+//     r#"
+//     (module
+//         (func (export "main") (param i32) (result i32)
+//             local.get 0
+//         )
+//     )
+// "#,
+//   )
+//   .unwrap();
 
-  Ok(())
-}
+//   let wasm_ctx = WASMCtxBuilder::default()
+//     .bytecode(wasm)
+//     .invoke("main")
+//     .func_args(vec!["42".to_string()])
+//     .build();
+
+//   let pp = WasmSNARK::<E>::setup();
+
+//   let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
+// }

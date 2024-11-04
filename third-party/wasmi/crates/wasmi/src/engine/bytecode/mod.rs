@@ -424,17 +424,19 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 4;
+    /// Used in multiplexer circuit to determine how many different computation outputs there are.
+    /// To elaborate we use the range 0..[`MAX_J`] to build constraints as to which is the correct
+    /// output in the Multiplexer circuit
+    pub const MAX_J: u64 = 2;
 
+    /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
+    /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
+    /// we use this index to constraint the right computation result for the corresponding instruction getting executed.
     pub fn index_j(&self) -> u64 {
         match self {
             Self::Unreachable => 0,
             Self::I64Const32(..) => 1,
-            Self::I64Add => 2,
-            Self::I64Mul => 3,
-            Self::I64Sub => 4,
-            Self::Return(..) => 5,
-            Self::LocalGet(..) => 0, // make it non-nop
+            Self::Return(..) => Self::MAX_J, // TODO
             _ => {
                 println!("{:?}", self);
                 unimplemented!()
