@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-use core::cmp;
 
 use wasmi_core::UntypedValue;
 
