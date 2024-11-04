@@ -281,9 +281,10 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let addr = Self::alloc_num(&mut cs, || "addr", || Ok(F::from(avt.0 as u64)), switch)?;
-    let val = Self::alloc_num(&mut cs, || "val", || Ok(F::from(avt.1)), switch)?;
-    let ts = Self::alloc_num(&mut cs, || "ts", || Ok(F::from(avt.2)), switch)?;
+    let (addr, val, ts) = *avt;
+    let addr = Self::alloc_num(&mut cs, || "addr", || Ok(F::from(addr as u64)), switch)?;
+    let val = Self::alloc_num(&mut cs, || "val", || Ok(F::from(val)), switch)?;
+    let ts = Self::alloc_num(&mut cs, || "ts", || Ok(F::from(ts)), switch)?;
 
     Ok((addr, val, ts))
   }
