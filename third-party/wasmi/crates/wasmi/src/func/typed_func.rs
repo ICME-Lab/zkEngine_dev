@@ -220,8 +220,8 @@ where
 }
 
 /// The typed parameters of a [`TypedFunc`].
-pub trait WasmParams: WasmTypeList {}
-impl<T> WasmParams for T where T: WasmTypeList {}
+pub trait WasmParams: WasmTypeList + Clone {}
+impl<T> WasmParams for T where T: WasmTypeList + Clone {}
 
 /// The typed results of a [`TypedFunc`].
 pub trait WasmResults: WasmTypeList {}

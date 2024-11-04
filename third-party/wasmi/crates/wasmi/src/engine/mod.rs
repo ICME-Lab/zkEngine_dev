@@ -1138,9 +1138,21 @@ impl<'engine> EngineExecutor<'engine> {
         Results: CallResults,
     {
         self.stack.reset();
-        self.stack.values.extend(params.call_params());
+        self.stack.values.extend(params.clone().call_params());
         match ctx.as_context().store.inner.resolve_func(func) {
             FuncEntity::Wasm(wasm_func) => {
+                // Get initial values for MCC
+                let max_stack_height = self
+                    .res
+                    .code_map
+                    .header(wasm_func.func_body())
+                    .max_stack_height();
+                self.tracer_prepare_wasm_call(
+                    tracer.clone(),
+                    max_stack_height,
+                    params.call_params(),
+                );
+
                 self.stack
                     .prepare_wasm_call(wasm_func, &self.res.code_map)?;
                 self.execute_wasm_func_with_trace(ctx.as_context_mut(), tracer)?;
@@ -1157,6 +1169,19 @@ impl<'engine> EngineExecutor<'engine> {
         };
         let results = self.write_results_back(results);
         Ok(results)
+    }
+
+    fn tracer_prepare_wasm_call<I>(
+        &mut self,
+        tracer: Rc<RefCell<Tracer>>,
+        max_stack_height: usize,
+        call_params: I,
+    ) where
+        I: IntoIterator<Item = UntypedValue>,
+    {
+        let mut tracer = tracer.borrow_mut();
+        tracer.set_max_sp(max_stack_height);
+        tracer.set_IS(call_params);
     }
 
     /// Executes the given [`Func`] using the given `params`.
@@ -1190,7 +1215,7 @@ impl<'engine> EngineExecutor<'engine> {
             FuncEntity::Wasm(wasm_func) => {
                 self.stack
                     .prepare_wasm_call(wasm_func, &self.res.code_map)?;
-                self.tracer_extend_stack(tracer.clone(), wasm_func, pre_sp);
+                self.tracerv0_extend_stack(tracer.clone(), wasm_func, pre_sp);
                 self.execute_wasm_func_with_trace_v0(ctx.as_context_mut(), tracer)?;
             }
             FuncEntity::Host(..) => unimplemented!(),
@@ -1199,7 +1224,7 @@ impl<'engine> EngineExecutor<'engine> {
         Ok(results)
     }
 
-    fn tracer_extend_stack(
+    fn tracerv0_extend_stack(
         &mut self,
         tracer: Rc<RefCell<TracerV0>>,
         wasm_func: &WasmFuncEntity,

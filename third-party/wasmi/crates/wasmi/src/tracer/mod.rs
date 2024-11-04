@@ -1,6 +1,8 @@
 #![allow(non_snake_case)]
 use core::cmp;
 
+use wasmi_core::UntypedValue;
+
 use crate::engine::bytecode::Instruction;
 
 #[derive(Debug, Clone, Default)]
@@ -12,6 +14,8 @@ pub struct Tracer {
     /// This is used to maintain the max stack address. We use this to
     /// construct the IS for MCC
     max_sp: usize,
+    /// Initial Set for MCC
+    IS: Vec<(u64, u64)>,
 }
 
 impl Tracer {
@@ -28,13 +32,29 @@ impl Tracer {
 
     /// Check if executions step sp is greater than maintained tracers max_sp.
     /// If so update tracers max sp
-    pub(crate) fn update_max_sp(&mut self, new_sp: usize) {
-        self.max_sp = cmp::max(self.max_sp, new_sp);
+    pub(crate) fn set_max_sp(&mut self, max_sp: usize) {
+        self.max_sp = max_sp
     }
 
     /// Getter for max_sp
     pub fn max_sp(&self) -> usize {
         self.max_sp
+    }
+
+    /// Setter for IS
+    pub(crate) fn set_IS<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = UntypedValue>,
+    {
+        self.IS = vec![(0, 0); self.max_sp + 1];
+        for (i, uv) in iter.into_iter().enumerate() {
+            self.IS[i] = (uv.into(), 0);
+        }
+    }
+
+    /// Getter for IS
+    pub fn IS(&self) -> Vec<(u64, u64)> {
+        self.IS.to_vec()
     }
 }
 

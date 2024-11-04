@@ -1,13 +1,8 @@
 //! Implements SNARK proving the WASM module computation
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
-use gadgets::{
-  utils::alloc_zero,
-  wasm::{alu, imm_const_opc, parse_J},
-};
 use itertools::Itertools;
 use mcc::{
   multiset_ops::{avt_tuple_to_scalar_vec, step_RS_WS},
@@ -20,10 +15,7 @@ use nova::{
 
 use wasmi::{Instruction as Instr, Tracer, WitnessVM};
 
-use crate::{
-  v1::utils::tracing::{execute_wasm, unwrap_rc_refcell},
-  wasm::args::WASMArgs,
-};
+use crate::v1::utils::tracing::{execute_wasm, unwrap_rc_refcell};
 
 use super::{error::ZKWASMError, wasm_ctx::WASMCtx};
 
@@ -63,9 +55,6 @@ where
     let tracer = Rc::new(RefCell::new(Tracer::new()));
     execute_wasm(program, tracer.clone())?;
     let tracer = unwrap_rc_refcell(tracer);
-    let max_sp = tracer.max_sp();
-    let execution_trace = tracer.into_execution_trace();
-    tracing::debug!("max_sp: {max_sp}, execution trace: {:#?}", execution_trace);
 
     /*
      * Get MCC values:
@@ -73,13 +62,17 @@ where
 
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
+    let max_sp = tracer.max_sp();
     let mut global_ts = 0;
 
     // Compute multisets to perform grand product checks (uses global_ts)
-    let IS = vec![(0, 0); max_sp];
+    let IS = tracer.IS();
     let mut RS: Vec<(usize, u64, u64)> = Vec::new();
     let mut WS: Vec<(usize, u64, u64)> = Vec::new();
-    let mut FS = vec![(0, 0); max_sp];
+    let mut FS = IS.clone();
+
+    let execution_trace = tracer.into_execution_trace();
+    tracing::debug!("max_sp: {max_sp}, execution trace: {:#?}", execution_trace);
 
     // Build the WASMTransitionCircuit from each traced execution frame.
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
@@ -224,6 +217,8 @@ where
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
     self.visit_const(cs.namespace(|| "i64.const"))?;
     self.visit_local_get(cs.namespace(|| "local.get"))?;
+
+    // TODO: switch constraint checks
     Ok(z.to_vec())
   }
 

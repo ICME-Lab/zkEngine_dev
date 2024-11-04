@@ -238,10 +238,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 () => {
                     if let Some(tracer) = self.tracer.clone() {
                         let mut tracer = tracer.borrow_mut();
-                        // Maintain the maximum stackptr address
-                        self.sync_stack_ptr();
-                        tracer.update_max_sp(self.value_stack.stack_ptr);
-
                         // Get post instruction VM state changes
                         self.execute_instr_post(&mut vm, instr);
                         tracer.execution_trace.push(vm);
