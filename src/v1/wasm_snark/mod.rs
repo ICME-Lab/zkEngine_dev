@@ -17,6 +17,7 @@ use nova::{
   nebula::rs::{PublicParams, RecursiveSNARK, StepCircuit},
   traits::{snark::default_ck_hint, CurveCycleEquipped, TranscriptEngineTrait},
 };
+
 use wasmi::{Instruction as Instr, Tracer, WitnessVM};
 
 use crate::{
@@ -221,7 +222,8 @@ where
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    self.visit_const(cs.namespace(|| "visit_const"))?;
+    self.visit_const(cs.namespace(|| "i64.const"))?;
+    self.visit_local_get(cs.namespace(|| "local.get"))?;
     Ok(z.to_vec())
   }
 
@@ -291,6 +293,29 @@ impl WASMTransitionCircuit {
     Ok((addr, val, ts))
   }
 
+  /// Pefrom a read to zkVM read-write memory.  for a read operation, the advice is (a, v, rt) and
+  /// (a, v, wt); F checks that the address a in the advice matches the address it requested and
+  /// then uses the provided value v (e.g., in the rest of its computation).
+  fn read<CS, F>(
+    mut cs: CS,
+    addr: &AllocatedNum<F>,
+    advice_addr: &AllocatedNum<F>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    // F checks that the address a in the advice matches the address it requested
+    cs.enforce(
+      || "addr == advice_addr",
+      |lc| lc + addr.get_variable(),
+      |lc| lc + CS::one(),
+      |lc| lc + advice_addr.get_variable(),
+    );
+
+    Ok(())
+  }
+
   /// Perform a write to zkVM read-write memory.  For a write operation, the advice is (a, v, rt)
   /// and (a, v′, wt); F checks that the address a and the value v′ match the address and value it
   /// wishes to write. Otherwise, F ignores the remaining components in the provided advice.
@@ -324,8 +349,54 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
+  /// local.get
+  fn visit_local_get<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::local_get(0).unwrap() }.index_j();
+    let (switch, switch_fe) = self.alloc_switch(&mut cs, J)?;
+
+    let local_depth = Self::alloc_num(
+      &mut cs,
+      || "local depth",
+      || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
+      switch_fe,
+    )?;
+
+    let (r_advice_addr, r_advice_val, _) =
+      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.RS[0], switch_fe)?;
+
+    Self::read(
+      cs.namespace(|| "read at local_depth"),
+      &local_depth,
+      &r_advice_addr,
+    )?;
+
+    let (w_advice_addr, w_advice_val, _) =
+      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.WS[1], switch_fe)?;
+
+    let pre_sp = Self::alloc_num(
+      &mut cs,
+      || "pre_sp",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch_fe,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push local on stack"),
+      &pre_sp,
+      &r_advice_val,
+      &w_advice_addr,
+      &w_advice_val,
+    )?;
+
+    Ok(())
+  }
+
   /// Push a const onto the stack
-  pub fn visit_const<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  fn visit_const<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,

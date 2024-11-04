@@ -37,6 +37,31 @@ fn test_implicit_return_with_value() {
   let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
 }
 
+#[test]
+fn test_get_local() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main") (param i32) (result i32)
+            local.get 0
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .func_args(vec!["42".to_string()])
+    .build();
+
+  let pp = WasmSNARK::<E>::setup();
+
+  let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
+}
+
 // #[test]
 // fn test_basic_arith() -> Result<(), ZKWASMError> {
 //   let wasm_ctx = WASMCtxBuilder::default()
@@ -48,29 +73,4 @@ fn test_implicit_return_with_value() {
 
 //   let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx)?;
 //   Ok(())
-// }
-
-// #[test]
-// fn test_get_local() {
-//   init_logger();
-//   let wasm = wat2wasm(
-//     r#"
-//     (module
-//         (func (export "main") (param i32) (result i32)
-//             local.get 0
-//         )
-//     )
-// "#,
-//   )
-//   .unwrap();
-
-//   let wasm_ctx = WASMCtxBuilder::default()
-//     .bytecode(wasm)
-//     .invoke("main")
-//     .func_args(vec!["42".to_string()])
-//     .build();
-
-//   let pp = WasmSNARK::<E>::setup();
-
-//   let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
 // }

@@ -1,5 +1,5 @@
 use ff::PrimeField;
-use wasmi::{Instruction, WitnessVM};
+use wasmi::{Instruction as Instr, WitnessVM};
 
 /// Get the RS & WS for a single execution step. A RS (read-set) & a WS (write-set) are of the form
 /// of a vector of (address, value, timestamp) tuples
@@ -16,10 +16,14 @@ pub fn step_RS_WS(
   let mut WS: Vec<(usize, u64, u64)> = Vec::new();
 
   match instr {
-    Instruction::I64Const32(_) => {
+    Instr::I64Const32(_) => {
       write_op(vm.pre_sp, vm.I, global_ts, FS, &mut RS, &mut WS);
     }
-    Instruction::I64Add | Instruction::I64Mul | Instruction::I64Sub => {
+    Instr::LocalGet(_) => {
+      read_op(vm.pre_sp - vm.I as usize, global_ts, FS, &mut RS, &mut WS);
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::I64Add | Instr::I64Mul | Instr::I64Sub => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
       read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS);
 
