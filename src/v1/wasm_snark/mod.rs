@@ -243,11 +243,11 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let switch_fe = if J == self.vm.J { F::ONE } else { F::ZERO };
+    let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
 
     Ok((
-      AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch_fe))?,
-      switch_fe,
+      AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?,
+      switch,
     ))
   }
 
@@ -352,17 +352,17 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::local_get(0).unwrap() }.index_j();
-    let (switch, switch_fe) = self.alloc_switch(&mut cs, J)?;
+    let (alloc_switch, switch) = self.alloc_switch(&mut cs, J)?;
 
     let local_depth = Self::alloc_num(
       &mut cs,
       || "local depth",
       || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
-      switch_fe,
+      switch,
     )?;
 
     let (r_advice_addr, r_advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.RS[0], switch_fe)?;
+      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.RS[0], switch)?;
 
     Self::read(
       cs.namespace(|| "read at local_depth"),
@@ -371,13 +371,13 @@ impl WASMTransitionCircuit {
     )?;
 
     let (w_advice_addr, w_advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.WS[1], switch_fe)?;
+      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.WS[1], switch)?;
 
     let pre_sp = Self::alloc_num(
       &mut cs,
       || "pre_sp",
       || Ok(F::from(self.vm.pre_sp as u64)),
-      switch_fe,
+      switch,
     )?;
 
     Self::write(
@@ -398,19 +398,19 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Const32(0) }.index_j();
-    let (switch, switch_fe) = self.alloc_switch(&mut cs, J)?;
+    let (alloc_switch, switch) = self.alloc_switch(&mut cs, J)?;
 
     let (advice_addr, advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.WS[0], switch_fe)?;
+      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.WS[0], switch)?;
 
     let pre_sp = Self::alloc_num(
       &mut cs,
       || "pre_sp",
       || Ok(F::from(self.vm.pre_sp as u64)),
-      switch_fe,
+      switch,
     )?;
 
-    let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch_fe)?;
+    let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch)?;
 
     Self::write(
       cs.namespace(|| "push I on stack"),
