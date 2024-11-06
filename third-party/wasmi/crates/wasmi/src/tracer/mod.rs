@@ -29,26 +29,14 @@ impl Tracer {
         self.execution_trace
     }
 
-    /// Check if executions step sp is greater than maintained tracers max_sp.
-    /// If so update tracers max sp
-    pub(crate) fn set_max_sp(&mut self, max_sp: usize) {
-        self.max_sp = max_sp
-    }
-
     /// Getter for max_sp
     pub fn max_sp(&self) -> usize {
         self.max_sp
     }
 
     /// Setter for IS
-    pub(crate) fn set_IS<I>(&mut self, iter: I)
-    where
-        I: IntoIterator<Item = UntypedValue>,
-    {
-        self.IS = vec![(0, 0); self.max_sp + 1];
-        for (i, uv) in iter.into_iter().enumerate() {
-            self.IS[i] = (uv.into(), 0);
-        }
+    pub(crate) fn set_IS(&mut self, stack: &[UntypedValue]) {
+        self.IS = stack.iter().map(|v| ((*v).into(), 0)).collect();
     }
 
     /// Getter for IS

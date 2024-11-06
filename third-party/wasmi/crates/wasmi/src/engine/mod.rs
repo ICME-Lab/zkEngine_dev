@@ -1141,20 +1141,10 @@ impl<'engine> EngineExecutor<'engine> {
         self.stack.values.extend(params.clone().call_params());
         match ctx.as_context().store.inner.resolve_func(func) {
             FuncEntity::Wasm(wasm_func) => {
-                // Get initial values for MCC
-                let max_stack_height = self
-                    .res
-                    .code_map
-                    .header(wasm_func.func_body())
-                    .max_stack_height();
-                self.tracer_prepare_wasm_call(
-                    tracer.clone(),
-                    max_stack_height,
-                    params.call_params(),
-                );
-
                 self.stack
                     .prepare_wasm_call(wasm_func, &self.res.code_map)?;
+                // Get initial values for MCC
+                self.tracer_prepare_wasm_call(tracer.clone(), &self.stack.values.entries.to_vec());
                 self.execute_wasm_func_with_trace(ctx.as_context_mut(), tracer)?;
             }
             FuncEntity::Host(host_func) => {
@@ -1171,17 +1161,13 @@ impl<'engine> EngineExecutor<'engine> {
         Ok(results)
     }
 
-    fn tracer_prepare_wasm_call<I>(
+    fn tracer_prepare_wasm_call(
         &mut self,
         tracer: Rc<RefCell<Tracer>>,
-        max_stack_height: usize,
-        call_params: I,
-    ) where
-        I: IntoIterator<Item = UntypedValue>,
-    {
+        init_stack: &[UntypedValue],
+    ) {
         let mut tracer = tracer.borrow_mut();
-        tracer.set_max_sp(max_stack_height);
-        tracer.set_IS(call_params);
+        tracer.set_IS(init_stack);
     }
 
     /// Executes the given [`Func`] using the given `params`.

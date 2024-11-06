@@ -8,10 +8,20 @@ use crate::{
   v1::utils::tracing::{execute_wasm, unwrap_rc_refcell},
 };
 
-use super::{error::ZKWASMError, wasm_ctx::WASMCtxBuilder, wasm_snark::WasmSNARK};
+use super::{
+  error::ZKWASMError,
+  wasm_ctx::{WASMCtx, WASMCtxBuilder},
+  wasm_snark::WasmSNARK,
+};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
+
+fn test_wasm_snark_with(wasm_ctx: WASMCtx) {
+  let pp = WasmSNARK::<E>::setup();
+
+  let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
+}
 
 #[test]
 fn test_implicit_return_with_value() {
@@ -32,9 +42,7 @@ fn test_implicit_return_with_value() {
     .invoke("main")
     .build();
 
-  let pp = WasmSNARK::<E>::setup();
-
-  let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
+  test_wasm_snark_with(wasm_ctx);
 }
 
 #[test]
@@ -57,20 +65,34 @@ fn test_get_local() {
     .func_args(vec!["42".to_string()])
     .build();
 
-  let pp = WasmSNARK::<E>::setup();
-
-  let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
+  test_wasm_snark_with(wasm_ctx);
 }
 
-// #[test]
-// fn test_basic_arith() -> Result<(), ZKWASMError> {
-//   let wasm_ctx = WASMCtxBuilder::default()
-//     .file_path(PathBuf::from("wasm/nebula/basic_arith.wat"))?
-//     .invoke("main")
-//     .build();
+#[test]
+fn test_add_mul() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main") (param i64) (param i64) (result i64)
+            local.get 0
+            local.get 1
+            local.get 0
+            local.get 1
+            i64.add
+            i64.add
+            i64.mul
+        )
+    )
+"#,
+  )
+  .unwrap();
 
-//   let pp = WasmSNARK::<E>::setup();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .func_args(vec!["42".to_string(), "10".to_string()])
+    .build();
 
-//   let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx)?;
-//   Ok(())
-// }
+  test_wasm_snark_with(wasm_ctx);
+}

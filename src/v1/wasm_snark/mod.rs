@@ -62,7 +62,6 @@ where
 
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
-    let max_sp = tracer.max_sp();
     let mut global_ts = 0;
 
     // Compute multisets to perform grand product checks (uses global_ts)
@@ -72,7 +71,7 @@ where
     let mut FS = IS.clone();
 
     let execution_trace = tracer.into_execution_trace();
-    tracing::debug!("max_sp: {max_sp}, execution trace: {:#?}", execution_trace);
+    tracing::debug!("execution trace: {:#?}", execution_trace);
 
     // Build the WASMTransitionCircuit from each traced execution frame.
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
@@ -215,7 +214,7 @@ where
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    self.visit_const(cs.namespace(|| "i64.const"))?;
+    self.visit_i64_const_32(cs.namespace(|| "i64.const"))?;
     self.visit_local_get(cs.namespace(|| "local.get"))?;
 
     // TODO: switch constraint checks
@@ -392,7 +391,7 @@ impl WASMTransitionCircuit {
   }
 
   /// Push a const onto the stack
-  fn visit_const<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  fn visit_i64_const_32<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
@@ -420,6 +419,15 @@ impl WASMTransitionCircuit {
       &advice_val,
     )?;
 
+    Ok(())
+  }
+
+  // i64.add
+  fn visit_i64_add<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
     Ok(())
   }
 }
