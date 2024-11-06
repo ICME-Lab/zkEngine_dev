@@ -26,8 +26,8 @@ pub fn step_RS_WS(
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::I64Add | Instr::I64Mul => {
-      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS);
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
 
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }

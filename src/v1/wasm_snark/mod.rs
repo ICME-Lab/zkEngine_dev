@@ -3,6 +3,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
+use gadgets::int::{add, mul};
 use itertools::Itertools;
 use mcc::{
   multiset_ops::{avt_tuple_to_scalar_vec, step_RS_WS},
@@ -214,10 +215,35 @@ where
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    self.visit_i64_const_32(cs.namespace(|| "i64.const"))?;
-    self.visit_local_get(cs.namespace(|| "local.get"))?;
+    let mut switches = Vec::new();
+    self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
+    self.visit_i64_const_32(cs.namespace(|| "i64.const"), &mut switches)?;
+    self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
+    self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
+    self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
 
-    // TODO: switch constraint checks
+    // 1. Single switch constraint:
+    cs.enforce(
+      || "single switch",
+      |lc| {
+        switches
+          .iter()
+          .fold(lc, |lc, switch| lc + switch.get_variable())
+      },
+      |lc| lc + CS::one(),
+      |lc| lc + CS::one(),
+    );
+
+    // 2. Binary switch constraints:
+    for (i, switch) in switches.iter().enumerate() {
+      cs.enforce(
+        || format!("binary switch {i}"),
+        |lc| lc + switch.get_variable(),
+        |lc| lc + CS::one() - switch.get_variable(),
+        |lc| lc,
+      );
+    }
+
     Ok(z.to_vec())
   }
 
@@ -237,17 +263,21 @@ where
 
 impl WASMTransitionCircuit {
   /// Allocate if switch is on or off depending on the instruction
-  fn alloc_switch<CS, F>(&self, cs: &mut CS, J: u64) -> Result<(AllocatedNum<F>, F), SynthesisError>
+  fn switch<CS, F>(
+    &self,
+    cs: &mut CS,
+    J: u64,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<F, SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
-
-    Ok((
-      AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?,
-      switch,
-    ))
+    switches.push(AllocatedNum::alloc(cs.namespace(|| "switch"), || {
+      Ok(switch)
+    })?);
+    Ok(switch)
   }
 
   /// Allocate a num into the zkWASM CS
@@ -351,55 +381,33 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// local.get
-  fn visit_local_get<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  /// Unreacable
+  fn visit_unreachable<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::local_get(0).unwrap() }.index_j();
-    let (alloc_switch, switch) = self.alloc_switch(&mut cs, J)?;
-
-    let local_depth = Self::alloc_num(
-      &mut cs,
-      || "local depth",
-      || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
-      switch,
-    )?;
-
-    let r_advice_val = Self::read(
-      cs.namespace(|| "read at local_depth"),
-      &local_depth,
-      &self.RS[0],
-      switch,
-    )?;
-
-    let pre_sp = Self::alloc_num(
-      &mut cs,
-      || "pre_sp",
-      || Ok(F::from(self.vm.pre_sp as u64)),
-      switch,
-    )?;
-
-    Self::write(
-      cs.namespace(|| "push local on stack"),
-      &pre_sp,
-      &r_advice_val,
-      &self.WS[1],
-      switch,
-    )?;
-
+    let J: u64 = { Instr::Unreachable }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }
 
   /// Push a const onto the stack
-  fn visit_i64_const_32<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  fn visit_i64_const_32<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Const32(0) }.index_j();
-    let (alloc_switch, switch) = self.alloc_switch(&mut cs, J)?;
+    let switch = self.switch(&mut cs, J, switches)?;
 
     let pre_sp = Self::alloc_num(
       &mut cs,
@@ -421,14 +429,136 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
+  /// local.get
+  fn visit_local_get<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::local_get(0).unwrap() }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let local_depth = Self::alloc_num(
+      &mut cs,
+      || "local depth",
+      || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
+      switch,
+    )?;
+
+    let read_val = Self::read(
+      cs.namespace(|| "read at local_depth"),
+      &local_depth,
+      &self.RS[0],
+      switch,
+    )?;
+
+    let pre_sp = Self::alloc_num(
+      &mut cs,
+      || "pre_sp",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push local on stack"),
+      &pre_sp,
+      &read_val,
+      &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
   // i64.add
-  fn visit_i64_add<CS, F>(&self, mut cs: CS) -> Result<(), SynthesisError>
+  fn visit_i64_add<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Add }.index_j();
-    let (alloc_switch, switch) = self.alloc_switch(&mut cs, J)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let Z = add(cs.namespace(|| "X + Y"), &X, &Y)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  // i64.mul
+  fn visit_i64_mul<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Mul }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let Z = mul(cs.namespace(|| "X * Y"), &X, &Y)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
     Ok(())
   }
 }
