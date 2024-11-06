@@ -294,12 +294,16 @@ impl WASMTransitionCircuit {
   fn read<CS, F>(
     mut cs: CS,
     addr: &AllocatedNum<F>,
-    advice_addr: &AllocatedNum<F>,
-  ) -> Result<(), SynthesisError>
+    advice: &(usize, u64, u64),
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
+    let (advice_addr, advice_val, _) =
+      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), advice, switch)?;
+
     // F checks that the address a in the advice matches the address it requested
     cs.enforce(
       || "addr == advice_addr",
@@ -308,7 +312,7 @@ impl WASMTransitionCircuit {
       |lc| lc + advice_addr.get_variable(),
     );
 
-    Ok(())
+    Ok(advice_val)
   }
 
   /// Perform a write to zkVM read-write memory.  For a write operation, the advice is (a, v, rt)
@@ -318,13 +322,16 @@ impl WASMTransitionCircuit {
     mut cs: CS,
     addr: &AllocatedNum<F>,
     val: &AllocatedNum<F>,
-    advice_addr: &AllocatedNum<F>,
-    advice_val: &AllocatedNum<F>,
+    advice: &(usize, u64, u64),
+    switch: F,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
+    let (advice_addr, advice_val, _) =
+      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), advice, switch)?;
+
     // F checks that the address a  match the address it wishes to write to.
     cs.enforce(
       || "addr == advice_addr",
@@ -360,17 +367,12 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let (r_advice_addr, r_advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.RS[0], switch)?;
-
-    Self::read(
+    let r_advice_val = Self::read(
       cs.namespace(|| "read at local_depth"),
       &local_depth,
-      &r_advice_addr,
+      &self.RS[0],
+      switch,
     )?;
-
-    let (w_advice_addr, w_advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.WS[1], switch)?;
 
     let pre_sp = Self::alloc_num(
       &mut cs,
@@ -383,8 +385,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push local on stack"),
       &pre_sp,
       &r_advice_val,
-      &w_advice_addr,
-      &w_advice_val,
+      &self.WS[1],
+      switch,
     )?;
 
     Ok(())
@@ -399,9 +401,6 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64Const32(0) }.index_j();
     let (alloc_switch, switch) = self.alloc_switch(&mut cs, J)?;
 
-    let (advice_addr, advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), &self.WS[0], switch)?;
-
     let pre_sp = Self::alloc_num(
       &mut cs,
       || "pre_sp",
@@ -415,8 +414,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push I on stack"),
       &pre_sp,
       &I,
-      &advice_addr,
-      &advice_val,
+      &self.WS[0],
+      switch,
     )?;
 
     Ok(())
@@ -428,6 +427,8 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
+    let J: u64 = { Instr::I64Add }.index_j();
+    let (alloc_switch, switch) = self.alloc_switch(&mut cs, J)?;
     Ok(())
   }
 }

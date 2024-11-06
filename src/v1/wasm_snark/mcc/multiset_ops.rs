@@ -1,6 +1,8 @@
 use ff::PrimeField;
 use wasmi::{Instruction as Instr, WitnessVM};
 
+use crate::v1::wasm_snark::MEMORY_OPS_PER_STEP;
+
 /// Get the RS & WS for a single execution step. A RS (read-set) & a WS (write-set) are of the form
 /// of a vector of (address, value, timestamp) tuples
 pub fn step_RS_WS(
@@ -12,8 +14,8 @@ pub fn step_RS_WS(
   Vec<(usize, u64, u64)>, // WS
 ) {
   let instr = vm.instr;
-  let mut RS: Vec<(usize, u64, u64)> = Vec::new();
-  let mut WS: Vec<(usize, u64, u64)> = Vec::new();
+  let mut RS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP / 2);
+  let mut WS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP / 2);
 
   match instr {
     Instr::I64Const32(_) => {
@@ -23,13 +25,19 @@ pub fn step_RS_WS(
       read_op(vm.pre_sp - vm.I as usize, global_ts, FS, &mut RS, &mut WS);
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
-    Instr::I64Add | Instr::I64Mul | Instr::I64Sub => {
+    Instr::I64Add | Instr::I64Mul => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
       read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS);
 
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
     _ => unimplemented!("{:?}", instr),
+  }
+
+  // If the number of memory operations is not equal to MEMORY_OPS_PER_STEP, then we need to pad
+  // the RS & WS with dummy values
+  for _ in RS.len()..MEMORY_OPS_PER_STEP / 2 {
+    read_op(0, global_ts, FS, &mut RS, &mut WS);
   }
 
   (RS, WS)
