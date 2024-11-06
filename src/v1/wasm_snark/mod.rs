@@ -215,12 +215,19 @@ where
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    /*
+     * **** Switchboard circuit ****
+     */
     let mut switches = Vec::new();
     self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
     self.visit_i64_const_32(cs.namespace(|| "i64.const"), &mut switches)?;
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
+
+    /*
+     *  Switch constraints
+     */
 
     // 1. Single switch constraint:
     cs.enforce(
