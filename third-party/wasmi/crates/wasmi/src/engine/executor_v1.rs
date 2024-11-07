@@ -1674,6 +1674,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
         match *instruction {
             Instr::LocalGet(..) => {}
+            Instr::Const32(..) => {}
             Instr::I64Const32(val) => {
                 vm.I = val as u64;
                 vm.P = vm.I;
@@ -1695,6 +1696,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         use Instruction as Instr;
 
         match *instr {
+            Instr::Const32(..) => {
+                vm.I = self.sp.last().to_bits();
+                vm.P = vm.I;
+            }
             Instr::LocalGet(local_depth) => {
                 vm.I = local_depth.to_usize() as u64;
                 vm.P = self.sp.last().to_bits();

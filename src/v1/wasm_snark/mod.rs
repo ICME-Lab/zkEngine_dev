@@ -220,7 +220,10 @@ where
      */
     let mut switches = Vec::new();
     self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
+    // TODO: combine const intructions or any other instructions for that matter if their circuit
+    // does the same thing with the same tracing
     self.visit_i64_const_32(cs.namespace(|| "i64.const"), &mut switches)?;
+    self.visit_const_32(cs.namespace(|| "Instr::Const32"), &mut switches)?;
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
@@ -414,6 +417,39 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Const32(0) }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let pre_sp = Self::alloc_num(
+      &mut cs,
+      || "pre_sp",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch,
+    )?;
+
+    let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch)?;
+
+    Self::write(
+      cs.namespace(|| "push I on stack"),
+      &pre_sp,
+      &I,
+      &self.WS[0],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// Instr::Const32
+  fn visit_const_32<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::Const32([0, 0, 0, 0]) }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
     let pre_sp = Self::alloc_num(

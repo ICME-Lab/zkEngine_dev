@@ -96,3 +96,26 @@ fn test_add_mul() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn if_without_else() {
+  let wasm = wat2wasm(
+    r#"
+        (module
+            (func (export "main") (result i64)
+                i32.const 1
+                if
+                    i64.const 2
+                    return
+                end
+                i64.const 3
+            )
+        )
+    "#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default().bytecode(wasm).build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

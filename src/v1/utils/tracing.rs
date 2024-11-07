@@ -41,5 +41,6 @@ pub fn execute_wasm(wasm_ctx: &WASMCtx, tracer: Rc<RefCell<Tracer>>) -> Result<(
 
   // Call the function to invoke.
   func.call_with_trace(&mut store, &func_args, &mut func_results, tracer.clone())?;
+  tracing::debug!("wasm func res: {:#?}", func_results);
   Ok(())
 }

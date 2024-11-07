@@ -60,8 +60,18 @@ pub struct WASMCtx {
 
 /// Metadata for the WASM execution context. For example to prove a WASM program execution you would
 /// need to define the WASM function to invoke and the function arguments
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct WASMCtxMetaData {
   pub(in crate::v1) invoke: String,
   pub(in crate::v1) func_args: Vec<String>,
+}
+
+impl Default for WASMCtxMetaData {
+  fn default() -> Self {
+    Self {
+      invoke: String::from("main"), /* Use "main" as the default entry point for a wasm execution
+                                     * context */
+      func_args: Vec::new(),
+    }
+  }
 }
