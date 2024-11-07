@@ -99,11 +99,12 @@ fn test_add_mul() {
 
 #[test]
 fn if_without_else() {
+  init_logger();
   let wasm = wat2wasm(
     r#"
         (module
             (func (export "main") (result i64)
-                i32.const 1
+                i32.const 0
                 if
                     i64.const 2
                     return

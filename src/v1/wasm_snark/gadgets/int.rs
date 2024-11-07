@@ -1,5 +1,9 @@
 use bellpepper::gadgets::Assignment;
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{
+  boolean::{AllocatedBit, Boolean},
+  num::AllocatedNum,
+  ConstraintSystem, SynthesisError,
+};
 use ff::PrimeField;
 
 pub fn add<F: PrimeField, CS: ConstraintSystem<F>>(
@@ -175,4 +179,54 @@ pub fn alloc_negate<F: PrimeField, CS: ConstraintSystem<F>>(
   );
 
   Ok(b)
+}
+
+/// Checks if AllocatedNum is zero
+pub fn eqz<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Boolean, SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let a_val = a.get_value();
+  let is_zero = a_val.map(|val| val == F::ZERO);
+
+  // result = (a == 0)
+  let result = AllocatedBit::alloc(cs.namespace(|| "a == 0"), is_zero)?;
+
+  // result * a = 0
+  // This means that at least one of result or a is zero.
+  cs.enforce(
+    || "result or a is 0",
+    |lc| lc + result.get_variable(),
+    |lc| lc + a.get_variable(),
+    |lc| lc,
+  );
+
+  // Inverse of `a`, if it exists, otherwise one.
+  let a_fe = a_val.unwrap_or(F::ZERO);
+  let q = cs.alloc(
+    || "q",
+    || {
+      let tmp = a_fe.invert();
+      if tmp.is_some().into() {
+        Ok(tmp.unwrap())
+      } else {
+        Ok(F::ONE)
+      }
+    },
+  )?;
+
+  // (a + result) * q = 1.
+  // This enforces that a and result are not both 0.
+  cs.enforce(
+    || "(a + result) * q = 1",
+    |lc| lc + a.get_variable() + result.get_variable(),
+    |lc| lc + q,
+    |lc| lc + CS::one(),
+  );
+
+  // Taken together, these constraints enforce that exactly one of `a` and `result` is 0.
+  // Since result is constrained to be boolean, that means `result` is true iff `a` is 0.
+
+  Ok(Boolean::Is(result))
 }

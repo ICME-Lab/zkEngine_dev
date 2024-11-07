@@ -115,7 +115,7 @@ pub mod errors {
 
 pub use self::{
     engine::{
-        bytecode::Instruction,
+        bytecode::{BranchOffset, Instruction},
         Config,
         Engine,
         EngineBackend,

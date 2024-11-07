@@ -427,7 +427,7 @@ impl Instruction {
     /// Used in multiplexer circuit to determine how many different computation outputs there are.
     /// To elaborate we use the range 0..[`MAX_J`] to build constraints as to which is the correct
     /// output in the Multiplexer circuit
-    pub const MAX_J: u64 = 6;
+    pub const MAX_J: u64 = 7;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
@@ -440,6 +440,7 @@ impl Instruction {
             Self::I64Add => 3,
             Self::I64Mul => 4,
             Self::Const32(..) => 5,
+            Self::BrIfEqz(..) => 6,
             Self::Return(..) => Self::MAX_J, // TODO
             _ => {
                 println!("{:?}", self);

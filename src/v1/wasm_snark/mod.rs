@@ -1,9 +1,12 @@
 //! Implements SNARK proving the WASM module computation
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
-use gadgets::int::{add, mul};
+use gadgets::{
+  int::{add, eqz, mul},
+  utils::{alloc_one, conditionally_select},
+};
 use itertools::Itertools;
 use mcc::{
   multiset_ops::{avt_tuple_to_scalar_vec, step_RS_WS},
@@ -14,7 +17,7 @@ use nova::{
   traits::{snark::default_ck_hint, CurveCycleEquipped, TranscriptEngineTrait},
 };
 
-use wasmi::{Instruction as Instr, Tracer, WitnessVM};
+use wasmi::{BranchOffset, Instruction as Instr, Tracer, WitnessVM};
 
 use crate::v1::utils::tracing::{execute_wasm, unwrap_rc_refcell};
 
@@ -227,6 +230,7 @@ where
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
+    self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -517,7 +521,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  // i64.add
+  /// i64.add
   fn visit_i64_add<CS, F>(
     &self,
     mut cs: CS,
@@ -561,7 +565,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  // i64.mul
+  /// i64.mul
   fn visit_i64_mul<CS, F>(
     &self,
     mut cs: CS,
@@ -601,6 +605,57 @@ impl WASMTransitionCircuit {
       &self.WS[2],
       switch,
     )?;
+
+    Ok(())
+  }
+
+  /// Instr::BrIfEqz
+  fn visit_br_if_eqz<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::BrIfEqz(BranchOffset::uninit()) }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let one = alloc_one(cs.namespace(|| "one"));
+
+    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
+    let next_pc = add(cs.namespace(|| "pc + 1"), &pc, &one)?;
+
+    let branch_offset = Self::alloc_num(
+      &mut cs,
+      || "branch_offset",
+      || Ok(F::from(self.vm.I)),
+      switch,
+    )?;
+
+    let branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
+
+    // addr of last value on stack
+    let last = Self::alloc_num(
+      &mut cs,
+      || "last",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
+    let condition_eqz = eqz(cs.namespace(|| "condition == 0"), &condition)?;
+
+    // if condtion == 0 then new_pc = branch_pc else new_pc = next_pc
+    //
+    // In other words if condition_eqz is true then new_pc = branch_pc else new_pc = next_pc
+    let _new_pc = conditionally_select(
+      cs.namespace(|| "new_pc"),
+      &branch_pc,
+      &next_pc,
+      &condition_eqz,
+    )?; // TODO: constrain pc
 
     Ok(())
   }
