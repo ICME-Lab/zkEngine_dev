@@ -120,3 +120,26 @@ fn if_without_else() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn drop_locals() {
+  let wasm = wat2wasm(
+    r#"
+        (module
+            (func (export "main") (param i64)
+                (local i64)
+                local.get 0
+                local.set 1
+            )
+        )
+    "#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .func_args(vec![String::from("42")])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

@@ -441,6 +441,7 @@ impl Instruction {
             Self::I64Mul => 4,
             Self::Const32(..) => 5,
             Self::BrIfEqz(..) => 6,
+            Self::LocalSet(..) => 7,
             Self::Return(..) => Self::MAX_J, // TODO
             _ => {
                 println!("{:?}", self);

@@ -4,7 +4,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField};
 use gadgets::{
-  int::{add, eqz, mul},
+  int::{add, eqz, mul, sub},
   utils::{alloc_one, conditionally_select},
 };
 use itertools::Itertools;
@@ -228,6 +228,7 @@ where
     self.visit_i64_const_32(cs.namespace(|| "i64.const"), &mut switches)?;
     self.visit_const_32(cs.namespace(|| "Instr::Const32"), &mut switches)?;
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
+    self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
@@ -514,6 +515,42 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push local on stack"),
       &pre_sp,
       &read_val,
+      &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// local.set
+  fn visit_local_set<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::local_set(0).unwrap() }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "last addr",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let depth = Self::alloc_num(&mut cs, || "depth addr", || Ok(F::from(self.vm.I)), switch)?;
+
+    let depth_addr = sub(cs.namespace(|| "last - depth"), &last_addr, &depth)?;
+
+    Self::write(
+      cs.namespace(|| "set local"),
+      &depth_addr,
+      &Y,
       &self.WS[1],
       switch,
     )?;
