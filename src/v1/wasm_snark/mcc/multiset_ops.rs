@@ -45,6 +45,7 @@ pub fn step_RS_WS(
     Instr::BrIfEqz(_) => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
     }
+    Instr::Br(_) => {}
     _ => unimplemented!("{:?}", instr),
   }
 

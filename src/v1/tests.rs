@@ -143,3 +143,30 @@ fn drop_locals() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn if_else() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+        (module
+            (func (export "main")
+                (local i64)
+                i32.const 0
+                if
+                    i64.const 2
+                    local.set 0
+                else
+                    i64.const 3
+                    local.set 0
+                end
+            )
+        )
+    "#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default().bytecode(wasm).build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

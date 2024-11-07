@@ -223,8 +223,8 @@ where
      */
     let mut switches = Vec::new();
     self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
-    // TODO: combine const intructions or any other instructions for that matter if their circuit
-    // does the same thing with the same tracing
+    // TODO: combine const intructions or any other instructions for that matter, if their circuit
+    // does the same thing (& has the same tracing)
     self.visit_i64_const_32(cs.namespace(|| "i64.const"), &mut switches)?;
     self.visit_const_32(cs.namespace(|| "Instr::Const32"), &mut switches)?;
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
@@ -232,6 +232,7 @@ where
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
+    self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -693,6 +694,33 @@ impl WASMTransitionCircuit {
       &next_pc,
       &condition_eqz,
     )?; // TODO: constrain pc
+
+    Ok(())
+  }
+
+  /// Instr::Br
+  fn visit_br<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::Br(BranchOffset::uninit()) }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
+
+    let branch_offset = Self::alloc_num(
+      &mut cs,
+      || "branch_offset",
+      || Ok(F::from(self.vm.I)),
+      switch,
+    )?;
+
+    let _branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
 
     Ok(())
   }
