@@ -1694,7 +1694,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
-            Instr::Return(..) => {}
+            Instr::Return(drop_keep) => {
+                vm.I = drop_keep.drop() as u64;
+                vm.P = drop_keep.keep() as u64;
+            }
             Instr::CallInternal(..) => {}
             Instr::Drop => {}
             _ => unimplemented!(),

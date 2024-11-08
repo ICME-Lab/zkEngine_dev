@@ -164,6 +164,7 @@ pub(crate) fn lt<F: PrimeField, CS: ConstraintSystem<F>>(
   todo!()
 }
 
+#[allow(dead_code)]
 /// Negate an AllocatedNum
 pub fn alloc_negate<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,

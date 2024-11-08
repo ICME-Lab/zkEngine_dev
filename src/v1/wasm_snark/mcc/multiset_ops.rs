@@ -47,6 +47,7 @@ pub fn step_RS_WS(
     }
     Instr::Br(_) => {}
     Instr::Drop => {}
+    Instr::CallInternal(..) => {}
     _ => unimplemented!("{:?}", instr),
   }
 

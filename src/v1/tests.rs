@@ -1,15 +1,8 @@
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
-
 use nova::provider::Bn256EngineIPA;
-use wasmi::Tracer;
 
-use crate::{
-  utils::{logging::init_logger, wasm::wat2wasm},
-  v1::utils::tracing::{execute_wasm, unwrap_rc_refcell},
-};
+use crate::utils::{logging::init_logger, wasm::wat2wasm};
 
 use super::{
-  error::ZKWASMError,
   wasm_ctx::{WASMCtx, WASMCtxBuilder},
   wasm_snark::WasmSNARK,
 };
