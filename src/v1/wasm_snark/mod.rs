@@ -232,6 +232,7 @@ where
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
+    self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
     self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
 
     /*
@@ -692,6 +693,57 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "new_pc"),
       &branch_pc,
       &next_pc,
+      &condition_eqz,
+    )?; // TODO: constrain pc
+
+    Ok(())
+  }
+
+  /// Instr::BrIfNez
+  fn visit_br_if_nez<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::BrIfNez(BranchOffset::uninit()) }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let one = alloc_one(cs.namespace(|| "one"));
+
+    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
+    let next_pc = add(cs.namespace(|| "pc + 1"), &pc, &one)?;
+
+    let branch_offset = Self::alloc_num(
+      &mut cs,
+      || "branch_offset",
+      || Ok(F::from(self.vm.I)),
+      switch,
+    )?;
+
+    let branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
+
+    // addr of last value on stack
+    let last = Self::alloc_num(
+      &mut cs,
+      || "last",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
+    let condition_eqz = eqz(cs.namespace(|| "condition == 0"), &condition)?;
+
+    // if condtion == 0 then new_pc = next_pc  else  new_pc = branch_pc
+    //
+    // In other words if condition_eqz is true then new_pc = next_pc else new_pc = branch_pc
+    let _new_pc = conditionally_select(
+      cs.namespace(|| "new_pc"),
+      &next_pc,
+      &branch_pc,
       &condition_eqz,
     )?; // TODO: constrain pc
 

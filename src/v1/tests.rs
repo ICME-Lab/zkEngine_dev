@@ -170,3 +170,56 @@ fn if_else() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn if_else_branch_from_true_branch() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+        (module
+            (func (export "main")
+                i32.const 1
+                if (result i64)
+                    i64.const 1
+                    i32.const 1
+                    br_if 0
+                    drop
+                    i64.const 2
+                else
+                    i64.const 3
+                end
+                drop
+            )
+        )
+    "#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default().bytecode(wasm).build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn calls_01() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+      (module
+          (func $f0 (result i64)
+              (i64.const 24)
+          )
+          (func (export "main") (result i64)
+              (call $f0)
+              i64.const 18
+              i64.add
+          )
+      )
+  "#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default().bytecode(wasm).build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

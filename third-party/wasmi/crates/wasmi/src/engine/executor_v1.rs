@@ -1683,7 +1683,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = val as u64;
                 vm.P = vm.I;
             }
-            Instr::BrIfEqz(branch_offset) => {
+            Instr::BrIfEqz(branch_offset) | Instr::BrIfNez(branch_offset) => {
                 vm.Y = self.sp.nth_back(1).to_bits(); // condition value
                 vm.I = branch_offset.to_i32() as u64;
             }
@@ -1695,6 +1695,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
             Instr::Return(..) => {}
+            Instr::CallInternal(..) => {}
+            Instr::Drop => {}
             _ => unimplemented!(),
         }
 
