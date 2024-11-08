@@ -238,6 +238,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 () => {
                     if let Some(tracer) = self.tracer.clone() {
                         let mut tracer = tracer.borrow_mut();
+                        if let Instr::Return(drop_keep) = *instr {
+                            tracer
+                                .execution_trace
+                                .extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                        }
                         // Get post instruction VM state changes
                         self.execute_instr_post(&mut vm, instr);
                         tracer.execution_trace.push(vm);
@@ -459,6 +464,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 Instr::I64Extend8S => self.visit_i64_extend8_s(),
                 Instr::I64Extend16S => self.visit_i64_extend16_s(),
                 Instr::I64Extend32S => self.visit_i64_extend32_s(),
+                _ => {
+                    unimplemented!()
+                }
             }
             trace_post_state_change!()
         }
@@ -1696,7 +1704,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::Return(drop_keep) => {
                 vm.I = drop_keep.drop() as u64;
-                vm.P = drop_keep.keep() as u64;
             }
             Instr::CallInternal(..) => {}
             Instr::Drop => {}
@@ -1725,6 +1732,29 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             _ => {}
         }
+    }
+
+    /// Special tracing method to handle drop keeps
+    fn trace_drop_keep(&self, mut init_vm: WitnessVM, drop_keep: DropKeep) -> Vec<WitnessVM> {
+        // TODO: optimize this to store two writes & reads
+        use Instruction as Instr;
+
+        let mut vms = Vec::new();
+        init_vm.instr = Instr::DropKeep;
+        init_vm.J = init_vm.instr.index_j();
+
+        let mut keep = drop_keep.keep();
+
+        while keep > 0 {
+            let mut vm = init_vm.clone();
+            vm.P = keep as u64;
+            vm.Y = self.sp.nth_back(keep as usize).to_bits();
+            keep -= 1;
+
+            vms.push(vm);
+        }
+
+        vms
     }
 
     /// Get `usize` value for the pc

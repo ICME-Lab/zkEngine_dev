@@ -48,6 +48,16 @@ pub fn step_RS_WS(
     Instr::Br(_) => {}
     Instr::Drop => {}
     Instr::CallInternal(..) => {}
+    Instr::DropKeep => {
+      let drop = vm.I as usize;
+      let keep = vm.P as usize;
+      let read_addr = vm.pre_sp - keep;
+      let write_addr = vm.pre_sp - drop - keep;
+
+      read_op(read_addr, global_ts, FS, &mut RS, &mut WS);
+      write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::Return(..) => {}
     _ => unimplemented!("{:?}", instr),
   }
 

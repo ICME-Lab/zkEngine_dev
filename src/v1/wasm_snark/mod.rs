@@ -17,7 +17,7 @@ use nova::{
   traits::{snark::default_ck_hint, CurveCycleEquipped, TranscriptEngineTrait},
 };
 
-use wasmi::{BranchOffset, Instruction as Instr, Tracer, WitnessVM};
+use wasmi::{BranchOffset, DropKeep, Instruction as Instr, Tracer, WitnessVM};
 
 use crate::v1::utils::tracing::{execute_wasm, unwrap_rc_refcell};
 
@@ -234,6 +234,8 @@ where
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
     self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
+    self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
+    self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -774,6 +776,67 @@ impl WASMTransitionCircuit {
 
     let _branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
 
+    Ok(())
+  }
+
+  /// drop_keep
+  fn drop_keep<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::DropKeep }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let drop = self.vm.I;
+    let keep = self.vm.P;
+    let pre_sp_u64 = self.vm.pre_sp as u64;
+    let read_addr_u64 = pre_sp_u64 - keep;
+    let write_addr_u64 = pre_sp_u64 - drop - keep;
+
+    let read_addr = Self::alloc_num(
+      &mut cs,
+      || "read_addr",
+      || Ok(F::from(read_addr_u64)),
+      switch,
+    )?;
+
+    let read_val = Self::read(cs.namespace(|| "read val"), &read_addr, &self.RS[0], switch)?;
+
+    let write_addr = Self::alloc_num(
+      &mut cs,
+      || "write addr",
+      || Ok(F::from(write_addr_u64)),
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "drop keep write"),
+      &write_addr,
+      &read_val,
+      &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// Return instruction
+  fn visit_ret<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::Return(DropKeep::new(0, 0).unwrap()) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }
 }

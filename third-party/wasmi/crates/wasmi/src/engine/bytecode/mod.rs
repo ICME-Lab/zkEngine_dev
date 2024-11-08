@@ -361,6 +361,9 @@ pub enum Instruction {
     I64TruncSatF32U,
     I64TruncSatF64S,
     I64TruncSatF64U,
+
+    // Used for zkWASM
+    DropKeep,
 }
 
 impl Instruction {
@@ -424,7 +427,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 10;
+    pub const MAX_J: u64 = 11;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
@@ -441,8 +444,9 @@ impl Instruction {
             Self::LocalSet(..) => 7,
             Self::Br(..) => 8,
             Self::BrIfNez(..) => 9,
-            Self::CallInternal(..) => 0,
-            Self::Drop => 0,                 // TODO: all 0 J_indexes
+            Self::DropKeep => 10,
+            Self::CallInternal(..) => 0, // TODO: all 0 J_indexes
+            Self::Drop => 0,
             Self::Return(..) => Self::MAX_J, // TODO
             _ => {
                 println!("{:?}", self);
