@@ -4,7 +4,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField, PrimeFieldBits};
 use gadgets::{
-  int::{add, and, clz_64, ctz_64, eqz, mul, or, popcount, sub, xor},
+  int::{add, and, eqz, mul, or, popcount, sub, xor},
   utils::{alloc_one, conditionally_select},
 };
 use itertools::Itertools;
