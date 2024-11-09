@@ -438,7 +438,8 @@ impl Instruction {
             Self::I64Const32(..) | Self::Const32(..) | Self::ConstRef(..) => 1,
             Self::LocalGet(..) => 2,
             Self::I64Add => 3,
-            Self::I64Mul => 4, // todo: add 5
+            Self::I64Mul => 4,
+            Self::I64And => 5,
             Self::BrIfEqz(..) => 6,
             Self::LocalSet(..) => 7,
             Self::Br(..) => 8,

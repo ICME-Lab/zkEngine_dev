@@ -4,7 +4,7 @@ use bellpepper_core::{
   num::AllocatedNum,
   ConstraintSystem, SynthesisError,
 };
-use ff::PrimeField;
+use ff::{PrimeField, PrimeFieldBits};
 
 pub fn add<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
@@ -230,4 +230,92 @@ where
   // Since result is constrained to be boolean, that means `result` is true iff `a` is 0.
 
   Ok(Boolean::Is(result))
+}
+
+/// Perform bitwise AND on two nums
+pub fn and<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+  let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .zip(b_bits.iter())
+    .enumerate()
+    .map(|(i, (a, b))| Boolean::and(cs.namespace(|| format!("and of bit {}", i)), a, b))
+    .collect::<Result<_, _>>()?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+fn to_u64_le_bits<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Vec<Boolean>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let res = a
+    .to_bits_le(cs.namespace(|| "to_bits_le"))?
+    .into_iter()
+    .take(64)
+    .collect();
+  Ok(res)
+}
+
+fn u64_le_bits_to_num<F, CS>(
+  mut cs: CS,
+  bits: &[Boolean],
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  assert_eq!(bits.len(), 64);
+
+  let mut value = Some(0u64);
+  for b in bits.iter().rev() {
+    if let Some(v) = value.as_mut() {
+      *v <<= 1;
+    }
+
+    match *b {
+      Boolean::Constant(b) => {
+        if b {
+          if let Some(v) = value.as_mut() {
+            *v |= 1;
+          }
+        }
+      }
+      Boolean::Is(ref b) => match b.get_value() {
+        Some(true) => {
+          if let Some(v) = value.as_mut() {
+            *v |= 1;
+          }
+        }
+        Some(false) => {}
+        None => value = None,
+      },
+      Boolean::Not(ref b) => match b.get_value() {
+        Some(false) => {
+          if let Some(v) = value.as_mut() {
+            *v |= 1;
+          }
+        }
+        Some(true) => {}
+        None => value = None,
+      },
+    }
+  }
+
+  let num = AllocatedNum::alloc(cs.namespace(|| "alloc num"), || {
+    Ok(F::from(value.unwrap_or(0)))
+  })?;
+
+  Ok(num)
 }

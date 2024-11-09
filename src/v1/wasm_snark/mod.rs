@@ -2,9 +2,9 @@
 use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
-use ff::{Field, PrimeField};
+use ff::{Field, PrimeField, PrimeFieldBits};
 use gadgets::{
-  int::{add, eqz, mul, sub},
+  int::{add, and, eqz, mul, sub},
   utils::{alloc_one, conditionally_select},
 };
 use itertools::Itertools;
@@ -214,7 +214,7 @@ impl Default for WASMTransitionCircuit {
 
 impl<F> StepCircuit<F> for WASMTransitionCircuit
 where
-  F: PrimeField,
+  F: PrimeField + PrimeFieldBits,
 {
   fn arity(&self) -> usize {
     1
@@ -235,6 +235,7 @@ where
     self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
+    self.visit_i64_and(cs.namespace(|| "i64.and"), &mut switches)?;
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
     self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
@@ -611,6 +612,50 @@ impl WASMTransitionCircuit {
     let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
     let Z = mul(cs.namespace(|| "X * Y"), &X, &Y)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.and
+  fn visit_i64_and<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64And }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let Z = and(cs.namespace(|| "X & Y"), &X, &Y)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
