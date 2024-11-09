@@ -444,11 +444,14 @@ impl Instruction {
             Self::Br(..) => 8,
             Self::BrIfNez(..) => 9,
             Self::DropKeep => 10,
+
+            // Store opcodes
             Self::I64Store(..)
             | Self::I64Store8(..)
             | Self::I64Store16(..)
             | Self::I64Store32(..) => 11,
 
+            // Load opcodes
             Self::I64Load(..)
             | Self::I64Load8S(..)
             | Self::I64Load8U(..)
