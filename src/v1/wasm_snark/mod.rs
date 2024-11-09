@@ -947,13 +947,14 @@ impl WASMTransitionCircuit {
     let drop = self.vm.I;
     let keep = self.vm.P;
     let pre_sp_u64 = self.vm.pre_sp as u64;
-    let read_addr_u64 = pre_sp_u64 - keep;
-    let write_addr_u64 = pre_sp_u64 - drop - keep;
 
     let read_addr = Self::alloc_num(
       &mut cs,
       || "read_addr",
-      || Ok(F::from(read_addr_u64)),
+      || {
+        let read_addr_u64 = pre_sp_u64 - keep;
+        Ok(F::from(read_addr_u64))
+      },
       switch,
     )?;
 
@@ -962,7 +963,10 @@ impl WASMTransitionCircuit {
     let write_addr = Self::alloc_num(
       &mut cs,
       || "write addr",
-      || Ok(F::from(write_addr_u64)),
+      || {
+        let write_addr_u64 = pre_sp_u64 - drop - keep;
+        Ok(F::from(write_addr_u64))
+      },
       switch,
     )?;
 

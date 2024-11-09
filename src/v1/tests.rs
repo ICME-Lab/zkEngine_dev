@@ -427,3 +427,16 @@ fn test_xor() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn test_bit_check() {
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/bit_check.wat"))
+    .unwrap()
+    .invoke("bit_check")
+    .func_args(vec!["255".to_string(), "255".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
