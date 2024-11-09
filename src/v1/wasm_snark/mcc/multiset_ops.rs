@@ -107,6 +107,11 @@ pub fn step_RS_WS(
       write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
 
+    Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
+      write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS);
+    }
+
     _ => unimplemented!("{:?}", instr),
   }
 

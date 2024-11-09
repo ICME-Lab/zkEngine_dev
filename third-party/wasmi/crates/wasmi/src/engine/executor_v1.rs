@@ -1733,6 +1733,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = effective_address as u64;
                 vm.Y = raw_address_u64;
             }
+
+            Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt => {
+                vm.Y = self.sp.nth_back(1).to_bits();
+            }
             _ => unimplemented!(),
         }
 
@@ -1814,6 +1818,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Q = block_value2;
             }
 
+            Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt => {
+                vm.Z = self.sp.nth_back(1).to_bits();
+            }
             _ => {}
         }
     }

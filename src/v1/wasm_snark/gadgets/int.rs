@@ -2,7 +2,7 @@ use bellpepper::gadgets::Assignment;
 use bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
   num::AllocatedNum,
-  ConstraintSystem, SynthesisError,
+  ConstraintSystem, LinearCombination, SynthesisError, Variable,
 };
 use ff::{PrimeField, PrimeFieldBits};
 
@@ -364,4 +364,169 @@ where
   })?;
 
   Ok(num)
+}
+
+/// popcount
+pub fn popcount<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  res: &AllocatedNum<F>,
+) -> Result<(), SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  popcount_equal(
+    cs.namespace(|| "pop_count_equal"),
+    &a_bits,
+    res.get_variable(),
+  );
+
+  Ok(())
+}
+
+/// Adds a constraint to CS, enforcing that the addition of the allocated numbers in vector `v`
+/// is equal to the value of the variable, `sum`.
+pub(crate) fn popcount_equal<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  v: &[Boolean],
+  sum: Variable,
+) {
+  let popcount = popcount_lc::<F, CS>(v);
+
+  // popcount * 1 = sum
+  cs.enforce(
+    || "popcount",
+    |_| popcount,
+    |lc| lc + CS::one(),
+    |lc| lc + sum,
+  );
+}
+
+pub(crate) fn add_to_lc<F: PrimeField, CS: ConstraintSystem<F>>(
+  b: &Boolean,
+  lc: LinearCombination<F>,
+  scalar: F,
+) -> LinearCombination<F> {
+  match b {
+    Boolean::Constant(c) => lc + (if *c { scalar } else { F::ZERO }, CS::one()),
+    Boolean::Is(ref v) => lc + (scalar, v.get_variable()),
+    Boolean::Not(ref v) => lc + (scalar, CS::one()) - (scalar, v.get_variable()),
+  }
+}
+
+/// Creates a linear combination representing the popcount (sum of one bits) of `v`.
+pub(crate) fn popcount_lc<F: PrimeField, CS: ConstraintSystem<F>>(
+  v: &[Boolean],
+) -> LinearCombination<F> {
+  v.iter().fold(LinearCombination::<F>::zero(), |acc, bit| {
+    add_to_lc::<F, CS>(bit, acc, F::ONE)
+  })
+}
+
+// 64 bit clz
+pub fn clz_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  res: &AllocatedNum<F>,
+  switch: bool,
+) -> Result<(), SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  clz_equal(
+    cs.namespace(|| "clz_equal"),
+    &a_bits,
+    res.get_variable(),
+    switch,
+  );
+
+  Ok(())
+}
+
+/// Adds a constraint to CS, enforcing that the addition of the allocated numbers in vector `v`
+/// is equal to the value of the variable, `sum`.
+pub(crate) fn clz_equal<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  v: &[Boolean],
+  sum: Variable,
+  switch: bool,
+) {
+  let clz = clz_lc::<F, CS>(v, switch);
+
+  // clz * 1 = sum
+  cs.enforce(|| "clz", |_| clz, |lc| lc + CS::one(), |lc| lc + sum);
+}
+
+/// Creates a linear combination representing the popcount (sum of one bits) of `v`.
+/// Bits are little endian
+pub(crate) fn clz_lc<F: PrimeField, CS: ConstraintSystem<F>>(
+  v: &[Boolean],
+  switch: bool,
+) -> LinearCombination<F> {
+  let mut lc = LinearCombination::<F>::zero();
+
+  let mut scalar = if switch { F::ONE } else { F::ZERO };
+
+  for bit in v.iter().rev() {
+    if bit.get_value().unwrap_or(false) {
+      scalar = F::ZERO;
+    }
+
+    lc = add_to_lc::<F, CS>(&bit.not(), lc, scalar)
+  }
+
+  lc
+}
+
+// 64 bit ctz
+pub fn ctz_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  res: &AllocatedNum<F>,
+) -> Result<(), SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  ctz_equal(cs.namespace(|| "ctz_equal"), &a_bits, res.get_variable());
+
+  Ok(())
+}
+
+/// Adds a constraint to CS, enforcing that the addition of the allocated numbers in vector `v`
+/// is equal to the value of the variable, `sum`.
+pub(crate) fn ctz_equal<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  v: &[Boolean],
+  sum: Variable,
+) {
+  let ctz = ctz_lc::<F, CS>(v);
+
+  // ctz * 1 = sum
+  cs.enforce(|| "ctz", |_| ctz, |lc| lc + CS::one(), |lc| lc + sum);
+}
+
+/// Creates a linear combination representing the popcount (sum of one bits) of `v`.
+/// Bits are little endian
+pub(crate) fn ctz_lc<F: PrimeField, CS: ConstraintSystem<F>>(
+  v: &[Boolean],
+) -> LinearCombination<F> {
+  let mut lc = LinearCombination::<F>::zero();
+
+  for bit in v.iter() {
+    if bit.get_value().unwrap_or(false) {
+      break;
+    }
+    lc = add_to_lc::<F, CS>(&bit.not(), lc, F::ONE)
+  }
+
+  lc
 }

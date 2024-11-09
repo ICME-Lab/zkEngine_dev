@@ -440,3 +440,75 @@ fn test_bit_check() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn test_clz() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main") (param i64) (result i64)
+            local.get 0
+            i64.clz
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .func_args(vec!["199".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn test_ctz() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main") (param i64) (result i64)
+            local.get 0
+            i64.ctz
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .func_args(vec!["188".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn test_popcnt() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main") (param i64) (result i64)
+            local.get 0
+            i64.popcnt
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .func_args(vec!["133".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

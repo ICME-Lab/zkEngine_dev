@@ -4,7 +4,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField, PrimeFieldBits};
 use gadgets::{
-  int::{add, and, eqz, mul, or, sub, xor},
+  int::{add, and, clz_64, ctz_64, eqz, mul, or, popcount, sub, xor},
   utils::{alloc_one, conditionally_select},
 };
 use itertools::Itertools;
@@ -246,6 +246,9 @@ where
     self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
     self.visit_store(cs.namespace(|| "store"), &mut switches)?;
     self.visit_load(cs.namespace(|| "load"), &mut switches)?;
+    self.visit_i64_clz(cs.namespace(|| "i64.clz"), &mut switches)?;
+    self.visit_i64_ctz(cs.namespace(|| "i64.ctz"), &mut switches)?;
+    self.visit_popcount(cs.namespace(|| "popcount"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -1142,6 +1145,113 @@ impl WASMTransitionCircuit {
       &last,
       &stack_write_val,
       &self.WS[3],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.clz
+  fn visit_i64_clz<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Clz }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+
+    let Z = Self::alloc_num(&mut cs, || "Z=clz(Y)", || Ok(F::from(self.vm.Z)), switch)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &last_addr, // pre_sp - 1
+      &Z,
+      &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.ctz
+  fn visit_i64_ctz<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Ctz }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+
+    let Z = Self::alloc_num(&mut cs, || "Z=ctz(Y)", || Ok(F::from(self.vm.Z)), switch)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &last_addr, // pre_sp - 1
+      &Z,
+      &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// Popcount
+  fn visit_popcount<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Popcnt }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+
+    let Z = Self::alloc_num(&mut cs, || "Z=popcnt(Y)", || Ok(F::from(self.vm.Z)), switch)?;
+
+    popcount(cs.namespace(|| "popcnt"), &Y, &Z)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &last_addr, // pre_sp - 1
+      &Z,
+      &self.WS[1],
       switch,
     )?;
 
