@@ -1167,7 +1167,7 @@ impl<'engine> EngineExecutor<'engine> {
         init_stack: &[UntypedValue],
     ) {
         let mut tracer = tracer.borrow_mut();
-        tracer.set_IS(init_stack);
+        tracer.set_IS_stack(init_stack);
     }
 
     /// Executes the given [`Func`] using the given `params`.

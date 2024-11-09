@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use nova::provider::Bn256EngineIPA;
 
 use crate::utils::{logging::init_logger, wasm::wat2wasm};
@@ -242,6 +244,55 @@ fn calls_01() {
   .unwrap();
 
   let wasm_ctx = WASMCtxBuilder::default().bytecode(wasm).build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn test_if_else_wat() {
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .func_args(vec![String::from("1")])
+    .file_path(PathBuf::from("wasm/control_flow/if_else.wat"))
+    .unwrap()
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn store_01() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+        (module
+            (memory 1)
+            (func (export "main") (param $dst i32) (param $value i64)
+                (i64.store
+                    (local.get $dst) (local.get $value)
+                )
+            )
+        )
+    "#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .func_args(vec![String::from("1"), String::from("100")])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn store_02() {
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .func_args(vec![String::from("1")])
+    .file_path(PathBuf::from("wasm/memory/store_op_i64.wat"))
+    .unwrap()
+    .build();
 
   test_wasm_snark_with(wasm_ctx);
 }

@@ -17,7 +17,7 @@ use nova::{
   traits::{snark::default_ck_hint, CurveCycleEquipped, TranscriptEngineTrait},
 };
 
-use wasmi::{BranchOffset, DropKeep, Instruction as Instr, Tracer, WitnessVM};
+use wasmi::{AddressOffset, BranchOffset, DropKeep, Instruction as Instr, Tracer, WitnessVM};
 
 use crate::v1::utils::tracing::{execute_wasm, unwrap_rc_refcell};
 
@@ -69,7 +69,11 @@ where
     let mut global_ts = 0;
 
     // Compute multisets to perform grand product checks (uses global_ts)
+    let IS_stack_len = tracer.IS_stack_len();
+    tracing::debug!("stack len: {}", IS_stack_len);
     let IS = tracer.IS();
+    tracing::debug!("IS_mem.len: {}", IS.len() - IS_stack_len);
+
     let mut RS: Vec<(usize, u64, u64)> = Vec::new();
     let mut WS: Vec<(usize, u64, u64)> = Vec::new();
     let mut FS = IS.clone();
@@ -81,7 +85,7 @@ where
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
       .into_iter()
       .map(|vm| {
-        let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts);
+        let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, IS_stack_len);
         // TODO don't extend to pass into F_ops, this is just for testing for now
         RS.extend(step_rs.clone());
         WS.extend(step_ws.clone());
@@ -90,6 +94,7 @@ where
           vm,
           RS: step_rs,
           WS: step_ws,
+          stack_len: IS_stack_len,
         }
       })
       .collect();
@@ -192,6 +197,7 @@ pub struct WASMTransitionCircuit {
   vm: WitnessVM,
   RS: Vec<(usize, u64, u64)>,
   WS: Vec<(usize, u64, u64)>,
+  stack_len: usize,
 }
 
 impl Default for WASMTransitionCircuit {
@@ -201,6 +207,7 @@ impl Default for WASMTransitionCircuit {
       // max memory ops per recursive step is 8
       RS: vec![(0, 0, 0); 4],
       WS: vec![(0, 0, 0); 4],
+      stack_len: 0,
     }
   }
 }
@@ -223,10 +230,7 @@ where
      */
     let mut switches = Vec::new();
     self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
-    // TODO: combine const intructions or any other instructions for that matter, if their circuit
-    // does the same thing (& has the same tracing)
-    self.visit_i64_const_32(cs.namespace(|| "i64.const"), &mut switches)?;
-    self.visit_const_32(cs.namespace(|| "Instr::Const32"), &mut switches)?;
+    self.visit_const(cs.namespace(|| "const"), &mut switches)?;
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
@@ -236,6 +240,7 @@ where
     self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
     self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
     self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
+    self.visit_store(cs.namespace(|| "store"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -416,7 +421,7 @@ impl WASMTransitionCircuit {
   }
 
   /// Push a const onto the stack
-  fn visit_i64_const_32<CS, F>(
+  fn visit_const<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -426,39 +431,6 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Const32(0) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let pre_sp = Self::alloc_num(
-      &mut cs,
-      || "pre_sp",
-      || Ok(F::from(self.vm.pre_sp as u64)),
-      switch,
-    )?;
-
-    let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch)?;
-
-    Self::write(
-      cs.namespace(|| "push I on stack"),
-      &pre_sp,
-      &I,
-      &self.WS[0],
-      switch,
-    )?;
-
-    Ok(())
-  }
-
-  /// Instr::Const32
-  fn visit_const_32<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::Const32([0, 0, 0, 0]) }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
     let pre_sp = Self::alloc_num(
@@ -837,6 +809,90 @@ impl WASMTransitionCircuit {
   {
     let J: u64 = { Instr::Return(DropKeep::new(0, 0).unwrap()) }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// Return instruction
+  fn visit_store<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Store(AddressOffset::from(0)) }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    // Stack ops
+    let raw_addr_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let _ = Self::read(
+      cs.namespace(|| "raw_addr"),
+      &raw_addr_addr,
+      &self.RS[0],
+      switch,
+    )?;
+
+    let val_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let _ = Self::read(cs.namespace(|| "Y"), &val_addr, &self.RS[1], switch)?;
+
+    // linear mem ops
+    let effective_addr = self.vm.I;
+
+    let write_addr_1 = Self::alloc_num(
+      &mut cs,
+      || "write_addr_1",
+      || {
+        let write_addr_1 = effective_addr / 8 + self.stack_len as u64;
+        Ok(F::from(write_addr_1))
+      },
+      switch,
+    )?;
+
+    let write_addr_2 = Self::alloc_num(
+      &mut cs,
+      || "write_addr_2",
+      || {
+        let write_addr_2 = effective_addr / 8 + 1 + self.stack_len as u64;
+        Ok(F::from(write_addr_2))
+      },
+      switch,
+    )?;
+
+    let write_val_1 =
+      Self::alloc_num(&mut cs, || "write_val_1", || Ok(F::from(self.vm.Z)), switch)?;
+    let write_val_2 =
+      Self::alloc_num(&mut cs, || "write_val_2", || Ok(F::from(self.vm.P)), switch)?;
+
+    Self::write(
+      cs.namespace(|| "store 1"),
+      &write_addr_1,
+      &write_val_1,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "store 2"),
+      &write_addr_2,
+      &write_val_2,
+      &self.WS[3],
+      switch,
+    )?;
+
     Ok(())
   }
 }

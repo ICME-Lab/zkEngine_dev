@@ -24,7 +24,9 @@ pub fn execute_wasm(wasm_ctx: &WASMCtx, tracer: Rc<RefCell<Tracer>>) -> Result<(
   let mut store = wasmi::Store::new(&engine, ());
 
   // Instantiate the module and trace WASM linear memory and global memory initializations
-  let instance = linker.instantiate(&mut store, &module)?.start(&mut store)?;
+  let instance = linker
+    .instantiate_with_trace(&mut store, &module, tracer.clone())?
+    .start(&mut store)?;
 
   let func = instance
     .get_func(&store, &wasm_ctx.meta_data.invoke)

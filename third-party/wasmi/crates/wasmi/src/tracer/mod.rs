@@ -2,7 +2,7 @@
 
 use wasmi_core::UntypedValue;
 
-use crate::engine::bytecode::Instruction;
+use crate::{engine::bytecode::Instruction, AsContext, Memory};
 
 #[derive(Debug, Clone, Default)]
 /// Hold the execution trace from VM execution and manages other miscellaneous
@@ -13,8 +13,10 @@ pub struct Tracer {
     /// This is used to maintain the max stack address. We use this to
     /// construct the IS for MCC
     max_sp: usize,
-    /// Initial Set for MCC
-    IS: Vec<(u64, u64)>,
+    /// Stack Initial Set for MCC
+    IS_stack: Vec<(u64, u64)>,
+    /// Linear memroy initial set
+    IS_mem: Vec<(u64, u64)>,
 }
 
 impl Tracer {
@@ -35,13 +37,32 @@ impl Tracer {
     }
 
     /// Setter for IS
-    pub(crate) fn set_IS(&mut self, stack: &[UntypedValue]) {
-        self.IS = stack.iter().map(|v| ((*v).into(), 0)).collect();
+    pub(crate) fn set_IS_stack(&mut self, stack: &[UntypedValue]) {
+        self.IS_stack = stack.iter().map(|v| ((*v).into(), 0)).collect();
+    }
+
+    /// Get IS_stack len
+    pub fn IS_stack_len(&self) -> usize {
+        self.IS_stack.len()
     }
 
     /// Getter for IS
     pub fn IS(&self) -> Vec<(u64, u64)> {
-        self.IS.to_vec()
+        let mut IS = self.IS_stack.to_vec();
+        IS.extend(self.IS_mem.to_vec());
+        IS
+    }
+
+    /// Push initial heap/linear WASM memory to tracer for MCC
+    pub fn push_init_memory(&mut self, memref: Memory, context: impl AsContext) {
+        let pages: u32 = memref.ty(&context).initial_pages().into();
+        for i in 0..(pages * 8192) {
+            let mut buf = [0u8; 8];
+            memref
+                .read(&context, (i * 8).try_into().unwrap(), &mut buf)
+                .unwrap();
+            self.IS_mem.push((u64::from_le_bytes(buf), 0));
+        }
     }
 }
 

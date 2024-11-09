@@ -46,7 +46,7 @@ use core::{
     cell::RefCell,
     cmp::{self},
 };
-use wasmi_core::{Pages, UntypedValue};
+use wasmi_core::{effective_address, Pages, UntypedValue};
 
 /// Executes the given function `frame`.
 ///
@@ -1686,11 +1686,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = depth.to_usize() as u64;
                 vm.Y = self.sp.last().to_bits();
             }
-            Instr::Const32(..) => {}
-            Instr::I64Const32(val) => {
-                vm.I = val as u64;
-                vm.P = vm.I;
-            }
+            Instr::Const32(..) | Instr::ConstRef(..) | Instr::I64Const32(..) => {}
             Instr::BrIfEqz(branch_offset) | Instr::BrIfNez(branch_offset) => {
                 vm.Y = self.sp.nth_back(1).to_bits(); // condition value
                 vm.I = branch_offset.to_i32() as u64;
@@ -1707,6 +1703,20 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::CallInternal(..) => {}
             Instr::Drop => {}
+
+            Instr::I64Store(offset)
+            | Instr::I64Store8(offset)
+            | Instr::I64Store16(offset)
+            | Instr::I64Store32(offset) => {
+                let raw_address: u64 = self.sp.nth_back(2).to_bits();
+                let value: u64 = self.sp.nth_back(1).to_bits();
+                vm.X = raw_address;
+                vm.Y = value;
+
+                let offset = offset.into_inner();
+                let effective_address = effective_address(raw_address as u32, offset).unwrap();
+                vm.I = effective_address as u64;
+            }
             _ => unimplemented!(),
         }
 
@@ -1715,11 +1725,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
     /// Trace the affected values in the VM state change post instruction
     /// execution
-    fn execute_instr_post(&self, vm: &mut WitnessVM, instr: &Instruction) {
+    fn execute_instr_post(&mut self, vm: &mut WitnessVM, instr: &Instruction) {
         use Instruction as Instr;
 
         match *instr {
-            Instr::Const32(..) => {
+            Instr::Const32(..) | Instr::ConstRef(..) | Instr::I64Const32(..) => {
                 vm.I = self.sp.last().to_bits();
                 vm.P = vm.I;
             }
@@ -1729,6 +1739,32 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::I64Add | Instr::I64Mul => {
                 vm.Z = self.sp.last().to_bits();
+            }
+            Instr::I64Store(offset)
+            | Instr::I64Store8(offset)
+            | Instr::I64Store16(offset)
+            | Instr::I64Store32(offset) => {
+                let effective_address = vm.I as usize;
+                let updated_block_value1 = {
+                    let mut buf = [0u8; 8];
+                    let memory = self.cache.default_memory(self.ctx);
+                    let memref = self.ctx.resolve_memory(&memory);
+                    memref.read(effective_address / 8 * 8, &mut buf).unwrap();
+                    u64::from_le_bytes(buf)
+                };
+
+                let updated_block_value2 = {
+                    let mut buf = [0u8; 8];
+                    let memory = self.cache.default_memory(self.ctx);
+                    let memref = self.ctx.resolve_memory(&memory);
+                    memref
+                        .read((effective_address / 8 + 1) * 8, &mut buf)
+                        .unwrap();
+                    u64::from_le_bytes(buf)
+                };
+
+                vm.Z = updated_block_value1;
+                vm.P = updated_block_value2;
             }
             _ => {}
         }
