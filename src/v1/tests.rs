@@ -140,6 +140,17 @@ fn drop_locals() {
 }
 
 #[test]
+fn tee_local() {
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/variable/local_tee_op.wat"))
+    .unwrap()
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
 fn if_else() {
   init_logger();
   let wasm = wat2wasm(

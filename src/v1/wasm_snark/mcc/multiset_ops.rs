@@ -37,6 +37,18 @@ pub fn step_RS_WS(
         &mut WS,
       );
     }
+
+    Instr::LocalTee(_) => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
+      write_op(
+        vm.pre_sp - (vm.I as usize),
+        vm.Y,
+        global_ts,
+        FS,
+        &mut RS,
+        &mut WS,
+      );
+    }
     Instr::I64Add | Instr::I64Mul | Instr::I64And => {
       read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y

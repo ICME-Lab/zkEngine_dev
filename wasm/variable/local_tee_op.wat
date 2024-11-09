@@ -1,5 +1,5 @@
 (module
-    (func (export "call")
+    (func (export "main")
         (local i32 i64)
         (i32.const 1012)
         (local.tee 0)

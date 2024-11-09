@@ -233,6 +233,7 @@ where
     self.visit_const(cs.namespace(|| "const"), &mut switches)?;
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
+    self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
     self.visit_i64_and(cs.namespace(|| "i64.and"), &mut switches)?;
@@ -527,6 +528,49 @@ impl WASMTransitionCircuit {
 
     Self::write(
       cs.namespace(|| "set local"),
+      &depth_addr,
+      &Y,
+      &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// local.tee
+  fn visit_local_tee<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::local_tee(0).unwrap() }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let pre_sp = Self::alloc_num(
+      &mut cs,
+      || "pre_sp",
+      || Ok(F::from((self.vm.pre_sp) as u64)),
+      switch,
+    )?;
+
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "last addr",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let depth = Self::alloc_num(&mut cs, || "depth addr", || Ok(F::from(self.vm.I)), switch)?;
+
+    let depth_addr = sub(cs.namespace(|| "pre_sp - depth"), &pre_sp, &depth)?;
+
+    Self::write(
+      cs.namespace(|| "tee local"),
       &depth_addr,
       &Y,
       &self.WS[1],
