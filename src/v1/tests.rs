@@ -331,3 +331,14 @@ fn load_02() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn load_store_01() {
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/memory/load_store.wat"))
+    .unwrap()
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

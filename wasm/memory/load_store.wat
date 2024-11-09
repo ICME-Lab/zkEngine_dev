@@ -1,12 +1,12 @@
 (module
   (memory (export "memory") 1)
-  (func $run (result i32)
+  (func $main (result i64)
     i32.const 0
-    i32.const 42
-    i32.store
+    i64.const 42
+    i64.store
 
     i32.const 0
-    i32.load
+    i64.load
   )
-  (export "run" (func $run))
+  (export "main" (func $main))
 )
