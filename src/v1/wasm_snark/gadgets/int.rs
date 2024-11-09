@@ -255,6 +255,52 @@ where
   u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
 }
 
+/// Perform bitwise XOR on two nums
+pub fn xor<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+  let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .zip(b_bits.iter())
+    .enumerate()
+    .map(|(i, (a, b))| Boolean::xor(cs.namespace(|| format!("and of bit {}", i)), a, b))
+    .collect::<Result<_, _>>()?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Perform bitwise OR on two nums
+pub fn or<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+  let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .zip(b_bits.iter())
+    .enumerate()
+    .map(|(i, (a, b))| Boolean::or(cs.namespace(|| format!("and of bit {}", i)), a, b))
+    .collect::<Result<_, _>>()?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
 fn to_u64_le_bits<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Vec<Boolean>, SynthesisError>
 where
   F: PrimeField + PrimeFieldBits,

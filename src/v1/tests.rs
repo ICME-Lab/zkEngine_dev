@@ -378,3 +378,52 @@ fn test_and() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+#[test]
+fn test_or() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main") (param i64) (param i64) (result i64)
+            local.get 0
+            local.get 1
+            i64.or
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .func_args(vec!["255".to_string(), "122".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn test_xor() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main") (param i64) (param i64) (result i64)
+            local.get 0
+            local.get 1
+            i64.xor
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .func_args(vec!["255".to_string(), "122".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

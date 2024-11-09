@@ -1694,7 +1694,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::Br(branch_offset) => {
                 vm.I = branch_offset.to_i32() as u64;
             }
-            Instr::I64Add | Instr::I64Mul | Instr::I64And => {
+            Instr::I64Add | Instr::I64Mul | Instr::I64And | Instr::I64Or | Instr::I64Xor => {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
@@ -1753,7 +1753,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = local_depth.to_usize() as u64;
                 vm.P = self.sp.last().to_bits();
             }
-            Instr::I64Add | Instr::I64Mul | Instr::I64And => {
+            Instr::I64Add | Instr::I64Mul | Instr::I64And | Instr::I64Or | Instr::I64Xor => {
                 vm.Z = self.sp.last().to_bits();
             }
             Instr::I64Store(..)

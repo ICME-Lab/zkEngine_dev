@@ -411,7 +411,7 @@ impl<F: PrimeField + PrimeFieldBits + PartialOrd> UInt64<F> {
       .iter()
       .zip(other_bits.iter())
       .enumerate()
-      .map(|(i, (a, b))| Boolean::xor(cs.namespace(|| format!("and of bit {}", i)), a, b))
+      .map(|(i, (a, b))| Boolean::xor(cs.namespace(|| format!("XOR of bit {}", i)), a, b))
       .collect::<Result<_, _>>()?;
 
     let res = UInt64::from_bits(cs.namespace(|| "res"), &res)?;
