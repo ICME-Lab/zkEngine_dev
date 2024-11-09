@@ -88,4 +88,6 @@ pub struct WitnessVM {
     pub Z: u64,
     /// Holds a "push" or "write" value, for example when an instruction pushes a value on the stack
     pub P: u64,
+    /// Holds a "push" or "write" value, for example when an instruction pushes a value on the stack
+    pub Q: u64,
 }

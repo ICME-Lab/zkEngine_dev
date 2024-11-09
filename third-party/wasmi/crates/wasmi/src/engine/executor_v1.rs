@@ -1717,6 +1717,22 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 let effective_address = effective_address(raw_address as u32, offset).unwrap();
                 vm.I = effective_address as u64;
             }
+
+            Instruction::I64Load(offset)
+            | Instruction::I64Load8S(offset)
+            | Instruction::I64Load8U(offset)
+            | Instruction::I64Load16S(offset)
+            | Instruction::I64Load16U(offset)
+            | Instruction::I64Load32S(offset)
+            | Instruction::I64Load32U(offset) => {
+                let raw_address_u64 = self.sp.last().to_bits();
+                let raw_address = raw_address_u64 as u32;
+                let offset = offset.into_inner();
+                let effective_address = effective_address(offset, raw_address).unwrap();
+
+                vm.I = effective_address as u64;
+                vm.Y = raw_address_u64;
+            }
             _ => unimplemented!(),
         }
 
@@ -1740,10 +1756,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::I64Add | Instr::I64Mul => {
                 vm.Z = self.sp.last().to_bits();
             }
-            Instr::I64Store(offset)
-            | Instr::I64Store8(offset)
-            | Instr::I64Store16(offset)
-            | Instr::I64Store32(offset) => {
+            Instr::I64Store(..)
+            | Instr::I64Store8(..)
+            | Instr::I64Store16(..)
+            | Instr::I64Store32(..) => {
                 let effective_address = vm.I as usize;
                 let updated_block_value1 = {
                     let mut buf = [0u8; 8];
@@ -1763,9 +1779,41 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     u64::from_le_bytes(buf)
                 };
 
-                vm.Z = updated_block_value1;
-                vm.P = updated_block_value2;
+                vm.P = updated_block_value1;
+                vm.Q = updated_block_value2;
             }
+
+            Instr::I64Load(..)
+            | Instr::I64Load8S(..)
+            | Instr::I64Load8U(..)
+            | Instr::I64Load16S(..)
+            | Instr::I64Load16U(..)
+            | Instr::I64Load32S(..)
+            | Instr::I64Load32U(..) => {
+                let effective_address = vm.I as usize;
+                let block_value1 = {
+                    let mut buf = [0u8; 8];
+                    let memory = self.cache.default_memory(self.ctx);
+                    let memref = self.ctx.resolve_memory(&memory);
+                    memref.read(effective_address / 8 * 8, &mut buf).unwrap();
+                    u64::from_le_bytes(buf)
+                };
+
+                let block_value2 = {
+                    let mut buf = [0u8; 8];
+                    let memory = self.cache.default_memory(self.ctx);
+                    let memref = self.ctx.resolve_memory(&memory);
+                    memref
+                        .read((effective_address / 8 + 1) * 8, &mut buf)
+                        .unwrap();
+                    u64::from_le_bytes(buf)
+                };
+
+                vm.Z = self.sp.last().to_bits();
+                vm.P = block_value1;
+                vm.Q = block_value2;
+            }
+
             _ => {}
         }
     }

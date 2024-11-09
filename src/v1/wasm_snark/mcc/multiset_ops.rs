@@ -59,10 +59,7 @@ pub fn step_RS_WS(
       write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::Return(..) => {}
-    Instr::I64Store(offset)
-    | Instr::I64Store8(offset)
-    | Instr::I64Store16(offset)
-    | Instr::I64Store32(offset) => {
+    Instr::I64Store(..) | Instr::I64Store8(..) | Instr::I64Store16(..) | Instr::I64Store32(..) => {
       // Stack ops
       read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // raw addr
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // value
@@ -72,8 +69,30 @@ pub fn step_RS_WS(
 
       let write_addr_1 = effective_addr / 8 + stack_len;
       let write_addr_2 = effective_addr / 8 + 1 + stack_len;
-      write_op(write_addr_1, vm.Z, global_ts, FS, &mut RS, &mut WS);
-      write_op(write_addr_2, vm.P, global_ts, FS, &mut RS, &mut WS);
+      write_op(write_addr_1, vm.P, global_ts, FS, &mut RS, &mut WS);
+      write_op(write_addr_2, vm.Q, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    Instr::I64Load(..)
+    | Instr::I64Load8S(..)
+    | Instr::I64Load8U(..)
+    | Instr::I64Load16S(..)
+    | Instr::I64Load16U(..)
+    | Instr::I64Load32S(..)
+    | Instr::I64Load32U(..) => {
+      // stack ops
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // addr
+
+      // linear mem ops
+      let effective_addr = vm.I as usize;
+
+      let read_addr_1 = effective_addr / 8 + stack_len;
+      let read_addr_2 = effective_addr / 8 + 1 + stack_len;
+
+      read_op(read_addr_1, global_ts, FS, &mut RS, &mut WS);
+      read_op(read_addr_2, global_ts, FS, &mut RS, &mut WS);
+
+      write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
 
     _ => unimplemented!("{:?}", instr),

@@ -241,6 +241,7 @@ where
     self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
     self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
     self.visit_store(cs.namespace(|| "store"), &mut switches)?;
+    self.visit_load(cs.namespace(|| "load"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -812,7 +813,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Return instruction
+  /// Store instruction
   fn visit_store<CS, F>(
     &self,
     mut cs: CS,
@@ -826,19 +827,14 @@ impl WASMTransitionCircuit {
     let switch = self.switch(&mut cs, J, switches)?;
 
     // Stack ops
-    let raw_addr_addr = Self::alloc_num(
+    let raw_last = Self::alloc_num(
       &mut cs,
       || "pre_sp - 2",
       || Ok(F::from((self.vm.pre_sp - 2) as u64)),
       switch,
     )?;
 
-    let _ = Self::read(
-      cs.namespace(|| "raw_addr"),
-      &raw_addr_addr,
-      &self.RS[0],
-      switch,
-    )?;
+    let _ = Self::read(cs.namespace(|| "raw_addr"), &raw_last, &self.RS[0], switch)?;
 
     let val_addr = Self::alloc_num(
       &mut cs,
@@ -847,7 +843,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _ = Self::read(cs.namespace(|| "Y"), &val_addr, &self.RS[1], switch)?;
+    let _ = Self::read(cs.namespace(|| "val"), &val_addr, &self.RS[1], switch)?;
 
     // linear mem ops
     let effective_addr = self.vm.I;
@@ -873,9 +869,9 @@ impl WASMTransitionCircuit {
     )?;
 
     let write_val_1 =
-      Self::alloc_num(&mut cs, || "write_val_1", || Ok(F::from(self.vm.Z)), switch)?;
+      Self::alloc_num(&mut cs, || "write_val_1", || Ok(F::from(self.vm.P)), switch)?;
     let write_val_2 =
-      Self::alloc_num(&mut cs, || "write_val_2", || Ok(F::from(self.vm.P)), switch)?;
+      Self::alloc_num(&mut cs, || "write_val_2", || Ok(F::from(self.vm.Q)), switch)?;
 
     Self::write(
       cs.namespace(|| "store 1"),
@@ -889,6 +885,79 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "store 2"),
       &write_addr_2,
       &write_val_2,
+      &self.WS[3],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// Store instruction
+  fn visit_load<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Load(AddressOffset::from(0)) }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    // Stack ops
+    let last = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let _ = Self::read(cs.namespace(|| "val"), &last, &self.RS[0], switch)?;
+
+    // linear mem ops
+    let effective_addr = self.vm.I;
+
+    let read_addr_1 = Self::alloc_num(
+      &mut cs,
+      || "read_addr_1",
+      || {
+        let read_addr_1 = effective_addr / 8 + self.stack_len as u64;
+        Ok(F::from(read_addr_1))
+      },
+      switch,
+    )?;
+
+    let read_addr_2 = Self::alloc_num(
+      &mut cs,
+      || "read_addr_2",
+      || {
+        let read_addr_2 = effective_addr / 8 + 1 + self.stack_len as u64;
+        Ok(F::from(read_addr_2))
+      },
+      switch,
+    )?;
+
+    let _ = Self::read(
+      cs.namespace(|| "block_val_1"),
+      &read_addr_1,
+      &self.RS[1],
+      switch,
+    )?;
+    let _ = Self::read(
+      cs.namespace(|| "block_val_1"),
+      &read_addr_2,
+      &self.RS[2],
+      switch,
+    )?;
+
+    let stack_write_val =
+      Self::alloc_num(&mut cs, || "stack write", || Ok(F::from(self.vm.Z)), switch)?;
+
+    Self::write(
+      cs.namespace(|| "store 1"),
+      &last,
+      &stack_write_val,
       &self.WS[3],
       switch,
     )?;

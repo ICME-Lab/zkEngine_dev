@@ -296,3 +296,38 @@ fn store_02() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn load_01() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (memory 1)
+        (func (export "main") (param $src i32) (result i64)
+            (i64.load (local.get $src))
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .func_args(vec![String::from("1")])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn load_02() {
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .func_args(vec![String::from("1")])
+    .file_path(PathBuf::from("wasm/memory/load_op_i64.wat"))
+    .unwrap()
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
