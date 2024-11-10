@@ -1789,6 +1789,38 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64TruncSatF64U => {
                 vm.Y = self.sp.last().to_bits();
             }
+
+            // visit_binary
+            Instr::F32Eq
+            | Instr::F32Ne
+            | Instr::F32Lt
+            | Instr::F32Gt
+            | Instr::F32Le
+            | Instr::F32Ge
+            | Instr::F64Eq
+            | Instr::F64Ne
+            | Instr::F64Lt
+            | Instr::F64Gt
+            | Instr::F64Le
+            | Instr::F64Ge
+            | Instr::F32Add
+            | Instr::F32Sub
+            | Instr::F32Mul
+            | Instr::F32Div
+            | Instr::F32Min
+            | Instr::F32Max
+            | Instr::F32Copysign
+            | Instr::F64Add
+            | Instr::F64Sub
+            | Instr::F64Mul
+            | Instr::F64Div
+            | Instr::F64Min
+            | Instr::F64Max
+            | Instr::F64Copysign => {
+                vm.X = self.sp.nth_back(2).to_bits();
+                vm.Y = self.sp.nth_back(1).to_bits();
+            }
+
             _ => unimplemented!(),
         }
 
@@ -1925,6 +1957,37 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64TruncSatF64U => {
                 vm.Z = self.sp.last().to_bits();
             }
+
+            // visit_binary
+            Instr::F32Eq
+            | Instr::F32Ne
+            | Instr::F32Lt
+            | Instr::F32Gt
+            | Instr::F32Le
+            | Instr::F32Ge
+            | Instr::F64Eq
+            | Instr::F64Ne
+            | Instr::F64Lt
+            | Instr::F64Gt
+            | Instr::F64Le
+            | Instr::F64Ge
+            | Instr::F32Add
+            | Instr::F32Sub
+            | Instr::F32Mul
+            | Instr::F32Div
+            | Instr::F32Min
+            | Instr::F32Max
+            | Instr::F32Copysign
+            | Instr::F64Add
+            | Instr::F64Sub
+            | Instr::F64Mul
+            | Instr::F64Div
+            | Instr::F64Min
+            | Instr::F64Max
+            | Instr::F64Copysign => {
+                vm.Z = self.sp.last().to_bits();
+            }
+
             _ => {}
         }
     }

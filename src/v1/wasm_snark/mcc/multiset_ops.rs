@@ -165,6 +165,39 @@ pub fn step_RS_WS(
       write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS); // Z
     }
 
+    // visit_binary
+    Instr::F32Eq
+    | Instr::F32Ne
+    | Instr::F32Lt
+    | Instr::F32Gt
+    | Instr::F32Le
+    | Instr::F32Ge
+    | Instr::F64Eq
+    | Instr::F64Ne
+    | Instr::F64Lt
+    | Instr::F64Gt
+    | Instr::F64Le
+    | Instr::F64Ge
+    | Instr::F32Add
+    | Instr::F32Sub
+    | Instr::F32Mul
+    | Instr::F32Div
+    | Instr::F32Min
+    | Instr::F32Max
+    | Instr::F32Copysign
+    | Instr::F64Add
+    | Instr::F64Sub
+    | Instr::F64Mul
+    | Instr::F64Div
+    | Instr::F64Min
+    | Instr::F64Max
+    | Instr::F64Copysign => {
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
+
+      write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
+    }
+
     _ => unimplemented!("{:?}", instr),
   }
 

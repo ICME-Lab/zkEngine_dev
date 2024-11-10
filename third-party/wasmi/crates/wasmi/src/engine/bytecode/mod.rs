@@ -302,6 +302,7 @@ pub enum Instruction {
     I64Rotl,
     I64Rotr,
 
+    // unary
     F32Abs,
     F32Neg,
     F32Ceil,
@@ -309,6 +310,8 @@ pub enum Instruction {
     F32Trunc,
     F32Nearest,
     F32Sqrt,
+
+    // binary
     F32Add,
     F32Sub,
     F32Mul,
@@ -316,6 +319,8 @@ pub enum Instruction {
     F32Min,
     F32Max,
     F32Copysign,
+
+    // unary
     F64Abs,
     F64Neg,
     F64Ceil,
@@ -323,6 +328,8 @@ pub enum Instruction {
     F64Trunc,
     F64Nearest,
     F64Sqrt,
+
+    // binary
     F64Add,
     F64Sub,
     F64Mul,
@@ -331,6 +338,7 @@ pub enum Instruction {
     F64Max,
     F64Copysign,
 
+    // unary
     I32WrapI64,
     I32TruncF32S,
     I32TruncF32U,
@@ -431,7 +439,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 20;
+    pub const MAX_J: u64 = 21;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
@@ -521,6 +529,34 @@ impl Instruction {
             | Self::I64TruncSatF32U
             | Self::I64TruncSatF64S
             | Self::I64TruncSatF64U => 19,
+
+            // visit_binary
+            Self::F32Eq
+            | Self::F32Ne
+            | Self::F32Lt
+            | Self::F32Gt
+            | Self::F32Le
+            | Self::F32Ge
+            | Self::F64Eq
+            | Self::F64Ne
+            | Self::F64Lt
+            | Self::F64Gt
+            | Self::F64Le
+            | Self::F64Ge
+            | Self::F32Add
+            | Self::F32Sub
+            | Self::F32Mul
+            | Self::F32Div
+            | Self::F32Min
+            | Self::F32Max
+            | Self::F32Copysign
+            | Self::F64Add
+            | Self::F64Sub
+            | Self::F64Mul
+            | Self::F64Div
+            | Self::F64Min
+            | Self::F64Max
+            | Self::F64Copysign => 20,
 
             Self::CallInternal(..) => 0, // TODO: all 0 J_indexes
             Self::Drop => 0,
