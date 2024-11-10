@@ -251,6 +251,7 @@ pub enum Instruction {
     I64LeU,
     I64GeS,
     I64GeU,
+
     F32Eq,
     F32Ne,
     F32Lt,
@@ -263,6 +264,7 @@ pub enum Instruction {
     F64Gt,
     F64Le,
     F64Ge,
+
     I32Clz,
     I32Ctz,
     I32Popcnt,
@@ -299,6 +301,7 @@ pub enum Instruction {
     I64ShrU,
     I64Rotl,
     I64Rotr,
+
     F32Abs,
     F32Neg,
     F32Ceil,
@@ -327,6 +330,7 @@ pub enum Instruction {
     F64Min,
     F64Max,
     F64Copysign,
+
     I32WrapI64,
     I32TruncF32S,
     I32TruncF32U,
@@ -427,7 +431,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 19;
+    pub const MAX_J: u64 = 20;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
@@ -467,6 +471,56 @@ impl Instruction {
             Self::I64Clz => 16,
             Self::I64Ctz => 17,
             Self::I64Popcnt => 18,
+
+            // visit_unary
+            Self::F32Abs
+            | Self::F32Neg
+            | Self::F32Ceil
+            | Self::F32Floor
+            | Self::F32Trunc
+            | Self::F32Nearest
+            | Self::F32Sqrt
+            | Self::F64Abs
+            | Self::F64Neg
+            | Self::F64Ceil
+            | Self::F64Floor
+            | Self::F64Trunc
+            | Self::F64Nearest
+            | Self::F64Sqrt
+            | Self::I32WrapI64
+            | Self::I32TruncF32S
+            | Self::I32TruncF32U
+            | Self::I32TruncF64S
+            | Self::I32TruncF64U
+            | Self::I64ExtendI32S
+            | Self::I64ExtendI32U
+            | Self::I64TruncF32S
+            | Self::I64TruncF32U
+            | Self::I64TruncF64S
+            | Self::I64TruncF64U
+            | Self::F32ConvertI32S
+            | Self::F32ConvertI32U
+            | Self::F32ConvertI64S
+            | Self::F32ConvertI64U
+            | Self::F32DemoteF64
+            | Self::F64ConvertI32S
+            | Self::F64ConvertI32U
+            | Self::F64ConvertI64S
+            | Self::F64ConvertI64U
+            | Self::F64PromoteF32
+            | Self::I32Extend8S
+            | Self::I32Extend16S
+            | Self::I64Extend8S
+            | Self::I64Extend16S
+            | Self::I64Extend32S
+            | Self::I32TruncSatF32S
+            | Self::I32TruncSatF32U
+            | Self::I32TruncSatF64S
+            | Self::I32TruncSatF64U
+            | Self::I64TruncSatF32S
+            | Self::I64TruncSatF32U
+            | Self::I64TruncSatF64S
+            | Self::I64TruncSatF64U => 19,
 
             Self::CallInternal(..) => 0, // TODO: all 0 J_indexes
             Self::Drop => 0,

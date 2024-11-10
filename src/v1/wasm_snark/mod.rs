@@ -249,6 +249,7 @@ where
     self.visit_i64_clz(cs.namespace(|| "i64.clz"), &mut switches)?;
     self.visit_i64_ctz(cs.namespace(|| "i64.ctz"), &mut switches)?;
     self.visit_popcount(cs.namespace(|| "popcount"), &mut switches)?;
+    self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -1246,6 +1247,41 @@ impl WASMTransitionCircuit {
     let Z = Self::alloc_num(&mut cs, || "Z=popcnt(Y)", || Ok(F::from(self.vm.Z)), switch)?;
 
     popcount(cs.namespace(|| "popcnt"), &Y, &Z)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &last_addr, // pre_sp - 1
+      &Z,
+      &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// Unary op
+  fn visit_unary<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::F32Abs }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let _ = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+
+    let Z = Self::alloc_num(&mut cs, || "unary_op(Y)", || Ok(F::from(self.vm.Z)), switch)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),

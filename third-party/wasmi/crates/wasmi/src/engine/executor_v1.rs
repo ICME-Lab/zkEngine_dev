@@ -1737,6 +1737,58 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt => {
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
+
+            // visit_unary
+            Instr::F32Abs
+            | Instr::F32Neg
+            | Instr::F32Ceil
+            | Instr::F32Floor
+            | Instr::F32Trunc
+            | Instr::F32Nearest
+            | Instr::F32Sqrt
+            | Instr::F64Abs
+            | Instr::F64Neg
+            | Instr::F64Ceil
+            | Instr::F64Floor
+            | Instr::F64Trunc
+            | Instr::F64Nearest
+            | Instr::F64Sqrt
+            | Instr::I32WrapI64
+            | Instr::I32TruncF32S
+            | Instr::I32TruncF32U
+            | Instr::I32TruncF64S
+            | Instr::I32TruncF64U
+            | Instr::I64ExtendI32S
+            | Instr::I64ExtendI32U
+            | Instr::I64TruncF32S
+            | Instr::I64TruncF32U
+            | Instr::I64TruncF64S
+            | Instr::I64TruncF64U
+            | Instr::F32ConvertI32S
+            | Instr::F32ConvertI32U
+            | Instr::F32ConvertI64S
+            | Instr::F32ConvertI64U
+            | Instr::F32DemoteF64
+            | Instr::F64ConvertI32S
+            | Instr::F64ConvertI32U
+            | Instr::F64ConvertI64S
+            | Instr::F64ConvertI64U
+            | Instr::F64PromoteF32
+            | Instr::I32Extend8S
+            | Instr::I32Extend16S
+            | Instr::I64Extend8S
+            | Instr::I64Extend16S
+            | Instr::I64Extend32S
+            | Instr::I32TruncSatF32S
+            | Instr::I32TruncSatF32U
+            | Instr::I32TruncSatF64S
+            | Instr::I32TruncSatF64U
+            | Instr::I64TruncSatF32S
+            | Instr::I64TruncSatF32U
+            | Instr::I64TruncSatF64S
+            | Instr::I64TruncSatF64U => {
+                vm.Y = self.sp.last().to_bits();
+            }
             _ => unimplemented!(),
         }
 
@@ -1820,6 +1872,58 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
             Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt => {
                 vm.Z = self.sp.nth_back(1).to_bits();
+            }
+
+            // visit_unary
+            Instr::F32Abs
+            | Instr::F32Neg
+            | Instr::F32Ceil
+            | Instr::F32Floor
+            | Instr::F32Trunc
+            | Instr::F32Nearest
+            | Instr::F32Sqrt
+            | Instr::F64Abs
+            | Instr::F64Neg
+            | Instr::F64Ceil
+            | Instr::F64Floor
+            | Instr::F64Trunc
+            | Instr::F64Nearest
+            | Instr::F64Sqrt
+            | Instr::I32WrapI64
+            | Instr::I32TruncF32S
+            | Instr::I32TruncF32U
+            | Instr::I32TruncF64S
+            | Instr::I32TruncF64U
+            | Instr::I64ExtendI32S
+            | Instr::I64ExtendI32U
+            | Instr::I64TruncF32S
+            | Instr::I64TruncF32U
+            | Instr::I64TruncF64S
+            | Instr::I64TruncF64U
+            | Instr::F32ConvertI32S
+            | Instr::F32ConvertI32U
+            | Instr::F32ConvertI64S
+            | Instr::F32ConvertI64U
+            | Instr::F32DemoteF64
+            | Instr::F64ConvertI32S
+            | Instr::F64ConvertI32U
+            | Instr::F64ConvertI64S
+            | Instr::F64ConvertI64U
+            | Instr::F64PromoteF32
+            | Instr::I32Extend8S
+            | Instr::I32Extend16S
+            | Instr::I64Extend8S
+            | Instr::I64Extend16S
+            | Instr::I64Extend32S
+            | Instr::I32TruncSatF32S
+            | Instr::I32TruncSatF32U
+            | Instr::I32TruncSatF64S
+            | Instr::I32TruncSatF64U
+            | Instr::I64TruncSatF32S
+            | Instr::I64TruncSatF32U
+            | Instr::I64TruncSatF64S
+            | Instr::I64TruncSatF64U => {
+                vm.Z = self.sp.last().to_bits();
             }
             _ => {}
         }
