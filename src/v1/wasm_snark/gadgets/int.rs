@@ -432,7 +432,6 @@ pub fn shl_bits_64<F: PrimeField, CS: ConstraintSystem<F>>(
   bits: &[Boolean],
   shift: usize,
 ) -> Result<Vec<Boolean>, SynthesisError> {
-  let shift = shift % 64;
   let fill = Boolean::Is(AllocatedBit::alloc(
     cs.namespace(|| "fill bit"),
     Some(false),
@@ -441,7 +440,7 @@ pub fn shl_bits_64<F: PrimeField, CS: ConstraintSystem<F>>(
   let res_bits: Vec<Boolean> = Some(&fill)
     .into_iter()
     .cycle()
-    .take(shift)
+    .take(shift & 0x3F)
     .chain(bits.iter())
     .take(64)
     .cloned()
