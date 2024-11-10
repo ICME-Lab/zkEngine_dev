@@ -1703,7 +1703,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64Or
             | Instr::I64Xor
             | Instr::I64Sub
-            | Instr::I64Shl => {
+            | Instr::I64Shl
+            | Instr::I64ShrS => {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
@@ -1861,7 +1862,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64Or
             | Instr::I64Xor
             | Instr::I64Sub
-            | Instr::I64Shl => {
+            | Instr::I64Shl
+            | Instr::I64ShrS => {
                 vm.Z = self.sp.last().to_bits();
             }
             Instr::I64Store(..)

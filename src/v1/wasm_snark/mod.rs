@@ -4,7 +4,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField, PrimeFieldBits};
 use gadgets::{
-  int::{add, and, eqz, mul, or, popcount, shl_64, sub, xor},
+  int::{add, and, eqz, mul, or, popcount, shl_64, shr_s_64, sub, xor},
   utils::{alloc_one, conditionally_select},
 };
 use itertools::Itertools;
@@ -240,6 +240,7 @@ where
     self.visit_i64_and(cs.namespace(|| "i64.and"), &mut switches)?;
     self.visit_i64_or(cs.namespace(|| "i64.or"), &mut switches)?;
     self.visit_i64_shl(cs.namespace(|| "i64.shl"), &mut switches)?;
+    self.visit_i64_shr_s(cs.namespace(|| "i64.shr_s"), &mut switches)?;
     self.visit_i64_xor(cs.namespace(|| "i64.xor"), &mut switches)?;
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
@@ -663,7 +664,8 @@ impl WASMTransitionCircuit {
 
     let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    let Z = add(cs.namespace(|| "X + Y"), &X, &Y)?;
+    // let Z = add(cs.namespace(|| "X + Y"), &X, &Y)?;
+    let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
@@ -707,7 +709,8 @@ impl WASMTransitionCircuit {
 
     let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    let Z = mul(cs.namespace(|| "X * Y"), &X, &Y)?;
+    // let Z = mul(cs.namespace(|| "X * Y"), &X, &Y)?;
+    let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
@@ -1312,6 +1315,51 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
+  /// i64.shr_s
+  fn visit_i64_shr_s<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64ShrS }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let Z = shr_s_64(cs.namespace(|| "shr_s_64"), &X, self.vm.Y as usize)?;
+    // let Z = Self::alloc_num(&mut cs, || "unary_op(Y)", || Ok(F::from(self.vm.Z)), switch)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
   /// Popcount
   fn visit_popcount<CS, F>(
     &self,
@@ -1415,7 +1463,7 @@ impl WASMTransitionCircuit {
 
     let _Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    let Z = Self::alloc_num(&mut cs, || "unary_op(Y)", || Ok(F::from(self.vm.Z)), switch)?;
+    let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),

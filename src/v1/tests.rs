@@ -575,3 +575,49 @@ fn test_i64_shl() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn test_i64_shr_s() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main")
+        ;; i64.shr_s
+        (i64.const 23)
+        (i64.const 2)
+        (i64.shr_s)
+        (drop)
+        (i64.const -23)
+        (i64.const 5)
+        (i64.shr_s)
+        (drop)
+        (i64.const 0)
+        (i64.const 5)
+        (i64.shr_s)
+        (drop)
+        (i64.const 12)
+        (i64.const 0)
+        (i64.shr_s)
+        (drop)
+        (i64.const 23)
+        (i64.const 68)
+        (i64.shr_s)
+        (drop)
+        (i64.const -23)
+        (i64.const 68)
+        (i64.shr_s)
+        (drop)
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

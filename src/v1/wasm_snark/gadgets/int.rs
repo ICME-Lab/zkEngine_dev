@@ -451,13 +451,43 @@ pub fn shl_bits_64<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 /// Performs bitwise shl operation on a `UInt64` value
-pub fn shl_64<F: PrimeField + PrimeFieldBits, CS: ConstraintSystem<F>>(
+pub fn shl_64<F, CS>(
   mut cs: CS,
   a: &AllocatedNum<F>,
   by: usize,
-) -> Result<AllocatedNum<F>, SynthesisError> {
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
   let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
   let res_bits = shl_bits_64(cs.namespace(|| "shl bits"), &a_bits, by)?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Perform a bitwise shift right operation on the `Int64`
+pub fn shr_s_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  by: usize,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  // get the sign bit
+  let sign_bit = *a_bits.last().get()?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .skip(by & 0x3F)
+    .chain(Some(sign_bit).into_iter().cycle())
+    .take(64)
+    .cloned()
+    .collect();
 
   u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
 }
