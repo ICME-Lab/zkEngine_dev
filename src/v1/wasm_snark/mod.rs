@@ -1417,7 +1417,7 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64ShrU }.index_j();
+    let J: u64 = { Instr::I64Rotl }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
     let X_addr = Self::alloc_num(
@@ -1461,7 +1461,7 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64ShrU }.index_j();
+    let J: u64 = { Instr::I64Rotr }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
     let X_addr = Self::alloc_num(
