@@ -191,7 +191,7 @@ where
   }
 }
 
-/// Multiplexer circuit for WASM module's computation
+/// Multiplexer circuit representing a step in a WASM module's computation
 #[derive(Clone, Debug)]
 pub struct WASMTransitionCircuit {
   vm: WitnessVM,
