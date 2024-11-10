@@ -85,7 +85,15 @@ pub fn step_RS_WS(
       write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::Return(..) => {}
-    Instr::I64Store(..) | Instr::I64Store8(..) | Instr::I64Store16(..) | Instr::I64Store32(..) => {
+    Instr::I64Store(..)
+    | Instr::I64Store8(..)
+    | Instr::I64Store16(..)
+    | Instr::I64Store32(..)
+    | Instr::I32Store(..)
+    | Instr::I32Store8(..)
+    | Instr::I32Store16(..)
+    | Instr::F32Store(..)
+    | Instr::F64Store(..) => {
       // Stack ops
       read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // raw addr
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // value
@@ -99,7 +107,14 @@ pub fn step_RS_WS(
       write_op(write_addr_2, vm.Q, global_ts, FS, &mut RS, &mut WS);
     }
 
-    Instr::I64Load(..)
+    Instr::I32Load(..)
+    | Instr::I32Load8U(..)
+    | Instr::I32Load8S(..)
+    | Instr::I32Load16U(..)
+    | Instr::I32Load16S(..)
+    | Instr::F32Load(..)
+    | Instr::F64Load(..)
+    | Instr::I64Load(..)
     | Instr::I64Load8S(..)
     | Instr::I64Load8U(..)
     | Instr::I64Load16S(..)

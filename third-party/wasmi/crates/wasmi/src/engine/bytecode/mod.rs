@@ -152,16 +152,19 @@ pub enum Instruction {
     I64Load(AddressOffset),
     F32Load(AddressOffset),
     F64Load(AddressOffset),
+
     I32Load8S(AddressOffset),
     I32Load8U(AddressOffset),
     I32Load16S(AddressOffset),
     I32Load16U(AddressOffset),
+
     I64Load8S(AddressOffset),
     I64Load8U(AddressOffset),
     I64Load16S(AddressOffset),
     I64Load16U(AddressOffset),
     I64Load32S(AddressOffset),
     I64Load32U(AddressOffset),
+
     I32Store(AddressOffset),
     I64Store(AddressOffset),
     F32Store(AddressOffset),
@@ -472,13 +475,25 @@ impl Instruction {
             Self::DropKeep => 10,
 
             // Store opcodes
-            Self::I64Store(..)
+            Self::I32Store(..)
+            | Self::I32Store8(..)
+            | Self::I32Store16(..)
+            | Self::F32Store(..) 
+            | Self::F64Store(..)
+            | Self::I64Store(..)
             | Self::I64Store8(..)
             | Self::I64Store16(..)
             | Self::I64Store32(..) => 11,
 
             // Load opcodes
-            Self::I64Load(..)
+            Self::I32Load(..)
+            | Self::I32Load8U(..)
+            | Self::I32Load8S(..)
+            | Self::I32Load16U(..)
+            | Self::I32Load16S(..)
+            | Self::F32Load(..)  
+            | Self::F64Load(..)
+            | Self::I64Load(..)
             | Self::I64Load8S(..)
             | Self::I64Load8U(..)
             | Self::I64Load16S(..)

@@ -1721,7 +1721,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::CallInternal(..) => {}
             Instr::Drop => {}
 
-            Instr::I64Store(offset)
+
+            Instr::I32Store(offset)
+            | Instr::I32Store8(offset)
+            | Instr::I32Store16(offset)
+            | Instr::F32Store(offset) 
+            | Instr::F64Store(offset)
+            | Instr::I64Store(offset)
             | Instr::I64Store8(offset)
             | Instr::I64Store16(offset)
             | Instr::I64Store32(offset) => {
@@ -1735,13 +1741,20 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = effective_address as u64;
             }
 
-            Instruction::I64Load(offset)
-            | Instruction::I64Load8S(offset)
-            | Instruction::I64Load8U(offset)
-            | Instruction::I64Load16S(offset)
-            | Instruction::I64Load16U(offset)
-            | Instruction::I64Load32S(offset)
-            | Instruction::I64Load32U(offset) => {
+            Instr::I32Load(offset)
+            | Instr::I32Load8U(offset)
+            | Instr::I32Load8S(offset)
+            | Instr::I32Load16U(offset)
+            | Instr::I32Load16S(offset)
+            | Instr::F32Load(offset)  
+            | Instr::F64Load(offset)
+            | Instr::I64Load(offset)
+            | Instr::I64Load8S(offset)
+            | Instr::I64Load8U(offset)
+            | Instr::I64Load16S(offset)
+            | Instr::I64Load16U(offset)
+            | Instr::I64Load32S(offset)
+            | Instr::I64Load32U(offset) => {
                 let raw_address_u64 = self.sp.last().to_bits();
                 let raw_address = raw_address_u64 as u32;
                 let offset = offset.into_inner();
@@ -1839,9 +1852,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::F64Min
             | Instr::F64Max
             | Instr::F64Copysign 
-
-            // i64
-            // comparisons
             | Instr::I64Eq
             | Instr::I64Ne
             | Instr::I64LtS
@@ -1852,9 +1862,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64LeU
             | Instr::I64GeS
             | Instr::I64GeU
-
-            // I32
-            // comparisons
             | Instr::I32Eq
             | Instr::I32Ne
             | Instr::I32LtS
@@ -1865,9 +1872,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I32LeU
             | Instr::I32GeS
             | Instr::I32GeU
-
-            // i32
-            // binary
             | Instr::I32Add
             | Instr::I32Sub
             | Instr::I32Mul
@@ -1929,7 +1933,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64ShrS => {
                 vm.Z = self.sp.last().to_bits();
             }
-            Instr::I64Store(..)
+
+            Instr::I32Store(..)
+            | Instr::I32Store8(..)
+            | Instr::I32Store16(..)
+            | Instr::F32Store(..) 
+            | Instr::F64Store(..)
+            | Instr::I64Store(..)
             | Instr::I64Store8(..)
             | Instr::I64Store16(..)
             | Instr::I64Store32(..) => {
@@ -1956,7 +1966,14 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Q = updated_block_value2;
             }
 
-            Instr::I64Load(..)
+            Instr::I32Load(..)
+            | Instr::I32Load8U(..)
+            | Instr::I32Load8S(..)
+            | Instr::I32Load16U(..)
+            | Instr::I32Load16S(..)
+            | Instr::F32Load(..)  
+            | Instr::F64Load(..)
+            | Instr::I64Load(..)
             | Instr::I64Load8S(..)
             | Instr::I64Load8U(..)
             | Instr::I64Load16S(..)
