@@ -59,6 +59,10 @@ pub fn step_RS_WS(
     | Instr::I64Rotl
     | Instr::I64Rotr
     | Instr::I64ShrU
+    | Instr::I64DivS
+    | Instr::I64DivU
+    | Instr::I64RemS
+    | Instr::I64RemU
     | Instr::I64ShrS => {
       read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
