@@ -241,6 +241,8 @@ pub enum Instruction {
     I32GeS,
     I32GeU,
 
+    // i64
+    // comparisons
     I64Eqz,
     I64Eq,
     I64Ne,
@@ -253,7 +255,8 @@ pub enum Instruction {
     I64GeS,
     I64GeU,
 
-    // binary
+    // f32
+    // binary comparisons
     F32Eq,
     F32Ne,
     F32Lt,
@@ -270,6 +273,9 @@ pub enum Instruction {
     I32Clz,
     I32Ctz,
     I32Popcnt,
+
+    // i32
+    // binary
     I32Add,
     I32Sub,
     I32Mul,
@@ -285,6 +291,8 @@ pub enum Instruction {
     I32ShrU,
     I32Rotl,
     I32Rotr,
+
+    // i64
     I64Clz,
     I64Ctz,
     I64Popcnt,
@@ -533,7 +541,12 @@ impl Instruction {
             | Self::I64TruncSatF32S
             | Self::I64TruncSatF32U
             | Self::I64TruncSatF64S
-            | Self::I64TruncSatF64U => 19,
+            | Self::I64TruncSatF64U
+            // i32
+            | Self::I32Clz
+            | Self::I32Ctz
+            | Self::I32Popcnt
+             => 19,
 
             // visit_binary
             Self::F32Eq
@@ -561,7 +574,52 @@ impl Instruction {
             | Self::F64Div
             | Self::F64Min
             | Self::F64Max
-            | Self::F64Copysign => 20,
+            | Self::F64Copysign
+
+            // i64
+            // comparisons
+            | Self::I64Eq
+            | Self::I64Ne
+            | Self::I64LtS
+            | Self::I64LtU
+            | Self::I64GtS
+            | Self::I64GtU
+            | Self::I64LeS
+            | Self::I64LeU
+            | Self::I64GeS
+            | Self::I64GeU
+
+            // I32
+            // comparisons
+            | Self::I32Eq
+            | Self::I32Ne
+            | Self::I32LtS
+            | Self::I32LtU
+            | Self::I32GtS
+            | Self::I32GtU
+            | Self::I32LeS
+            | Self::I32LeU
+            | Self::I32GeS
+            | Self::I32GeU
+
+            // i32
+            // binary
+            | Self::I32Add
+            | Self::I32Sub
+            | Self::I32Mul
+            | Self::I32DivS
+            | Self::I32DivU
+            | Self::I32RemS
+            | Self::I32RemU
+            | Self::I32And
+            | Self::I32Or
+            | Self::I32Xor
+            | Self::I32Shl
+            | Self::I32ShrS
+            | Self::I32ShrU
+            | Self::I32Rotl
+            | Self::I32Rotr
+             => 20,
 
             Self::I64Sub => 21,
             Self::I64Shl => 22,

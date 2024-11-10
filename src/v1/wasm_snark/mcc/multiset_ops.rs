@@ -174,7 +174,10 @@ pub fn step_RS_WS(
     | Instr::I64TruncSatF32S
     | Instr::I64TruncSatF32U
     | Instr::I64TruncSatF64S
-    | Instr::I64TruncSatF64U => {
+    | Instr::I64TruncSatF64U
+    | Instr::I32Clz
+    | Instr::I32Ctz
+    | Instr::I32Popcnt => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
       write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS); // Z
     }
@@ -205,7 +208,42 @@ pub fn step_RS_WS(
     | Instr::F64Div
     | Instr::F64Min
     | Instr::F64Max
-    | Instr::F64Copysign => {
+    | Instr::F64Copysign
+    | Instr::I64Eq
+    | Instr::I64Ne
+    | Instr::I64LtS
+    | Instr::I64LtU
+    | Instr::I64GtS
+    | Instr::I64GtU
+    | Instr::I64LeS
+    | Instr::I64LeU
+    | Instr::I64GeS
+    | Instr::I64GeU
+    | Instr::I32Eq
+    | Instr::I32Ne
+    | Instr::I32LtS
+    | Instr::I32LtU
+    | Instr::I32GtS
+    | Instr::I32GtU
+    | Instr::I32LeS
+    | Instr::I32LeU
+    | Instr::I32GeS
+    | Instr::I32GeU
+    | Instr::I32Add
+    | Instr::I32Sub
+    | Instr::I32Mul
+    | Instr::I32DivS
+    | Instr::I32DivU
+    | Instr::I32RemS
+    | Instr::I32RemU
+    | Instr::I32And
+    | Instr::I32Or
+    | Instr::I32Xor
+    | Instr::I32Shl
+    | Instr::I32ShrS
+    | Instr::I32ShrU
+    | Instr::I32Rotl
+    | Instr::I32Rotr => {
       read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
 

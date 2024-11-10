@@ -1804,7 +1804,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64TruncSatF32S
             | Instr::I64TruncSatF32U
             | Instr::I64TruncSatF64S
-            | Instr::I64TruncSatF64U => {
+            | Instr::I64TruncSatF64U 
+            | Instr::I32Clz
+            | Instr::I32Ctz
+            | Instr::I32Popcnt => {
                 vm.Y = self.sp.last().to_bits();
             }
 
@@ -1835,7 +1838,53 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::F64Div
             | Instr::F64Min
             | Instr::F64Max
-            | Instr::F64Copysign => {
+            | Instr::F64Copysign 
+
+            // i64
+            // comparisons
+            | Instr::I64Eq
+            | Instr::I64Ne
+            | Instr::I64LtS
+            | Instr::I64LtU
+            | Instr::I64GtS
+            | Instr::I64GtU
+            | Instr::I64LeS
+            | Instr::I64LeU
+            | Instr::I64GeS
+            | Instr::I64GeU
+
+            // I32
+            // comparisons
+            | Instr::I32Eq
+            | Instr::I32Ne
+            | Instr::I32LtS
+            | Instr::I32LtU
+            | Instr::I32GtS
+            | Instr::I32GtU
+            | Instr::I32LeS
+            | Instr::I32LeU
+            | Instr::I32GeS
+            | Instr::I32GeU
+
+            // i32
+            // binary
+            | Instr::I32Add
+            | Instr::I32Sub
+            | Instr::I32Mul
+            | Instr::I32DivS
+            | Instr::I32DivU
+            | Instr::I32RemS
+            | Instr::I32RemU
+            | Instr::I32And
+            | Instr::I32Or
+            | Instr::I32Xor
+            | Instr::I32Shl
+            | Instr::I32ShrS
+            | Instr::I32ShrU
+            | Instr::I32Rotl
+            | Instr::I32Rotr
+            
+            => {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
@@ -1990,7 +2039,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64TruncSatF32S
             | Instr::I64TruncSatF32U
             | Instr::I64TruncSatF64S
-            | Instr::I64TruncSatF64U => {
+            | Instr::I64TruncSatF64U  
+            | Instr::I32Clz
+            | Instr::I32Ctz
+            | Instr::I32Popcnt => {
                 vm.Z = self.sp.last().to_bits();
             }
 
@@ -2020,7 +2072,50 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::F64Div
             | Instr::F64Min
             | Instr::F64Max
-            | Instr::F64Copysign => {
+            | Instr::F64Copysign 
+            // i64
+            // comparisons
+            | Instr::I64Eq
+            | Instr::I64Ne
+            | Instr::I64LtS
+            | Instr::I64LtU
+            | Instr::I64GtS
+            | Instr::I64GtU
+            | Instr::I64LeS
+            | Instr::I64LeU
+            | Instr::I64GeS
+            | Instr::I64GeU
+
+            // I32
+            // comparisons
+            | Instr::I32Eq
+            | Instr::I32Ne
+            | Instr::I32LtS
+            | Instr::I32LtU
+            | Instr::I32GtS
+            | Instr::I32GtU
+            | Instr::I32LeS
+            | Instr::I32LeU
+            | Instr::I32GeS
+            | Instr::I32GeU
+
+            // i32
+            // binary
+            | Instr::I32Add
+            | Instr::I32Sub
+            | Instr::I32Mul
+            | Instr::I32DivS
+            | Instr::I32DivU
+            | Instr::I32RemS
+            | Instr::I32RemU
+            | Instr::I32And
+            | Instr::I32Or
+            | Instr::I32Xor
+            | Instr::I32Shl
+            | Instr::I32ShrS
+            | Instr::I32ShrU
+            | Instr::I32Rotl
+            | Instr::I32Rotr => {
                 vm.Z = self.sp.last().to_bits();
             }
 
