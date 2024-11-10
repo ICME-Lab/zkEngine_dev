@@ -1697,7 +1697,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::Br(branch_offset) => {
                 vm.I = branch_offset.to_i32() as u64;
             }
-            Instr::I64Add | Instr::I64Mul | Instr::I64And | Instr::I64Or | Instr::I64Xor => {
+            Instr::I64Add
+            | Instr::I64Mul
+            | Instr::I64And
+            | Instr::I64Or
+            | Instr::I64Xor
+            | Instr::I64Sub
+            | Instr::I64Shl => {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
@@ -1742,6 +1748,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
 
             // visit_unary
+            // TODO: We are going to use jolt techniques to handle these
             Instr::F32Abs
             | Instr::F32Neg
             | Instr::F32Ceil
@@ -1794,6 +1801,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
 
             // visit_binary
+            // TODO: We are going to use jolt techniques to handle these
             Instr::F32Eq
             | Instr::F32Ne
             | Instr::F32Lt
@@ -1847,7 +1855,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = local_depth.to_usize() as u64;
                 vm.P = self.sp.last().to_bits();
             }
-            Instr::I64Add | Instr::I64Mul | Instr::I64And | Instr::I64Or | Instr::I64Xor => {
+            Instr::I64Add
+            | Instr::I64Mul
+            | Instr::I64And
+            | Instr::I64Or
+            | Instr::I64Xor
+            | Instr::I64Sub
+            | Instr::I64Shl => {
                 vm.Z = self.sp.last().to_bits();
             }
             Instr::I64Store(..)

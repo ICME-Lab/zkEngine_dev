@@ -4,7 +4,7 @@ use std::{cell::RefCell, marker::PhantomData, rc::Rc};
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField, PrimeFieldBits};
 use gadgets::{
-  int::{add, and, eqz, mul, or, popcount, sub, xor},
+  int::{add, and, eqz, mul, or, popcount, shl_64, sub, xor},
   utils::{alloc_one, conditionally_select},
 };
 use itertools::Itertools;
@@ -235,9 +235,11 @@ where
     self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
     self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
+    self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
     self.visit_i64_and(cs.namespace(|| "i64.and"), &mut switches)?;
     self.visit_i64_or(cs.namespace(|| "i64.or"), &mut switches)?;
+    self.visit_i64_shl(cs.namespace(|| "i64.shl"), &mut switches)?;
     self.visit_i64_xor(cs.namespace(|| "i64.xor"), &mut switches)?;
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
@@ -581,6 +583,49 @@ impl WASMTransitionCircuit {
       &depth_addr,
       &Y,
       &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.sub
+  fn visit_i64_sub<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Sub }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y = Self::alloc_num(
+      &mut cs,
+      || "-Y",
+      || Ok(F::from((-(self.vm.Y as i64)) as u64)),
+      switch,
+    )?;
+
+    // let Z = add(cs.namespace(|| "X - Y"), &X, &Y)?;
+    let Z = Self::alloc_num(&mut cs, || "Z=sub(X, Y)", || Ok(F::from(self.vm.Z)), switch)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
       switch,
     )?;
 
@@ -1173,7 +1218,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let _Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
 
     let Z = Self::alloc_num(&mut cs, || "Z=clz(Y)", || Ok(F::from(self.vm.Z)), switch)?;
 
@@ -1208,7 +1253,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let _Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
 
     let Z = Self::alloc_num(&mut cs, || "Z=ctz(Y)", || Ok(F::from(self.vm.Z)), switch)?;
 
@@ -1217,6 +1262,50 @@ impl WASMTransitionCircuit {
       &last_addr, // pre_sp - 1
       &Z,
       &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.shl
+  fn visit_i64_shl<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Shl }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let Z = shl_64(cs.namespace(|| "shl_64"), &X, self.vm.Y as usize)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
       switch,
     )?;
 

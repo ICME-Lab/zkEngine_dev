@@ -512,3 +512,66 @@ fn test_popcnt() {
 
   test_wasm_snark_with(wasm_ctx);
 }
+
+#[test]
+fn test_sub() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main") (param i64) (param i64) (result i64)
+            local.get 0
+            local.get 1
+            i64.sub
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .func_args(vec!["255".to_string(), "122".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}
+
+#[test]
+fn test_i64_shl() {
+  init_logger();
+  let wasm = wat2wasm(
+    r#"
+    (module
+        (func (export "main")
+        ;; i64.shl
+        (i64.const 12)
+        (i64.const 0)
+        (i64.shl)
+        (drop)
+        (i64.const 12)
+        (i64.const 1)
+        (i64.shl)
+        (drop)
+        (i64.const 12)
+        (i64.const 67)
+        (i64.shl)
+        (drop)
+        (i64.const 0xffffffffffffffff)
+        (i64.const 1)
+        (i64.shl)
+        (drop)
+        )
+    )
+"#,
+  )
+  .unwrap();
+
+  let wasm_ctx = WASMCtxBuilder::default()
+    .bytecode(wasm)
+    .invoke("main")
+    .build();
+
+  test_wasm_snark_with(wasm_ctx);
+}

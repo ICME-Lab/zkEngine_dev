@@ -425,3 +425,39 @@ pub(crate) fn popcount_lc<F: PrimeField, CS: ConstraintSystem<F>>(
     add_to_lc::<F, CS>(bit, acc, F::ONE)
   })
 }
+
+/// Gadget to perform bitwise shl operation.
+pub fn shl_bits_64<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  bits: &[Boolean],
+  shift: usize,
+) -> Result<Vec<Boolean>, SynthesisError> {
+  let shift = shift % 64;
+  let fill = Boolean::Is(AllocatedBit::alloc(
+    cs.namespace(|| "fill bit"),
+    Some(false),
+  )?);
+
+  let res_bits: Vec<Boolean> = Some(&fill)
+    .into_iter()
+    .cycle()
+    .take(shift)
+    .chain(bits.iter())
+    .take(64)
+    .cloned()
+    .collect();
+
+  Ok(res_bits)
+}
+
+/// Performs bitwise shl operation on a `UInt64` value
+pub fn shl_64<F: PrimeField + PrimeFieldBits, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  by: usize,
+) -> Result<AllocatedNum<F>, SynthesisError> {
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+  let res_bits = shl_bits_64(cs.namespace(|| "shl bits"), &a_bits, by)?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
