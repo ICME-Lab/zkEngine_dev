@@ -19,7 +19,7 @@ pub fn step_RS_WS(
   let mut WS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP / 2);
 
   match instr {
-    Instr::I64Const32(_) | Instr::Const32(..) | Instr::ConstRef(..) => {
+    Instr::I64Const32(_) | Instr::Const32(..) | Instr::ConstRef(..) | Instr::F64Const32(..) => {
       write_op(vm.pre_sp, vm.I, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::LocalGet(_) => {

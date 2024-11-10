@@ -1686,7 +1686,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = depth.to_usize() as u64;
                 vm.Y = self.sp.last().to_bits();
             }
-            Instr::Const32(..) | Instr::ConstRef(..) | Instr::I64Const32(..) => {}
+            Instr::Const32(..)
+            | Instr::ConstRef(..)
+            | Instr::I64Const32(..)
+            | Instr::F64Const32(..) => {}
             Instr::BrIfEqz(branch_offset) | Instr::BrIfNez(branch_offset) => {
                 vm.Y = self.sp.nth_back(1).to_bits(); // condition value
                 vm.I = branch_offset.to_i32() as u64;
@@ -1833,7 +1836,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         use Instruction as Instr;
 
         match *instr {
-            Instr::Const32(..) | Instr::ConstRef(..) | Instr::I64Const32(..) => {
+            Instr::Const32(..)
+            | Instr::ConstRef(..)
+            | Instr::I64Const32(..)
+            | Instr::F64Const32(..) => {
                 vm.I = self.sp.last().to_bits();
                 vm.P = vm.I;
             }

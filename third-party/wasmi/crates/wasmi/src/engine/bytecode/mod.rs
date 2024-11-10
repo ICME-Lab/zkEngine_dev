@@ -252,6 +252,7 @@ pub enum Instruction {
     I64GeS,
     I64GeU,
 
+    // binary
     F32Eq,
     F32Ne,
     F32Lt,
@@ -447,7 +448,10 @@ impl Instruction {
     pub fn index_j(&self) -> u64 {
         match self {
             Self::Unreachable => 0,
-            Self::I64Const32(..) | Self::Const32(..) | Self::ConstRef(..) => 1,
+            Self::I64Const32(..)
+            | Self::Const32(..)
+            | Self::ConstRef(..)
+            | Self::F64Const32(..) => 1,
             Self::LocalGet(..) => 2,
             Self::I64Add => 3,
             Self::I64Mul => 4,
