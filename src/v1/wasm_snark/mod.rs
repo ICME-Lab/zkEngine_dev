@@ -13,7 +13,10 @@ use mcc::{
   OpsCircuit, ScanCircuit,
 };
 use nova::{
-  nebula::rs::{PublicParams, RecursiveSNARK, StepCircuit},
+  nebula::{
+    ic::IC,
+    rs::{PublicParams, RecursiveSNARK, StepCircuit},
+  },
   traits::{snark::default_ck_hint, CurveCycleEquipped, TranscriptEngineTrait},
 };
 
@@ -31,6 +34,36 @@ pub const MEMORY_OPS_PER_STEP: usize = 8;
 /// How big each IS chunk is per step
 pub const IS_SIZE_PER_STEP: usize = 128;
 
+/// [`WasmSNARK`] public parameters
+pub struct WASMPublicParams<E>
+where
+  E: CurveCycleEquipped,
+{
+  transition_pp: PublicParams<E>,
+  ops_pp: PublicParams<E>,
+  scan_pp: PublicParams<E>,
+}
+
+impl<E> WASMPublicParams<E>
+where
+  E: CurveCycleEquipped,
+{
+  /// Get the transition public params
+  pub fn transition(&self) -> &PublicParams<E> {
+    &self.transition_pp
+  }
+
+  /// Get the ops public params
+  pub fn ops(&self) -> &PublicParams<E> {
+    &self.ops_pp
+  }
+
+  /// Get the scan public params
+  pub fn scan(&self) -> &PublicParams<E> {
+    &self.scan_pp
+  }
+}
+
 /// A SNARK that proves the correct execution of a WASM modules execution
 pub struct WasmSNARK<E>
 where
@@ -45,17 +78,38 @@ where
 {
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
-  pub fn setup() -> PublicParams<E> {
-    PublicParams::<E>::setup(
+  pub fn setup() -> WASMPublicParams<E> {
+    let transition_pp = PublicParams::<E>::setup(
       &WASMTransitionCircuit::default(),
       &*default_ck_hint(),
       &*default_ck_hint(),
-    )
+    );
+
+    let ops_pp = PublicParams::<E>::setup(
+      &OpsCircuit::default(),
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+    );
+
+    let scan_pp = PublicParams::<E>::setup(
+      &ScanCircuit::default(),
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+    );
+
+    WASMPublicParams {
+      transition_pp,
+      ops_pp,
+      scan_pp,
+    }
   }
 
   #[tracing::instrument(skip_all, name = "WasmSNARK::prove")]
   /// Produce a SNARK for WASM program input
-  pub fn prove(pp: &PublicParams<E>, program: &WASMCtx) -> Result<RecursiveSNARK<E>, ZKWASMError> {
+  pub fn prove(
+    pp: &WASMPublicParams<E>,
+    program: &WASMCtx,
+  ) -> Result<RecursiveSNARK<E>, ZKWASMError> {
     // Execute WASM module and build execution trace documenting vm state at
     // each step. Also get meta-date from execution like the max height of the [`ValueStack`]
     let tracer = Rc::new(RefCell::new(Tracer::new()));
@@ -110,13 +164,15 @@ where
 
     // F represents the transition function of the WASM (stack-based) VM.
     // commitment-carrying IVC to prove the repeated execution of F
+    let transition_pp = pp.transition();
     for circuit in circuits.iter() {
       let mut rs = rs_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(pp, circuit, &z0).expect("failed to construct initial recursive SNARK")
+        RecursiveSNARK::new(transition_pp, circuit, &z0)
+          .expect("failed to construct initial recursive SNARK")
       });
 
-      rs.prove_step(pp, circuit, IC_i)?;
-      IC_i = rs.increment_commitment(pp, circuit);
+      rs.prove_step(transition_pp, circuit, IC_i)?;
+      IC_i = rs.increment_commitment(transition_pp, circuit);
 
       rs_option = Some(rs)
     }
@@ -125,11 +181,15 @@ where
     debug_assert!(rs_option.is_some());
     let rs = rs_option.ok_or(ZKWASMError::MalformedRS)?;
     let num_steps = rs.num_steps();
-    rs.verify(pp, num_steps, &z0, IC_i)?;
+    rs.verify(transition_pp, num_steps, &z0, IC_i)?;
 
     /*
      * Prove grand products for MCC
      */
+
+    // Get public parameters
+    let ops_pp = pp.ops();
+    let scan_pp = pp.scan();
 
     // Build ops circuits
     let ops_circuits = RS
@@ -140,25 +200,23 @@ where
 
     // build scan circuits
     let mut scan_IC_i = E::Scalar::ZERO;
-    // TODO: remove this PP from here
-    let scan_pp = PublicParams::<E>::setup(
-      &ScanCircuit::default(),
-      &*default_ck_hint(),
-      &*default_ck_hint(),
-    );
+    let mut IC_pprime = E::Scalar::ZERO;
 
     let mut scan_circuits = Vec::new();
     for (IS_chunk, FS_chunk) in IS
       .chunks(IS_SIZE_PER_STEP)
       .zip_eq(FS.chunks(IS_SIZE_PER_STEP))
     {
-      scan_circuits.push(ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec()));
+      let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
+      IC_pprime = IC::<E>::commit(
+        &scan_pp.ck_primary,
+        &scan_pp.ro_consts_primary,
+        IC_pprime,
+        scan_circuit.non_deterministic_advice(),
+      );
+
+      scan_circuits.push(scan_circuit);
     }
-
-    let scan_circuit = ScanCircuit::new(IS, FS);
-
-    // Compute commitment to IS & FS
-    let IC_pprime = scan_circuit.commit_w::<E>(pp.ck());
 
     // Get alpha and gamma
     let mut keccak = E::TE::new(b"compute MCC challenges");
@@ -175,13 +233,6 @@ where
      * ***** F_ops proving *****
      */
 
-    // TODO: remove this PP from here
-    let ops_pp = PublicParams::<E>::setup(
-      &OpsCircuit::default(),
-      &*default_ck_hint(),
-      &*default_ck_hint(),
-    );
-
     // ops_z0 = [gamma, alpha, ts=0, h_RS=1, h_WS=1]
     let ops_z0 = vec![
       gamma,
@@ -195,46 +246,43 @@ where
 
     for ops_circuit in ops_circuits.iter() {
       let mut ops_rs = ops_rs_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(&ops_pp, ops_circuit, &ops_z0)
+        RecursiveSNARK::new(ops_pp, ops_circuit, &ops_z0)
           .expect("failed to construct initial recursive SNARK")
       });
 
-      ops_rs.prove_step(&ops_pp, ops_circuit, ops_IC_i)?;
-      ops_IC_i = ops_rs.increment_commitment(&ops_pp, ops_circuit);
+      ops_rs.prove_step(ops_pp, ops_circuit, ops_IC_i)?;
+      ops_IC_i = ops_rs.increment_commitment(ops_pp, ops_circuit);
 
       ops_rs_option = Some(ops_rs)
     }
 
     debug_assert!(ops_rs_option.is_some());
     let ops_rs = ops_rs_option.ok_or(ZKWASMError::MalformedRS)?;
-    let ops_zi = ops_rs.verify(&ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
+    let ops_zi = ops_rs.verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
 
     /*
      * Grand product checks for IS & FS
      */
 
-    // Inputs for scan_circuit proving
-
     // scan_z0 = [gamma, alpha, h_IS=1, h_FS=1]
     let scan_z0 = vec![gamma, alpha, E::Scalar::ONE, E::Scalar::ONE];
-
     let mut scan_rs_option: Option<RecursiveSNARK<E>> = None;
 
     for scan_circuit in scan_circuits.iter() {
       let mut scan_rs = scan_rs_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(&scan_pp, scan_circuit, &scan_z0)
+        RecursiveSNARK::new(scan_pp, scan_circuit, &scan_z0)
           .expect("failed to construct initial recursive SNARK")
       });
 
-      scan_rs.prove_step(&scan_pp, scan_circuit, scan_IC_i)?;
-      scan_IC_i = scan_rs.increment_commitment(&scan_pp, scan_circuit);
+      scan_rs.prove_step(scan_pp, scan_circuit, scan_IC_i)?;
+      scan_IC_i = scan_rs.increment_commitment(scan_pp, scan_circuit);
 
       scan_rs_option = Some(scan_rs)
     }
 
     debug_assert!(scan_rs_option.is_some());
     let scan_rs = scan_rs_option.ok_or(ZKWASMError::MalformedRS)?;
-    let scan_zi = scan_rs.verify(&scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
+    let scan_zi = scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
 
     let (h_is, h_rs, h_ws, h_fs) = { (scan_zi[2], ops_zi[3], ops_zi[4], scan_zi[3]) };
 
