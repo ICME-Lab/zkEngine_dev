@@ -1,5 +1,5 @@
 //! Implements SNARK proving the WASM module computation
-use std::{cell::RefCell, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField, PrimeFieldBits};
@@ -40,6 +40,7 @@ pub struct ZKWASMInstance<E>
 where
   E: CurveCycleEquipped,
 {
+  // execution instance
   execution_z0: Vec<<E as Engine>::Scalar>,
   IC_i: <E as Engine>::Scalar,
 
