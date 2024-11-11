@@ -28,6 +28,8 @@ mod mcc;
 
 /// Maximum number of memory ops allowed per step of the zkVM
 pub const MEMORY_OPS_PER_STEP: usize = 8;
+/// How big each IS chunk is per step
+pub const IS_SIZE_PER_STEP: usize = 128;
 
 /// A SNARK that proves the correct execution of a WASM modules execution
 pub struct WasmSNARK<E>
@@ -74,8 +76,8 @@ where
     let IS = tracer.IS();
     tracing::debug!("IS_mem.len: {}", IS.len() - IS_stack_len);
 
-    let mut RS: Vec<(usize, u64, u64)> = Vec::new();
-    let mut WS: Vec<(usize, u64, u64)> = Vec::new();
+    let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
+    let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut FS = IS.clone();
 
     let execution_trace = tracer.into_execution_trace();
@@ -86,9 +88,9 @@ where
       .into_iter()
       .map(|vm| {
         let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, IS_stack_len);
-        // TODO don't extend to pass into F_ops, this is just for testing for now
-        RS.extend(step_rs.clone());
-        WS.extend(step_ws.clone());
+
+        RS.push(step_rs.clone());
+        WS.push(step_ws.clone());
 
         WASMTransitionCircuit {
           vm,
@@ -99,7 +101,9 @@ where
       })
       .collect();
 
-    // Inputs to CC-IVC for F
+    /*
+     * ***** WASM Transition Circuit Proving *****
+     */
     let mut rs_option: Option<RecursiveSNARK<E>> = None;
     let z0 = vec![E::Scalar::ZERO];
     let mut IC_i = E::Scalar::ZERO;
@@ -127,8 +131,30 @@ where
      * Prove grand products for MCC
      */
 
-    // Build circuits
-    let ops_circuit = OpsCircuit::new(RS, WS);
+    // Build ops circuits
+    let ops_circuits = RS
+      .into_iter()
+      .zip_eq(WS.into_iter())
+      .map(|(rs, ws)| OpsCircuit::new(rs, ws))
+      .collect::<Vec<_>>();
+
+    // build scan circuits
+    let mut scan_IC_i = E::Scalar::ZERO;
+    // TODO: remove this PP from here
+    let scan_pp = PublicParams::<E>::setup(
+      &ScanCircuit::default(),
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+    );
+
+    let mut scan_circuits = Vec::new();
+    for (IS_chunk, FS_chunk) in IS
+      .chunks(IS_SIZE_PER_STEP)
+      .zip_eq(FS.chunks(IS_SIZE_PER_STEP))
+    {
+      scan_circuits.push(ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec()));
+    }
+
     let scan_circuit = ScanCircuit::new(IS, FS);
 
     // Compute commitment to IS & FS
@@ -145,10 +171,16 @@ where
      * Grand product checks for RS & WS
      */
 
-    // TODO: remove this PP from here
-    let ops_pp = PublicParams::<E>::setup(&ops_circuit, &*default_ck_hint(), &*default_ck_hint());
+    /*
+     * ***** F_ops proving *****
+     */
 
-    // Inputs for ops_circuit proving
+    // TODO: remove this PP from here
+    let ops_pp = PublicParams::<E>::setup(
+      &OpsCircuit::default(),
+      &*default_ck_hint(),
+      &*default_ck_hint(),
+    );
 
     // ops_z0 = [gamma, alpha, ts=0, h_RS=1, h_WS=1]
     let ops_z0 = vec![
@@ -158,27 +190,50 @@ where
       E::Scalar::ONE,
       E::Scalar::ONE,
     ];
-    let mut ops_rs: RecursiveSNARK<E> = RecursiveSNARK::new(&ops_pp, &ops_circuit, &ops_z0)?;
     let mut ops_IC_i = E::Scalar::ZERO;
-    ops_rs.prove_step(&ops_pp, &ops_circuit, ops_IC_i)?;
-    ops_IC_i = ops_rs.increment_commitment(&ops_pp, &ops_circuit);
+    let mut ops_rs_option: Option<RecursiveSNARK<E>> = None;
+
+    for ops_circuit in ops_circuits.iter() {
+      let mut ops_rs = ops_rs_option.unwrap_or_else(|| {
+        RecursiveSNARK::new(&ops_pp, ops_circuit, &ops_z0)
+          .expect("failed to construct initial recursive SNARK")
+      });
+
+      ops_rs.prove_step(&ops_pp, ops_circuit, ops_IC_i)?;
+      ops_IC_i = ops_rs.increment_commitment(&ops_pp, ops_circuit);
+
+      ops_rs_option = Some(ops_rs)
+    }
+
+    debug_assert!(ops_rs_option.is_some());
+    let ops_rs = ops_rs_option.ok_or(ZKWASMError::MalformedRS)?;
     let ops_zi = ops_rs.verify(&ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
 
     /*
      * Grand product checks for IS & FS
      */
 
-    // TODO: remove this PP from here
-    let scan_pp = PublicParams::<E>::setup(&scan_circuit, &*default_ck_hint(), &*default_ck_hint());
-
     // Inputs for scan_circuit proving
 
     // scan_z0 = [gamma, alpha, h_IS=1, h_FS=1]
     let scan_z0 = vec![gamma, alpha, E::Scalar::ONE, E::Scalar::ONE];
-    let mut scan_rs: RecursiveSNARK<E> = RecursiveSNARK::new(&scan_pp, &scan_circuit, &scan_z0)?;
-    let mut scan_IC_i = E::Scalar::ZERO;
-    scan_rs.prove_step(&scan_pp, &scan_circuit, scan_IC_i)?;
-    scan_IC_i = scan_rs.increment_commitment(&scan_pp, &scan_circuit);
+
+    let mut scan_rs_option: Option<RecursiveSNARK<E>> = None;
+
+    for scan_circuit in scan_circuits.iter() {
+      let mut scan_rs = scan_rs_option.unwrap_or_else(|| {
+        RecursiveSNARK::new(&scan_pp, scan_circuit, &scan_z0)
+          .expect("failed to construct initial recursive SNARK")
+      });
+
+      scan_rs.prove_step(&scan_pp, scan_circuit, scan_IC_i)?;
+      scan_IC_i = scan_rs.increment_commitment(&scan_pp, scan_circuit);
+
+      scan_rs_option = Some(scan_rs)
+    }
+
+    debug_assert!(scan_rs_option.is_some());
+    let scan_rs = scan_rs_option.ok_or(ZKWASMError::MalformedRS)?;
     let scan_zi = scan_rs.verify(&scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
 
     let (h_is, h_rs, h_ws, h_fs) = { (scan_zi[2], ops_zi[3], ops_zi[4], scan_zi[3]) };
@@ -198,18 +253,6 @@ pub struct WASMTransitionCircuit {
   RS: Vec<(usize, u64, u64)>,
   WS: Vec<(usize, u64, u64)>,
   stack_len: usize,
-}
-
-impl Default for WASMTransitionCircuit {
-  fn default() -> Self {
-    Self {
-      vm: WitnessVM::default(),
-      // max memory ops per recursive step is 8
-      RS: vec![(0, 0, 0); 4],
-      WS: vec![(0, 0, 0); 4],
-      stack_len: 0,
-    }
-  }
 }
 
 impl<F> StepCircuit<F> for WASMTransitionCircuit
@@ -1825,5 +1868,17 @@ impl WASMTransitionCircuit {
     )?;
 
     Ok(())
+  }
+}
+
+impl Default for WASMTransitionCircuit {
+  fn default() -> Self {
+    Self {
+      vm: WitnessVM::default(),
+      // max memory ops per recursive step is 8
+      RS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
+      WS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
+      stack_len: 0,
+    }
   }
 }

@@ -5,6 +5,7 @@ use super::{
     mcc::{alloc_avt_tuple, randomized_hash_func},
     utils::alloc_one,
   },
+  IS_SIZE_PER_STEP, MEMORY_OPS_PER_STEP,
 };
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
@@ -17,7 +18,7 @@ pub mod multiset_ops;
 mod tests;
 
 /// Circuit to compute multiset hashes of (RS, WS)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct OpsCircuit {
   RS: Vec<(usize, u64, u64)>, // Vec<(a, v, t)>
   WS: Vec<(usize, u64, u64)>, // Vec<(a, v, t)>
@@ -132,8 +133,17 @@ impl OpsCircuit {
   }
 }
 
+impl Default for OpsCircuit {
+  fn default() -> Self {
+    OpsCircuit {
+      RS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
+      WS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
+    }
+  }
+}
+
 /// Circuit to compute multiset hashes of (IS, FS)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ScanCircuit {
   IS: Vec<(u64, u64)>, // Vec<(a, v, t)>
   FS: Vec<(u64, u64)>, // Vec<(a, v, t)>
@@ -234,5 +244,14 @@ impl ScanCircuit {
   /// (IS, FS)
   pub fn new(IS: Vec<(u64, u64)>, FS: Vec<(u64, u64)>) -> Self {
     ScanCircuit { IS, FS }
+  }
+}
+
+impl Default for ScanCircuit {
+  fn default() -> Self {
+    ScanCircuit {
+      IS: vec![(0, 0); IS_SIZE_PER_STEP],
+      FS: vec![(0, 0); IS_SIZE_PER_STEP],
+    }
   }
 }
