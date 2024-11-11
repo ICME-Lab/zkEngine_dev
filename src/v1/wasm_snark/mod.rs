@@ -30,10 +30,102 @@ use super::{error::ZKWASMError, wasm_ctx::WASMCtx};
 mod gadgets;
 mod mcc;
 
+#[derive(Clone, Debug)]
+/// BatchedWasmTransitionCircuit
+pub struct BatchedWasmTransitionCircuit {
+  circuits: Vec<WASMTransitionCircuit>,
+}
+
+impl<F> StepCircuit<F> for BatchedWasmTransitionCircuit
+where
+  F: PrimeField + PrimeFieldBits,
+{
+  fn arity(&self) -> usize {
+    1
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    z: &[AllocatedNum<F>],
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    let mut z = z.to_vec();
+
+    for circuit in self.circuits.iter() {
+      z = circuit.synthesize(cs, &z)?;
+    }
+
+    Ok(z)
+  }
+
+  fn non_deterministic_advice(&self) -> Vec<F> {
+    self
+      .circuits
+      .iter()
+      .flat_map(|circuit| circuit.non_deterministic_advice())
+      .collect()
+  }
+}
+
+impl BatchedWasmTransitionCircuit {
+  /// Create an empty instance of [`BatchedWasmTransitionCircuit`]
+  pub fn empty(step_size: usize) -> Self {
+    Self {
+      circuits: vec![WASMTransitionCircuit::default(); step_size],
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
+/// BatchedWasmTransitionCircuit
+pub struct BatchedOpsCircuit {
+  circuits: Vec<OpsCircuit>,
+}
+
+impl<F> StepCircuit<F> for BatchedOpsCircuit
+where
+  F: PrimeField,
+{
+  fn arity(&self) -> usize {
+    5
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    z: &[AllocatedNum<F>],
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    let mut z = z.to_vec();
+
+    for circuit in self.circuits.iter() {
+      z = circuit.synthesize(cs, &z)?;
+    }
+
+    Ok(z)
+  }
+
+  fn non_deterministic_advice(&self) -> Vec<F> {
+    self
+      .circuits
+      .iter()
+      .flat_map(|circuit| circuit.non_deterministic_advice())
+      .collect()
+  }
+}
+
+impl BatchedOpsCircuit {
+  /// Create an empty instance of [`BatchedOpsCircuit`]
+  pub fn empty(step_size: usize) -> Self {
+    Self {
+      circuits: vec![OpsCircuit::default(); step_size],
+    }
+  }
+}
+
 /// Maximum number of memory ops allowed per step of the zkVM
 pub const MEMORY_OPS_PER_STEP: usize = 8;
 /// How big each IS chunk is per step
-pub const IS_SIZE_PER_STEP: usize = 128;
+pub const IS_SIZE_PER_STEP: usize = 2;
 
 /// Public i/o for WASM execution proving
 pub struct ZKWASMInstance<E>
@@ -100,21 +192,21 @@ where
 {
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
-  pub fn setup() -> WASMPublicParams<E> {
+  pub fn setup(step_size: usize) -> WASMPublicParams<E> {
     let execution_pp = PublicParams::<E>::setup(
-      &WASMTransitionCircuit::default(),
+      &BatchedWasmTransitionCircuit::empty(step_size),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
 
     let ops_pp = PublicParams::<E>::setup(
-      &OpsCircuit::default(),
+      &BatchedOpsCircuit::empty(step_size),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
 
     let scan_pp = PublicParams::<E>::setup(
-      &ScanCircuit::default(),
+      &ScanCircuit::empty(step_size),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
@@ -131,6 +223,7 @@ where
   pub fn prove(
     pp: &WASMPublicParams<E>,
     program: &WASMCtx,
+    step_size: usize,
   ) -> Result<(Self, ZKWASMInstance<E>), ZKWASMError> {
     // Execute WASM module and build execution trace documenting vm state at
     // each step. Also get meta-date from execution like the max height of the [`ValueStack`]
@@ -177,6 +270,13 @@ where
       })
       .collect();
 
+    let circuits = circuits
+      .chunks(step_size)
+      .map(|chunk| BatchedWasmTransitionCircuit {
+        circuits: chunk.to_vec(),
+      })
+      .collect::<Vec<_>>();
+
     /*
      * ***** WASM Transition Circuit Proving *****
      */
@@ -220,6 +320,13 @@ where
       .map(|(rs, ws)| OpsCircuit::new(rs, ws))
       .collect::<Vec<_>>();
 
+    let ops_circuits = ops_circuits
+      .chunks(step_size)
+      .map(|chunk| BatchedOpsCircuit {
+        circuits: chunk.to_vec(),
+      })
+      .collect::<Vec<_>>();
+
     // build scan circuits
     let mut scan_IC_i = E::Scalar::ZERO;
     let mut IC_pprime = E::Scalar::ZERO;
@@ -236,7 +343,6 @@ where
         IC_pprime,
         scan_circuit.non_deterministic_advice(),
       );
-
       scan_circuits.push(scan_circuit);
     }
 

@@ -247,8 +247,9 @@ impl ScanCircuit {
   }
 }
 
-impl Default for ScanCircuit {
-  fn default() -> Self {
+impl ScanCircuit {
+  /// Create a empty instance of [`ScanCircuit`]
+  pub fn empty(step_size: usize) -> Self {
     ScanCircuit {
       IS: vec![(0, 0); IS_SIZE_PER_STEP],
       FS: vec![(0, 0); IS_SIZE_PER_STEP],
