@@ -17,9 +17,10 @@ use nova::{
     ic::IC,
     rs::{PublicParams, RecursiveSNARK, StepCircuit},
   },
-  traits::{snark::default_ck_hint, CurveCycleEquipped, TranscriptEngineTrait},
+  traits::{snark::default_ck_hint, CurveCycleEquipped, Engine, TranscriptEngineTrait},
 };
 
+use serde::{Deserialize, Serialize};
 use wasmi::{AddressOffset, BranchOffset, DropKeep, Instruction as Instr, Tracer, WitnessVM};
 
 use crate::v1::utils::tracing::{execute_wasm, unwrap_rc_refcell};
@@ -34,12 +35,29 @@ pub const MEMORY_OPS_PER_STEP: usize = 8;
 /// How big each IS chunk is per step
 pub const IS_SIZE_PER_STEP: usize = 128;
 
+/// Public i/o for WASM execution proving
+pub struct ZKWASMInstance<E>
+where
+  E: CurveCycleEquipped,
+{
+  execution_z0: Vec<<E as Engine>::Scalar>,
+  IC_i: <E as Engine>::Scalar,
+
+  // ops instance
+  ops_z0: Vec<<E as Engine>::Scalar>,
+  ops_IC_i: <E as Engine>::Scalar,
+
+  // scan instance
+  scan_z0: Vec<<E as Engine>::Scalar>,
+  scan_IC_i: <E as Engine>::Scalar,
+}
+
 /// [`WasmSNARK`] public parameters
 pub struct WASMPublicParams<E>
 where
   E: CurveCycleEquipped,
 {
-  transition_pp: PublicParams<E>,
+  execution_pp: PublicParams<E>,
   ops_pp: PublicParams<E>,
   scan_pp: PublicParams<E>,
 }
@@ -48,9 +66,9 @@ impl<E> WASMPublicParams<E>
 where
   E: CurveCycleEquipped,
 {
-  /// Get the transition public params
-  pub fn transition(&self) -> &PublicParams<E> {
-    &self.transition_pp
+  /// Get the execution public params
+  pub fn execution(&self) -> &PublicParams<E> {
+    &self.execution_pp
   }
 
   /// Get the ops public params
@@ -64,12 +82,15 @@ where
   }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 /// A SNARK that proves the correct execution of a WASM modules execution
 pub struct WasmSNARK<E>
 where
   E: CurveCycleEquipped,
 {
-  _p: PhantomData<E>,
+  execution_rs: RecursiveSNARK<E>,
+  ops_rs: RecursiveSNARK<E>,
+  scan_rs: RecursiveSNARK<E>,
 }
 
 impl<E> WasmSNARK<E>
@@ -79,7 +100,7 @@ where
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
   pub fn setup() -> WASMPublicParams<E> {
-    let transition_pp = PublicParams::<E>::setup(
+    let execution_pp = PublicParams::<E>::setup(
       &WASMTransitionCircuit::default(),
       &*default_ck_hint(),
       &*default_ck_hint(),
@@ -98,7 +119,7 @@ where
     );
 
     WASMPublicParams {
-      transition_pp,
+      execution_pp,
       ops_pp,
       scan_pp,
     }
@@ -109,7 +130,7 @@ where
   pub fn prove(
     pp: &WASMPublicParams<E>,
     program: &WASMCtx,
-  ) -> Result<RecursiveSNARK<E>, ZKWASMError> {
+  ) -> Result<(Self, ZKWASMInstance<E>), ZKWASMError> {
     // Execute WASM module and build execution trace documenting vm state at
     // each step. Also get meta-date from execution like the max height of the [`ValueStack`]
     let tracer = Rc::new(RefCell::new(Tracer::new()));
@@ -164,15 +185,15 @@ where
 
     // F represents the transition function of the WASM (stack-based) VM.
     // commitment-carrying IVC to prove the repeated execution of F
-    let transition_pp = pp.transition();
+    let execution_pp = pp.execution();
     for circuit in circuits.iter() {
       let mut rs = rs_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(transition_pp, circuit, &z0)
+        RecursiveSNARK::new(execution_pp, circuit, &z0)
           .expect("failed to construct initial recursive SNARK")
       });
 
-      rs.prove_step(transition_pp, circuit, IC_i)?;
-      IC_i = rs.increment_commitment(transition_pp, circuit);
+      rs.prove_step(execution_pp, circuit, IC_i)?;
+      IC_i = rs.increment_commitment(execution_pp, circuit);
 
       rs_option = Some(rs)
     }
@@ -181,7 +202,7 @@ where
     debug_assert!(rs_option.is_some());
     let rs = rs_option.ok_or(ZKWASMError::MalformedRS)?;
     let num_steps = rs.num_steps();
-    rs.verify(transition_pp, num_steps, &z0, IC_i)?;
+    rs.verify(execution_pp, num_steps, &z0, IC_i)?;
 
     /*
      * Prove grand products for MCC
@@ -256,9 +277,10 @@ where
       ops_rs_option = Some(ops_rs)
     }
 
+    // internal check
     debug_assert!(ops_rs_option.is_some());
     let ops_rs = ops_rs_option.ok_or(ZKWASMError::MalformedRS)?;
-    let ops_zi = ops_rs.verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
+    ops_rs.verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
 
     /*
      * Grand product checks for IS & FS
@@ -280,17 +302,89 @@ where
       scan_rs_option = Some(scan_rs)
     }
 
+    // internal check
     debug_assert!(scan_rs_option.is_some());
     let scan_rs = scan_rs_option.ok_or(ZKWASMError::MalformedRS)?;
-    let scan_zi = scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
+    scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
 
+    // Public i/o
+    let U = ZKWASMInstance {
+      execution_z0: z0,
+      IC_i,
+      ops_z0,
+      ops_IC_i,
+      scan_z0,
+      scan_IC_i,
+    };
+
+    Ok((
+      Self {
+        execution_rs: rs,
+        ops_rs,
+        scan_rs,
+      },
+      U,
+    ))
+  }
+
+  /// Verify the [`WasmSNARK`]
+  pub fn verify(&self, pp: &WASMPublicParams<E>, U: &ZKWASMInstance<E>) -> Result<(), ZKWASMError> {
+    // verify F
+    self.execution_rs.verify(
+      pp.execution(),
+      self.execution_rs.num_steps(),
+      &U.execution_z0,
+      U.IC_i,
+    )?;
+
+    // verify F_ops
+    let ops_zi = self
+      .ops_rs
+      .verify(pp.ops(), self.ops_rs.num_steps(), &U.ops_z0, U.ops_IC_i)?;
+
+    // verify F_scan
+    let scan_zi =
+      self
+        .scan_rs
+        .verify(pp.scan(), self.scan_rs.num_steps(), &U.scan_z0, U.scan_IC_i)?;
+
+    // 1. check h_IS = h_RS = h_WS = h_FS = 1 // initial values are correct
+    let (init_h_is, init_h_rs, init_h_ws, init_h_fs) =
+      { (U.scan_z0[2], U.ops_z0[3], U.ops_z0[4], U.scan_z0[3]) };
+    if init_h_is != E::Scalar::ONE
+      || init_h_rs != E::Scalar::ONE
+      || init_h_ws != E::Scalar::ONE
+      || init_h_fs != E::Scalar::ONE
+    {
+      return Err(ZKWASMError::MultisetVerificationError);
+    }
+
+    // 2. check Cn′ = Cn // commitments carried in both Πops and ΠF are the same
+    if U.IC_i != U.ops_IC_i {
+      return Err(ZKWASMError::MultisetVerificationError);
+    }
+
+    // 3. check γ and γ are derived by hashing C and C′′.
+    // Get alpha and gamma
+    let mut keccak = E::TE::new(b"compute MCC challenges");
+    keccak.absorb(b"C_n", &U.IC_i);
+    keccak.absorb(b"C_pprime", &U.scan_IC_i);
+    let gamma = keccak.squeeze(b"gamma")?;
+    let alpha = keccak.squeeze(b"alpha")?;
+
+    if U.ops_z0[0] != gamma || U.ops_z0[1] != alpha {
+      return Err(ZKWASMError::MultisetVerificationError);
+    }
+
+    // 4. check h_IS' · h_WS' = h_RS' · h_FS'.
+
+    // Inputs for multiset check
     let (h_is, h_rs, h_ws, h_fs) = { (scan_zi[2], ops_zi[3], ops_zi[4], scan_zi[3]) };
+    if h_is * h_ws != h_rs * h_fs {
+      return Err(ZKWASMError::MultisetVerificationError);
+    }
 
-    // TODO: remove this from `prove()`, verifier should be doing this check
-    // 4. check h_IS · h_WS = h_RS · h_FS.
-    assert_eq!(h_is * h_ws, h_rs * h_fs);
-
-    Ok(rs)
+    Ok(())
   }
 }
 

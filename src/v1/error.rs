@@ -21,6 +21,9 @@ pub enum ZKWASMError {
   /// Failed to load WASM module
   #[error("WasmError")]
   WASMError(String),
+  /// Something went wrong when verifying the multisets
+  #[error("MultisetVerificationError")]
+  MultisetVerificationError,
 }
 
 impl From<wasmi::Error> for ZKWASMError {

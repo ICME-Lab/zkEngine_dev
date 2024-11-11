@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 
 use nova::provider::Bn256EngineIPA;
 
@@ -15,7 +15,10 @@ pub type E = Bn256EngineIPA;
 fn test_wasm_snark_with(wasm_ctx: WASMCtx) {
   let pp = WasmSNARK::<E>::setup();
 
-  let _snark = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
+  let (snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx).unwrap();
+  let time = Instant::now();
+  snark.verify(&pp, &U).unwrap();
+  tracing::info!("Verification time: {:?}", time.elapsed());
 }
 
 #[test]
