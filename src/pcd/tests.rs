@@ -1,6 +1,6 @@
 use crate::{
   pcd::{prove_shard, verify_json_receipts},
-  traits::wasm::ZKWASMContext,
+  traits::wasm::{ZKWASMArgs, ZKWASMContext},
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
 };
 use anyhow::Ok;
@@ -45,6 +45,8 @@ fn test_connect_shards() -> anyhow::Result<()> {
     .func_args(func_args.clone())
     .build();
 
+  let bytecode = wasm_args.bytecode().unwrap();
+
   let mut wasm_ctx = WasiWASMCtx::new_from_file(&wasm_args)?;
 
   // Mock the lead node which first runs an estimate on WASM
@@ -69,7 +71,7 @@ fn test_connect_shards() -> anyhow::Result<()> {
       .func_args(func_args.clone())
       .build();
 
-    let receipt = prove_shard(&wasm_args).unwrap();
+    let receipt = prove_shard(&bytecode, &wasm_args).unwrap();
     receipt_vec.push(receipt);
   }
 

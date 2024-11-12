@@ -25,10 +25,11 @@ use receipt::Receipt;
 /// connected.
 ///
 /// `start` and `end` are parameters to specify the shards range of opcodes to prove.
-pub fn prove_shard(wasm_args: &WASMArgs) -> Result<String, ProvingError> {
+pub fn prove_shard(wasm: &[u8], wasm_args: &WASMArgs) -> Result<String, ProvingError> {
   // Produce proof by running execution trace through SuperNova (NIVC)
-  let pp = batched::WasmExecutionSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
-  let proving_wasm_ctx = &mut WasiWASMCtx::new_from_file(wasm_args)?;
+  let pp =
+    batched::WasmExecutionSNARK::<E>::setup(&mut WasiWASMCtx::new_from_bytecode(wasm, wasm_args)?)?;
+  let proving_wasm_ctx = &mut WasiWASMCtx::new_from_bytecode(wasm, wasm_args)?;
   let _ = batched::WasmExecutionSNARK::<E>::prove_wasm_execution(proving_wasm_ctx, &pp)?;
 
   let tracer = &proving_wasm_ctx
