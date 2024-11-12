@@ -240,15 +240,26 @@ where
     // Compute multisets to perform grand product checks (uses global_ts)
     let IS_stack_len = tracer.IS_stack_len();
     tracing::debug!("stack len: {}", IS_stack_len);
-    let IS = tracer.IS();
+    let mut IS = tracer.IS();
     tracing::debug!("IS_mem.len: {}", IS.len() - IS_stack_len);
 
     let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut FS = IS.clone();
 
-    let execution_trace = tracer.into_execution_trace();
-    tracing::debug!("execution trace: {:#?}", execution_trace);
+    let mut execution_trace = tracer.into_execution_trace();
+
+    // Pad the execution trace, so the length is a multiple of step_size
+    {
+      let len = execution_trace.len();
+      let pad_len = step_size - (len % step_size);
+      (0..pad_len).for_each(|_| {
+        execution_trace.push(WitnessVM::default());
+      })
+    }
+
+    tracing::debug!("execution trace length: {:#?}", execution_trace.len());
+    tracing::trace!("execution trace: {:#?}", execution_trace);
 
     // Build the WASMTransitionCircuit from each traced execution frame.
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
@@ -330,6 +341,19 @@ where
     let mut IC_pprime = E::Scalar::ZERO;
 
     let mut scan_circuits = Vec::new();
+
+    // Pad IS and FS , so length is a multiple of step_size
+    {
+      let len = IS.len();
+      let pad_len = step_size - (len % step_size);
+      (0..pad_len).for_each(|i| {
+        IS.push((len + i, 0, 0));
+        FS.push((len + i, 0, 0));
+      })
+    }
+    // sanity check
+    assert_eq!(IS.len() % step_size, 0);
+
     for (IS_chunk, FS_chunk) in IS.chunks(step_size).zip_eq(FS.chunks(step_size)) {
       let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
       IC_pprime = IC::<E>::commit(
