@@ -7,7 +7,7 @@ use crate::v1::wasm_snark::MEMORY_OPS_PER_STEP;
 /// of a vector of (address, value, timestamp) tuples
 pub fn step_RS_WS(
   vm: &WitnessVM,
-  FS: &mut [(u64, u64)],
+  FS: &mut [(usize, u64, u64)],
   global_ts: &mut u64,
   stack_len: usize,
 ) -> (
@@ -281,7 +281,7 @@ pub fn step_RS_WS(
 fn read_op(
   addr: usize,
   global_ts: &mut u64,
-  FS: &mut [(u64, u64)],
+  FS: &mut [(usize, u64, u64)],
   RS: &mut Vec<(usize, u64, u64)>,
   WS: &mut Vec<(usize, u64, u64)>,
 ) {
@@ -289,7 +289,7 @@ fn read_op(
   *global_ts += 1;
 
   // untrusted memory responds with a value-timestamp pair (v, t)
-  let (r_val, r_ts) = FS[addr];
+  let (_, r_val, r_ts) = FS[addr];
 
   // 2. assert t < ts
   debug_assert!(r_ts < *global_ts);
@@ -298,7 +298,7 @@ fn read_op(
   RS.push((addr, r_val, r_ts));
 
   // 4. store (v, ts) at address a in the untrusted memory; and
-  FS[addr] = (r_val, *global_ts);
+  FS[addr] = (addr, r_val, *global_ts);
 
   // 5. WS ← WS ∪ {(a,v,ts)}.
   WS.push((addr, r_val, *global_ts));
@@ -309,7 +309,7 @@ fn write_op(
   addr: usize,
   val: u64,
   global_ts: &mut u64,
-  FS: &mut [(u64, u64)],
+  FS: &mut [(usize, u64, u64)],
   RS: &mut Vec<(usize, u64, u64)>,
   WS: &mut Vec<(usize, u64, u64)>,
 ) {
@@ -317,7 +317,7 @@ fn write_op(
   *global_ts += 1;
 
   // untrusted memory responds with a value-timestamp pair (v, t)
-  let (r_val, r_ts) = FS[addr];
+  let (_, r_val, r_ts) = FS[addr];
 
   // 2. assert t < ts
   debug_assert!(r_ts < *global_ts);
@@ -326,7 +326,7 @@ fn write_op(
   RS.push((addr, r_val, r_ts));
 
   // 4. store (v', ts) at address a in the untrusted memory; and
-  FS[addr] = (val, *global_ts);
+  FS[addr] = (addr, val, *global_ts);
 
   // 5. WS ← WS ∪ {(a,v',ts)}.
   WS.push((addr, val, *global_ts));

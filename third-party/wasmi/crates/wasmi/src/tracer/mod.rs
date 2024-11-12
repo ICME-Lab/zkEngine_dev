@@ -2,7 +2,11 @@
 
 use wasmi_core::UntypedValue;
 
-use crate::{engine::bytecode::Instruction, AsContext, Memory};
+use crate::{
+    engine::{bytecode::Instruction, stack},
+    AsContext,
+    Memory,
+};
 
 #[derive(Debug, Clone, Default)]
 /// Hold the execution trace from VM execution and manages other miscellaneous
@@ -14,9 +18,9 @@ pub struct Tracer {
     /// construct the IS for MCC
     max_sp: usize,
     /// Stack Initial Set for MCC
-    IS_stack: Vec<(u64, u64)>,
-    /// Linear memroy initial set
-    IS_mem: Vec<(u64, u64)>,
+    IS_stack: Vec<(usize, u64, u64)>,
+    /// Linear memory initial set
+    IS_mem: Vec<(usize, u64, u64)>,
 }
 
 impl Tracer {
@@ -38,7 +42,11 @@ impl Tracer {
 
     /// Setter for IS
     pub(crate) fn set_IS_stack(&mut self, stack: &[UntypedValue]) {
-        self.IS_stack = stack.iter().map(|v| ((*v).into(), 0)).collect();
+        self.IS_stack = stack
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (i, (*v).into(), 0))
+            .collect();
     }
 
     /// Get IS_stack len
@@ -47,9 +55,10 @@ impl Tracer {
     }
 
     /// Getter for IS
-    pub fn IS(&self) -> Vec<(u64, u64)> {
+    pub fn IS(&self) -> Vec<(usize, u64, u64)> {
         let mut IS = self.IS_stack.to_vec();
-        IS.extend(self.IS_mem.to_vec());
+        let stack_len = IS.len();
+        IS.extend(self.IS_mem.iter().map(|(i, v, _)| (*i + stack_len, *v, 0)));
         IS
     }
 
@@ -61,7 +70,7 @@ impl Tracer {
             memref
                 .read(&context, (i * 8).try_into().unwrap(), &mut buf)
                 .unwrap();
-            self.IS_mem.push((u64::from_le_bytes(buf), 0));
+            self.IS_mem.push((i as usize, u64::from_le_bytes(buf), 0));
         }
     }
 }

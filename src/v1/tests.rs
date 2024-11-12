@@ -12,10 +12,10 @@ use super::{
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
 
-fn test_wasm_snark_with(wasm_ctx: WASMCtx) {
-  let pp = WasmSNARK::<E>::setup(1);
+fn test_wasm_snark_with(wasm_ctx: WASMCtx, step_size: usize) {
+  let pp = WasmSNARK::<E>::setup(step_size);
 
-  let (snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, 1).unwrap();
+  let (snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size).unwrap();
   let time = Instant::now();
   snark.verify(&pp, &U).unwrap();
   tracing::info!("Verification time: {:?}", time.elapsed());
@@ -23,6 +23,7 @@ fn test_wasm_snark_with(wasm_ctx: WASMCtx) {
 
 #[test]
 fn test_bit_check() {
+  let step_size = 1;
   init_logger();
   let wasm_ctx = WASMCtxBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/bit_check.wat"))
@@ -31,5 +32,19 @@ fn test_bit_check() {
     .func_args(vec!["255".to_string(), "255".to_string()])
     .build();
 
-  test_wasm_snark_with(wasm_ctx);
+  test_wasm_snark_with(wasm_ctx, step_size);
+}
+
+#[test]
+fn test_bls() {
+  let step_size = 1_000_000;
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/bls.wasm"))
+    .unwrap()
+    .invoke("main")
+    .func_args(vec!["255".to_string(), "255".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx, step_size);
 }

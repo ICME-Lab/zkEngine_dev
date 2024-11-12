@@ -5,7 +5,7 @@ use super::{
     mcc::{alloc_avt_tuple, randomized_hash_func},
     utils::alloc_one,
   },
-  IS_SIZE_PER_STEP, MEMORY_OPS_PER_STEP,
+  MEMORY_OPS_PER_STEP,
 };
 
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
@@ -145,8 +145,8 @@ impl Default for OpsCircuit {
 /// Circuit to compute multiset hashes of (IS, FS)
 #[derive(Clone, Debug)]
 pub struct ScanCircuit {
-  IS: Vec<(u64, u64)>, // Vec<(a, v, t)>
-  FS: Vec<(u64, u64)>, // Vec<(a, v, t)>
+  IS: Vec<(usize, u64, u64)>, // Vec<(a, v, t)>
+  FS: Vec<(usize, u64, u64)>, // Vec<(a, v, t)>
 }
 
 impl<F> StepCircuit<F> for ScanCircuit
@@ -177,14 +177,18 @@ where
     // 2. for i in 0..|IS|
     for (i, (is, fs)) in self.IS.iter().zip_eq(self.FS.iter()).enumerate() {
       // (a) (a,v,it)←IS[i]
-      let (i_addr, i_val, i_ts) =
-        alloc_avt_tuple(cs.namespace(|| format!("is{i}")), (i, is.0, is.1))?;
+      let (i_addr, i_val, i_ts) = alloc_avt_tuple(cs.namespace(|| format!("is{i}")), *is)?;
 
       // (b) (a′,v′,ft) ← FS[i]
-      let (f_addr, f_val, f_ts) =
-        alloc_avt_tuple(cs.namespace(|| format!("fs{i}")), (i, fs.0, fs.1))?;
+      let (f_addr, f_val, f_ts) = alloc_avt_tuple(cs.namespace(|| format!("fs{i}")), *fs)?;
 
-      // (c) assert a=a′ =i
+      // (c) assert a=a′
+      cs.enforce(
+        || "a == a_prime",
+        |lc| lc + i_addr.get_variable(),
+        |lc| lc + CS::one(),
+        |lc| lc + f_addr.get_variable(),
+      );
 
       // (d) h_IS ← h_IS · Hash(gamma, alpha, a, v, it)
 
@@ -229,11 +233,10 @@ where
       .IS
       .iter()
       .zip_eq(self.FS.iter())
-      .enumerate()
-      .flat_map(|(i, (is, fs))| {
-        avt_tuple_to_scalar_vec::<F>((i, is.0, is.1))
+      .flat_map(|(is, fs)| {
+        avt_tuple_to_scalar_vec::<F>(*is)
           .into_iter()
-          .chain(avt_tuple_to_scalar_vec::<F>((i, fs.0, fs.1)))
+          .chain(avt_tuple_to_scalar_vec::<F>(*fs))
       })
       .collect()
   }
@@ -242,7 +245,7 @@ where
 impl ScanCircuit {
   /// Create a new instance of ScanCircuit for computing multiset hashes of
   /// (IS, FS)
-  pub fn new(IS: Vec<(u64, u64)>, FS: Vec<(u64, u64)>) -> Self {
+  pub fn new(IS: Vec<(usize, u64, u64)>, FS: Vec<(usize, u64, u64)>) -> Self {
     ScanCircuit { IS, FS }
   }
 }
@@ -251,8 +254,8 @@ impl ScanCircuit {
   /// Create a empty instance of [`ScanCircuit`]
   pub fn empty(step_size: usize) -> Self {
     ScanCircuit {
-      IS: vec![(0, 0); IS_SIZE_PER_STEP],
-      FS: vec![(0, 0); IS_SIZE_PER_STEP],
+      IS: vec![(0, 0, 0); step_size],
+      FS: vec![(0, 0, 0); step_size],
     }
   }
 }

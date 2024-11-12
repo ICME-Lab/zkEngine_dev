@@ -124,8 +124,6 @@ impl BatchedOpsCircuit {
 
 /// Maximum number of memory ops allowed per step of the zkVM
 pub const MEMORY_OPS_PER_STEP: usize = 8;
-/// How big each IS chunk is per step
-pub const IS_SIZE_PER_STEP: usize = 2;
 
 /// Public i/o for WASM execution proving
 pub struct ZKWASMInstance<E>
@@ -332,10 +330,7 @@ where
     let mut IC_pprime = E::Scalar::ZERO;
 
     let mut scan_circuits = Vec::new();
-    for (IS_chunk, FS_chunk) in IS
-      .chunks(IS_SIZE_PER_STEP)
-      .zip_eq(FS.chunks(IS_SIZE_PER_STEP))
-    {
+    for (IS_chunk, FS_chunk) in IS.chunks(step_size).zip_eq(FS.chunks(step_size)) {
       let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
       IC_pprime = IC::<E>::commit(
         &scan_pp.ck_primary,
@@ -385,7 +380,6 @@ where
     }
 
     // internal check
-    debug_assert!(ops_rs_option.is_some());
     let ops_rs = ops_rs_option.ok_or(ZKWASMError::MalformedRS)?;
     ops_rs.verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
 
@@ -410,9 +404,10 @@ where
     }
 
     // internal check
-    debug_assert!(scan_rs_option.is_some());
     let scan_rs = scan_rs_option.ok_or(ZKWASMError::MalformedRS)?;
     scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
+
+    debug_assert_eq!(scan_IC_i, IC_pprime);
 
     // Public i/o
     let U = ZKWASMInstance {
