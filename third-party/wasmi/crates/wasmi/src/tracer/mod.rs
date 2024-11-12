@@ -2,11 +2,7 @@
 
 use wasmi_core::UntypedValue;
 
-use crate::{
-    engine::{bytecode::Instruction, stack},
-    AsContext,
-    Memory,
-};
+use crate::{engine::bytecode::Instruction, AsContext, Memory};
 
 #[derive(Debug, Clone, Default)]
 /// Hold the execution trace from VM execution and manages other miscellaneous

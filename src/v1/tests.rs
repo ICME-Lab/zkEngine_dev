@@ -23,7 +23,7 @@ fn test_wasm_snark_with(wasm_ctx: WASMCtx, step_size: usize) {
 
 #[test]
 fn test_bit_check() {
-  let step_size = 1;
+  let step_size = 16;
   init_logger();
   let wasm_ctx = WASMCtxBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/bit_check.wat"))
@@ -43,7 +43,6 @@ fn test_bls() {
     .file_path(PathBuf::from("wasm/bls.wasm"))
     .unwrap()
     .invoke("main")
-    .func_args(vec!["255".to_string(), "255".to_string()])
     .build();
 
   test_wasm_snark_with(wasm_ctx, step_size);
