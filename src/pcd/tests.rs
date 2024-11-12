@@ -1,40 +1,11 @@
-use super::receipt::Receipt;
 use crate::{
-  circuits::verify::verify_receipts,
-  traits::wasm::ZKWASMContext,
+  pcd::{prove_shard, verify_json_receipts},
+  traits::wasm::{ZKWASMArgs, ZKWASMContext},
   wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
 };
 use anyhow::Ok;
 use std::path::PathBuf;
-use wasmi::{etable::step_info::StepInfo, TraceSliceValues};
-
-fn mock_wasm_nivc() {}
-fn mock_build_rom(_execution_trace: &[StepInfo]) {}
-
-/// Prove WASM shard. (Top-Down approach)
-/// Returns a receipt which can be used to verify the proof & show that related shards are
-/// connected.
-///
-/// `start` and `end` are parameters to specify the shards range of opcodes to prove.
-fn mock_prove_shard(wasm_ctx: &mut impl ZKWASMContext) -> anyhow::Result<Receipt> {
-  // Get the execution trace of Wasm module
-  let tracer = wasm_ctx.tracer()?;
-  let (etable, _) = wasm_ctx.build_execution_trace()?;
-  let sharded_execution_trace = etable.plain_execution_trace();
-
-  // Build ROM: constrains the sequence of execution order for the opcodes
-  mock_build_rom(&sharded_execution_trace);
-
-  // Produce proof by running execution trace through SuperNova (NIVC)
-  mock_wasm_nivc();
-
-  // Get memory snapshot info to build `Receipt`
-  let memory_snapshot = &tracer.borrow().memory_snapshot;
-  let system_state = memory_snapshot.system_state().clone();
-
-  // Reciept used to verify the proof & prove related shards are connected
-  Ok(Receipt::new(system_state))
-}
+use wasmi::TraceSliceValues;
 
 /// Logic to get shard start and end opcodes
 fn get_shard_start_end_values(
@@ -74,6 +45,8 @@ fn test_connect_shards() -> anyhow::Result<()> {
     .func_args(func_args.clone())
     .build();
 
+  let bytecode = wasm_args.bytecode().unwrap();
+
   let mut wasm_ctx = WasiWASMCtx::new_from_file(&wasm_args)?;
 
   // Mock the lead node which first runs an estimate on WASM
@@ -98,15 +71,13 @@ fn test_connect_shards() -> anyhow::Result<()> {
       .func_args(func_args.clone())
       .build();
 
-    let mut wasm_ctx = WasiWASMCtx::new_from_file(&wasm_args)?;
-
-    let receipt = mock_prove_shard(&mut wasm_ctx)?;
+    let receipt = prove_shard(&bytecode, &wasm_args).unwrap();
     receipt_vec.push(receipt);
   }
 
   // Verify receipts are valid
   tracing::info!("verifying shard receipts");
-  verify_receipts(&receipt_vec)?;
+  verify_json_receipts(receipt_vec)?;
 
   Ok(())
 }

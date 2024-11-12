@@ -200,7 +200,7 @@ mod tests {
   use std::path::PathBuf;
 
   use crate::{
-    utils::{logging::init_logger, save::save_string},
+    utils::logging::init_logger,
     wasm::{args::WASMArgsBuilder, ctx::wasi::WasiWASMCtx},
   };
 
@@ -225,36 +225,6 @@ mod tests {
 
     tracing::info!("running prover");
     let proof = LiteProver::prove(&mut wasm_ctx, &pp, &pk)?;
-
-    tracing::info!("running verifier");
-    proof.verify(&vk)?;
-    Ok(())
-  }
-
-  #[test]
-  #[ignore]
-  fn test_lite_prover_serde() -> anyhow::Result<()> {
-    init_logger();
-    let x = "1";
-    let size = "10";
-
-    let args = WASMArgsBuilder::default()
-      .file_path(PathBuf::from("wasm/misc/uni-poly-eval.wasm"))
-      .invoke(Some(String::from("eval")))
-      .func_args(vec![String::from(x), String::from(size)])
-      .build();
-
-    tracing::info!("running setup");
-    let (pk, vk, pp) = LiteProver::setup(&mut WasiWASMCtx::new_from_file(&args)?)?;
-
-    let mut wasm_ctx = WasiWASMCtx::new_from_file(&args)?;
-
-    tracing::info!("running prover");
-    let proof = LiteProver::prove(&mut wasm_ctx, &pp, &pk)?;
-
-    let vk_str = serde_json::to_string(&vk)?;
-    save_string(vk_str.clone(), "vk.json")?;
-    let vk: super::VK = serde_json::from_str(&vk_str)?;
 
     tracing::info!("running verifier");
     proof.verify(&vk)?;

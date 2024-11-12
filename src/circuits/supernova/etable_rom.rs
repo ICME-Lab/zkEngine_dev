@@ -2,15 +2,11 @@
 //! Execution table (ETable)
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use core::marker::PhantomData;
-use ff::{Field, PrimeField, PrimeFieldBits};
+use ff::{PrimeField, PrimeFieldBits};
 use nova::{
-  supernova::{
-    NonUniformCircuit, PublicParams, RecursiveSNARK, StepCircuit, TrivialSecondaryCircuit,
-  },
-  traits::{snark::default_ck_hint, CurveCycleEquipped, Dual, Engine},
+  supernova::{NonUniformCircuit, StepCircuit, TrivialSecondaryCircuit},
+  traits::{CurveCycleEquipped, Dual, Engine},
 };
-
-use crate::errors::ProvingError;
 
 use super::step_circuits::{
   control_ops::{BrCircuit, BrIfEqzCircuit, BrIfNezCircuit},
@@ -33,9 +29,6 @@ use super::step_circuits::{
   },
   parametric_ops::SelectCircuit,
 };
-
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
 
 /// The Etable ROM to constraint the sequence of execution order for opcode, in the Execution table
 pub struct EtableROM<E1> {
@@ -356,83 +349,4 @@ where
   fn initial_circuit_index(&self) -> usize {
     self.rom[0]
   }
-}
-
-/// Prove execution of a WASM using NIVC
-pub fn wasm_nivc<E1>(
-  rom: Vec<usize>,
-  tracer_values: Vec<(u64, u64, u64)>,
-  _overwrite_pp: bool,
-  should_stop: impl Fn() -> bool,
-) -> Result<(), ProvingError>
-where
-  E1: CurveCycleEquipped,
-  <E1 as Engine>::Scalar: PartialOrd,
-{
-  #[cfg(not(target_arch = "wasm32"))]
-  let total_time = Instant::now();
-
-  let mut test_rom = EtableROM::<E1>::new(rom, tracer_values.to_vec());
-
-  let pp = PublicParams::setup(&test_rom, &*default_ck_hint(), &*default_ck_hint());
-
-  // extend z0_primary/secondary with rom content
-  let mut z0_primary = vec![<E1 as Engine>::Scalar::ONE];
-  z0_primary.push(<E1 as Engine>::Scalar::ZERO); // rom_index = 0
-  let z0_secondary = vec![<Dual<E1> as Engine>::Scalar::ONE];
-
-  let mut recursive_snark_option: Option<RecursiveSNARK<E1>> = None;
-
-  let last_index = test_rom.rom.len() - 1;
-  tracing::info!("Starting NIVC");
-
-  #[cfg(not(target_arch = "wasm32"))]
-  let time = Instant::now();
-
-  for (i, &op_code) in test_rom.rom.iter().enumerate() {
-    if i % 10 == 0 && should_stop() {
-      return Err(ProvingError::Interrupted);
-    }
-
-    let op_code_err = format!("index:{}, failed to run on opcode {:?}", i, op_code);
-    let circuit_primary = test_rom.primary_circuit(op_code);
-    tracing::debug!("index:{}, opcode:{}", i, op_code);
-    let circuit_secondary = test_rom.secondary_circuit();
-
-    let mut recursive_snark = recursive_snark_option.unwrap_or_else(|| {
-      RecursiveSNARK::new(
-        &pp,
-        &test_rom,
-        &circuit_primary,
-        &circuit_secondary,
-        &z0_primary,
-        &z0_secondary,
-      )
-      .expect(&op_code_err)
-    });
-
-    recursive_snark
-      .prove_step(&pp, &circuit_primary, &circuit_secondary)
-      .expect(&op_code_err);
-
-    if i == last_index {
-      recursive_snark
-        .verify(&pp, &z0_primary, &z0_secondary)
-        .expect(&op_code_err);
-    }
-    test_rom.counter += 1;
-    recursive_snark_option = Some(recursive_snark)
-  }
-
-  #[cfg(not(target_arch = "wasm32"))]
-  tracing::info!("NIVC done in {:?}", time.elapsed());
-
-  #[cfg(not(target_arch = "wasm32"))]
-  let total_elapsed_time = total_time.elapsed();
-
-  #[cfg(not(target_arch = "wasm32"))]
-  tracing::info!("The full run took {:?}", total_elapsed_time);
-
-  assert!(recursive_snark_option.is_some());
-  Ok(())
 }
