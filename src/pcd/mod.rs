@@ -8,41 +8,30 @@ pub mod receipt;
 #[cfg(test)]
 mod tests;
 use anyhow::anyhow;
-use nova::provider::PallasEngine;
 
 use crate::{
-  circuits::{supernova::etable_rom::wasm_nivc, verify::verify_receipts},
+  circuits::verify::verify_receipts,
   errors::ProvingError,
+  provider::E,
+  run::batched,
   traits::wasm::ZKWASMContext,
-  utils::nivc::build_rom,
+  wasm::{args::WASMArgs, ctx::wasi::WasiWASMCtx},
 };
 
 use receipt::Receipt;
 
-// TODO: improve time complexity
 /// Prove WASM shard. (Top-Down approach)
 /// Returns a receipt which can be used to verify the proof & show that related shards are
 /// connected.
 ///
 /// `start` and `end` are parameters to specify the shards range of opcodes to prove.
-pub fn prove_shard(
-  wasm_ctx: &mut impl ZKWASMContext,
-  should_stop: impl Fn() -> bool,
-) -> Result<String, ProvingError> {
-  // Get the execution trace of Wasm module
-  let (etable, _) = wasm_ctx.build_execution_trace().map_err(|_| {
-    ProvingError::WasmError(String::from("failed to parse WASM and get execution trace"))
-  })?;
-  let execution_trace = etable.plain_execution_trace();
-
-  // Build ROM: constrains the sequence of execution order for the opcodes
-  let (rom, tracer_values) = build_rom(&execution_trace);
-
-  // TODO: Convert this to Top-Down approach
+pub fn prove_shard(wasm_args: &WASMArgs) -> Result<String, ProvingError> {
   // Produce proof by running execution trace through SuperNova (NIVC)
-  wasm_nivc::<PallasEngine>(rom, tracer_values, true, &should_stop)?;
+  let pp = batched::WasmExecutionSNARK::<E>::setup(&mut WasiWASMCtx::new_from_file(wasm_args)?)?;
+  let proving_wasm_ctx = &mut WasiWASMCtx::new_from_file(wasm_args)?;
+  let _ = batched::WasmExecutionSNARK::<E>::prove_wasm_execution(proving_wasm_ctx, &pp)?;
 
-  let tracer = &wasm_ctx
+  let tracer = &proving_wasm_ctx
     .tracer()
     .map_err(|_| ProvingError::WasmError(String::from("failed to get memory snapshot")))?;
   // Get memory snapshot info to build `Receipt`

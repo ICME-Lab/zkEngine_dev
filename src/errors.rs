@@ -32,4 +32,13 @@ pub enum ProvingError {
 
   /// Failed to load WASM module
   WasmError(String),
+
+  /// Failed to prove WASM execution
+  AnyhowError(anyhow::Error),
+}
+
+impl From<anyhow::Error> for ProvingError {
+  fn from(error: anyhow::Error) -> Self {
+    ProvingError::AnyhowError(error)
+  }
 }
