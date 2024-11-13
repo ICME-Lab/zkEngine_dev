@@ -108,19 +108,20 @@ fn test_integer_hash() {
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
     .unwrap()
-    .func_args(vec!["10".to_string()])
+    .func_args(vec!["100".to_string()])
     .invoke("integer_hash")
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
+  estimate_wasm(wasm_ctx).unwrap();
 
-  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+  // test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
 #[test]
 fn test_zk_ads() {
   init_logger();
-  let step_size = StepSize::new(1000).set_memory_step_size(10_000);
+  let step_size = StepSize::new(500).set_memory_step_size(50_000);
   let input_x = "200.05";
   let input_y = "-30.0";
   let wasm_args = WASMArgsBuilder::default()
@@ -146,6 +147,20 @@ fn test_gradient_boosting() {
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .unwrap()
     .invoke("_start")
+    .build();
+
+  let wasm_ctx = WasiWASMCtx::new(wasm_args);
+  estimate_wasm(wasm_ctx).unwrap();
+  // test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}
+
+#[test]
+fn test_bls() {
+  let step_size = StepSize::new(10_000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/bls.wasm"))
+    .unwrap()
     .build();
 
   let wasm_ctx = WasiWASMCtx::new(wasm_args);

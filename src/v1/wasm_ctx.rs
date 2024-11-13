@@ -58,6 +58,7 @@ impl WASMArgsBuilder {
 }
 
 /// WASM execution context: contains the WASM program and its [`WASMCtxMetaData`]
+#[derive(Debug, Clone)]
 pub struct WASMArgs {
   pub(in crate::v1) program: Vec<u8>,
   pub(in crate::v1) invoke: String,
@@ -83,6 +84,7 @@ pub trait ZKWASMCtx {
   fn execution_trace(&self) -> Result<ExecutionTrace, ZKWASMError>;
 }
 
+#[derive(Debug, Clone)]
 /// Wasm execution context
 pub struct WASMCtx {
   args: WASMArgs,
@@ -152,6 +154,7 @@ impl ZKWASMCtx for WASMCtx {
 }
 
 /// Wasm execution context
+#[derive(Debug, Clone)]
 pub struct WasiWASMCtx {
   args: WASMArgs,
 }
