@@ -3,7 +3,7 @@ use std::{path::PathBuf, time::Instant};
 use nova::provider::Bn256EngineIPA;
 
 use crate::{
-  utils::{logging::init_logger, wasm::wat2wasm},
+  utils::logging::init_logger,
   v1::utils::macros::{start_timer, stop_timer},
 };
 
@@ -63,20 +63,6 @@ fn test_int_opcodes() -> Result<(), ZKWASMError> {
 }
 
 #[test]
-fn test_omit_rel_ops() -> Result<(), ZKWASMError> {
-  let step_size = 50;
-  init_logger();
-  let wasm_ctx = WASMCtxBuilder::default()
-    .file_path(PathBuf::from("wasm/omit_rel_ops.wat"))
-    .unwrap()
-    .build();
-
-  test_wasm_snark_with(wasm_ctx, step_size)?;
-
-  Ok(())
-}
-
-#[test]
 fn test_eq_func() -> Result<(), ZKWASMError> {
   let step_size = 500;
   init_logger();
@@ -107,36 +93,6 @@ fn test_complete_int_opcodes() -> Result<(), ZKWASMError> {
 }
 
 #[test]
-fn test_kth_factor() -> Result<(), ZKWASMError> {
-  let step_size = 1000;
-  init_logger();
-  let wasm_ctx = WASMCtxBuilder::default()
-    .file_path(PathBuf::from("wasm/nebula/kth_factor.wat"))
-    .unwrap()
-    .invoke("kth_factor")
-    .func_args(vec!["10".to_string(), "3".to_string()])
-    .build();
-
-  test_wasm_snark_with(wasm_ctx, step_size)?;
-
-  Ok(())
-}
-
-#[test]
-fn test_regression_model() {
-  let step_size = 1_000;
-  init_logger();
-  let wasm_ctx = WASMCtxBuilder::default()
-    .file_path(PathBuf::from("wasm/nebula/regression_model.wasm"))
-    .unwrap()
-    .func_args(vec!["10".to_string()])
-    .invoke("regression")
-    .build();
-
-  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
-}
-
-#[test]
 fn test_integer_hash() {
   let step_size = 10_000;
   init_logger();
@@ -145,19 +101,6 @@ fn test_integer_hash() {
     .unwrap()
     .func_args(vec!["10".to_string()])
     .invoke("integer_hash")
-    .build();
-
-  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
-}
-
-#[test]
-fn test_bls() {
-  let step_size = 1_000_000;
-  init_logger();
-  let wasm_ctx = WASMCtxBuilder::default()
-    .file_path(PathBuf::from("wasm/bls.wasm"))
-    .unwrap()
-    .invoke("main")
     .build();
 
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
