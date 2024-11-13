@@ -573,6 +573,7 @@ where
     self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
     self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
+    self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -748,6 +749,21 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Unreachable }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// Select
+  fn visit_select<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::Select }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }

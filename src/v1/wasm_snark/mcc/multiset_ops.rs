@@ -20,6 +20,12 @@ pub fn step_RS_WS(
 
   match instr {
     Instr::Unreachable => {}
+    Instr::Select => {
+      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // X
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // Y
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
+      write_op(vm.pre_sp - 3, vm.Z, global_ts, FS, &mut RS, &mut WS);
+    }
     Instr::I64Const32(_) | Instr::Const32(..) | Instr::ConstRef(..) | Instr::F64Const32(..) => {
       write_op(vm.pre_sp, vm.I, global_ts, FS, &mut RS, &mut WS);
     }

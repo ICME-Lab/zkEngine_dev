@@ -54,6 +54,20 @@ fn test_int_opcodes() -> Result<(), ZKWASMError> {
 }
 
 #[test]
+fn test_omit_rel_ops() -> Result<(), ZKWASMError> {
+  let step_size = 50;
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/omit_rel_ops.wat"))
+    .unwrap()
+    .build();
+
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
+}
+
+#[test]
 fn test_eq_func() -> Result<(), ZKWASMError> {
   let step_size = 500;
   init_logger();

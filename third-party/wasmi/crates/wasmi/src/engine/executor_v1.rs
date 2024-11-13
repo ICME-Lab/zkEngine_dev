@@ -1892,7 +1892,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
-
+            Instr::Select => {
+                vm.X = self.sp.nth_back(3).to_bits();
+                vm.Y = self.sp.nth_back(2).to_bits();
+                vm.I = self.sp.nth_back(1).to_bits();
+            }
             _ => unimplemented!(),
         }
 
@@ -2135,7 +2139,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I32Rotr => {
                 vm.Z = self.sp.last().to_bits();
             }
-
+            Instr::Select => {
+                vm.Z = self.sp.last().to_bits();
+            }
             _ => {}
         }
     }
