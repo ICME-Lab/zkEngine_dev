@@ -17,19 +17,14 @@ use nova::{
   },
   traits::{snark::default_ck_hint, CurveCycleEquipped, Engine, TranscriptEngineTrait},
 };
-use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use serde::{Deserialize, Serialize};
 use wasmi::{
   AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, DropKeep, Instruction as Instr,
-  Tracer, WitnessVM,
+  WitnessVM,
 };
 
-use super::{error::ZKWASMError, wasm_ctx::WASMCtx};
-use crate::v1::utils::{
-  macros::{start_timer, stop_timer},
-  tracing::{execute_wasm, unwrap_rc_refcell},
-};
+use super::{error::ZKWASMError, wasm_ctx::ZKWASMCtx};
 
 mod gadgets;
 mod mcc;
@@ -223,35 +218,20 @@ where
   /// Produce a SNARK for WASM program input
   pub fn prove(
     pp: &WASMPublicParams<E>,
-    program: &WASMCtx,
+    program: impl ZKWASMCtx,
     step_size: usize,
   ) -> Result<(Self, ZKWASMInstance<E>), ZKWASMError> {
-    // Execute WASM module and build execution trace documenting vm state at
-    // each step. Also get meta-date from execution like the max height of the [`ValueStack`]
-    let tracer = Rc::new(RefCell::new(Tracer::new()));
-    execute_wasm(program, tracer.clone())?;
-    let tracer = unwrap_rc_refcell(tracer);
-
-    /*
-     * Get MCC values:
-     */
-
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
     let mut global_ts = 0;
 
     // Compute multisets to perform grand product checks (uses global_ts)
-    let IS_stack_len = tracer.IS_stack_len();
-    let IS_mem_len = tracer.IS_mem_len();
-    tracing::debug!("stack len: {}", IS_stack_len);
-    let mut IS = tracer.IS();
-    tracing::debug!("IS_mem.len: {}", IS_mem_len);
+
+    let (mut execution_trace, mut IS, IS_stack_len, IS_mem_len) = program.execution_trace()?;
 
     let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut FS = IS.clone();
-
-    let mut execution_trace = tracer.into_execution_trace();
 
     // Pad the execution trace, so the length is a multiple of step_size
     {
