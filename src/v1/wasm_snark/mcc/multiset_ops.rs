@@ -10,6 +10,7 @@ pub fn step_RS_WS(
   FS: &mut [(usize, u64, u64)],
   global_ts: &mut u64,
   stack_len: usize,
+  mem_len: usize,
 ) -> (
   Vec<(usize, u64, u64)>, // RS
   Vec<(usize, u64, u64)>, // WS
@@ -270,6 +271,17 @@ pub fn step_RS_WS(
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
 
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::GlobalGet(..) => {
+      let read_addr = stack_len + mem_len + vm.I as usize;
+      read_op(read_addr, global_ts, FS, &mut RS, &mut WS); // Y
+      write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    Instr::GlobalSet(..) => {
+      let write_addr = stack_len + mem_len + vm.I as usize;
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
+      write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
 
     _ => unimplemented!("{:?}", instr),

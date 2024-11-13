@@ -115,7 +115,7 @@ pub mod errors {
 
 pub use self::{
     engine::{
-        bytecode::{AddressOffset, BranchOffset, DropKeep, Instruction},
+        bytecode::{AddressOffset, BranchOffset, DropKeep, GlobalIdx as BCGlobalIdx, Instruction},
         Config,
         Engine,
         EngineBackend,

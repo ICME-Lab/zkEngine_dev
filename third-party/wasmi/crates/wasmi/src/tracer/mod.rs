@@ -2,7 +2,7 @@
 
 use wasmi_core::UntypedValue;
 
-use crate::{engine::bytecode::Instruction, AsContext, Memory};
+use crate::{engine::bytecode::Instruction, AsContext, Global, Memory};
 
 #[derive(Debug, Clone, Default)]
 /// Hold the execution trace from VM execution and manages other miscellaneous
@@ -17,6 +17,8 @@ pub struct Tracer {
     IS_stack: Vec<(usize, u64, u64)>,
     /// Linear memory initial set
     IS_mem: Vec<(usize, u64, u64)>,
+    /// Initial set of globals
+    IS_globals: Vec<(usize, u64, u64)>,
 }
 
 impl Tracer {
@@ -50,11 +52,23 @@ impl Tracer {
         self.IS_stack.len()
     }
 
+    /// Get IS_mem len
+    pub fn IS_mem_len(&self) -> usize {
+        self.IS_mem.len()
+    }
+
     /// Getter for IS
     pub fn IS(&self) -> Vec<(usize, u64, u64)> {
         let mut IS = self.IS_stack.to_vec();
         let stack_len = IS.len();
+        let linear_mem_len = self.IS_mem.len();
         IS.extend(self.IS_mem.iter().map(|(i, v, _)| (*i + stack_len, *v, 0)));
+        IS.extend(
+            self.IS_globals
+                .iter()
+                .map(|(i, v, _)| (*i + stack_len + linear_mem_len, *v, 0)),
+        );
+
         IS
     }
 
@@ -68,6 +82,12 @@ impl Tracer {
                 .unwrap();
             self.IS_mem.push((i as usize, u64::from_le_bytes(buf), 0));
         }
+    }
+
+    /// Push globals
+    pub fn push_global(&mut self, globalidx: usize, globalref: &Global, context: impl AsContext) {
+        let value = UntypedValue::from(globalref.get(&context));
+        self.IS_globals.push((globalidx, value.to_bits(), 0));
     }
 }
 

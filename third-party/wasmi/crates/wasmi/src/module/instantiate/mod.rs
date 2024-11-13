@@ -124,6 +124,11 @@ impl Module {
         self.initialize_memory_data(&mut context, &mut builder)?;
 
         let mut tracer = tracer.borrow_mut();
+        for i in 0..self.len_globals() {
+            let globalref = builder.get_global(i as u32);
+            tracer.push_global(i, &globalref, &context);
+        }
+
         if self.memories.len() > 0 {
             let memref = builder.get_memory(0);
             tracer.push_init_memory(memref, &context);

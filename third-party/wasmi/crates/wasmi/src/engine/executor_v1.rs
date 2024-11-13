@@ -1897,6 +1897,15 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Y = self.sp.nth_back(2).to_bits();
                 vm.I = self.sp.nth_back(1).to_bits();
             }
+
+            Instr::GlobalGet(idx) => {
+                vm.I = idx.to_u32() as u64;
+            }
+            Instr::GlobalSet(idx) => {
+                let value = self.sp.last().to_bits();
+                    vm.I = idx.to_u32() as u64;
+                    vm.Y = value;
+            }
             _ => unimplemented!(),
         }
 
@@ -2141,6 +2150,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::Select => {
                 vm.Z = self.sp.last().to_bits();
+            }
+            Instr::GlobalGet(..) => {
+                vm.Y = self.sp.last().to_bits();
             }
             _ => {}
         }

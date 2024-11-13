@@ -98,6 +98,22 @@ fn test_complete_int_opcodes() -> Result<(), ZKWASMError> {
 }
 
 #[test]
+fn test_kth_factor() -> Result<(), ZKWASMError> {
+  let step_size = 1000;
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/kth_factor.wat"))
+    .unwrap()
+    .invoke("kth_factor")
+    .func_args(vec!["10".to_string(), "3".to_string()])
+    .build();
+
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
+}
+
+#[test]
 fn test_bls() {
   let step_size = 1_000_000;
   init_logger();

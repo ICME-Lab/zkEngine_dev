@@ -21,7 +21,9 @@ use nova::{
 };
 
 use serde::{Deserialize, Serialize};
-use wasmi::{AddressOffset, BranchOffset, DropKeep, Instruction as Instr, Tracer, WitnessVM};
+use wasmi::{
+  AddressOffset, BCGlobalIdx, BranchOffset, DropKeep, Instruction as Instr, Tracer, WitnessVM,
+};
 
 use crate::v1::utils::tracing::{execute_wasm, unwrap_rc_refcell};
 
@@ -239,9 +241,10 @@ where
 
     // Compute multisets to perform grand product checks (uses global_ts)
     let IS_stack_len = tracer.IS_stack_len();
+    let IS_mem_len = tracer.IS_mem_len();
     tracing::debug!("stack len: {}", IS_stack_len);
     let mut IS = tracer.IS();
-    tracing::debug!("IS_mem.len: {}", IS.len() - IS_stack_len);
+    tracing::debug!("IS_mem.len: {}", IS_mem_len);
 
     let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
@@ -265,7 +268,7 @@ where
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
       .into_iter()
       .map(|vm| {
-        let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, IS_stack_len);
+        let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, IS_stack_len, IS_mem_len);
 
         RS.push(step_rs.clone());
         WS.push(step_ws.clone());
@@ -749,6 +752,36 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Unreachable }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// global.get
+  fn visit_global_get<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::GlobalGet(BCGlobalIdx::from(0)) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// global.set
+  fn visit_global_set<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::GlobalSet(BCGlobalIdx::from(0)) }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }
