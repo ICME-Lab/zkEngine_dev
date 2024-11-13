@@ -195,7 +195,6 @@ where
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
   pub fn setup(step_size: usize) -> WASMPublicParams<E> {
-    let timer = start_timer!("Producing Public Params");
     let execution_pp = PublicParams::<E>::setup(
       &BatchedWasmTransitionCircuit::empty(step_size),
       &*default_ck_hint(),
@@ -213,7 +212,6 @@ where
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
-    stop_timer!(timer);
     WASMPublicParams {
       execution_pp,
       ops_pp,
@@ -574,6 +572,7 @@ where
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
     self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
     self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
+    self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switches)?;
     self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
     self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
     self.visit_store(cs.namespace(|| "store"), &mut switches)?;
@@ -788,6 +787,21 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::BrTable(BranchTableTargets::try_from(0).unwrap()) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// BrTable
+  fn visit_br_adjust<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::BrAdjust(BranchOffset::uninit()) }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }

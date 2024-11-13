@@ -1,7 +1,7 @@
 // Macro to start the timer
 macro_rules! start_timer {
   ($msg:expr) => {{
-    tracing::info!("{} ...", $msg);
+    tracing::info!("{}...", $msg);
     (Instant::now(), $msg)
   }};
 }

@@ -82,6 +82,7 @@ pub fn step_RS_WS(
     }
     Instr::Br(_) => {}
     Instr::BrTable(_) => {}
+    Instr::BrAdjust(_) => {}
     Instr::Drop => {}
     Instr::CallInternal(..) => {}
     Instr::DropKeep => {

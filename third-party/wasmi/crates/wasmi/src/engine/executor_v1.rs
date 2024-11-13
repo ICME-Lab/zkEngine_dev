@@ -227,8 +227,20 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 // run this fn to get the usize value of [`ValueStackPtr`]
                 self.sync_stack_ptr();
 
+
+
                 // Capture/Trace the necessary pre-execution values
-                self.execute_instr_pre(self.value_stack.stack_ptr, self.pc())
+                let vm = self.execute_instr_pre(self.value_stack.stack_ptr, self.pc());
+
+                if let Instr::BrAdjust(..) = *instr {
+                    if let Some(tracer) = self.tracer.clone() {
+                        let mut tracer = tracer.borrow_mut();
+                        let drop_keep = self.fetch_drop_keep(1);
+                        tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                    };
+                };
+
+                vm
             } else {
                 WitnessVM::default()
             };
@@ -238,10 +250,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 () => {
                     if let Some(tracer) = self.tracer.clone() {
                         let mut tracer = tracer.borrow_mut();
-                        if let Instr::Return(drop_keep) = *instr {
-                            tracer
-                                .execution_trace
-                                .extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                        match *instr {
+                            Instr::Return(drop_keep) => {
+                                tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                            }
+                            _ => {}
                         }
                         // Get post instruction VM state changes
                         self.execute_instr_post(&mut vm, instr);
@@ -1715,8 +1728,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
-            Instr::Return(drop_keep) => {
-                vm.I = drop_keep.drop() as u64;
+            Instr::Return(..) => {
             }
             Instr::CallInternal(..) => {}
             Instr::Drop => {}
@@ -1907,6 +1919,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     vm.Y = value;
             }
             Instr::BrTable(..) => {}
+            Instr::BrAdjust(..) => {}
             _ => unimplemented!(),
         }
 
@@ -2164,10 +2177,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     fn trace_drop_keep(&self, mut init_vm: WitnessVM, drop_keep: DropKeep) -> Vec<WitnessVM> {
         // TODO: optimize this to store two writes & reads
         use Instruction as Instr;
-
         let mut vms = Vec::new();
         init_vm.instr = Instr::DropKeep;
         init_vm.J = init_vm.instr.index_j();
+        init_vm.I = drop_keep.drop() as u64;
 
         let mut keep = drop_keep.keep();
 

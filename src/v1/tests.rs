@@ -2,7 +2,10 @@ use std::{path::PathBuf, time::Instant};
 
 use nova::provider::Bn256EngineIPA;
 
-use crate::utils::{logging::init_logger, wasm::wat2wasm};
+use crate::{
+  utils::{logging::init_logger, wasm::wat2wasm},
+  v1::utils::macros::{start_timer, stop_timer},
+};
 
 use super::{
   error::ZKWASMError,
@@ -14,12 +17,18 @@ use super::{
 pub type E = Bn256EngineIPA;
 
 fn test_wasm_snark_with(wasm_ctx: WASMCtx, step_size: usize) -> Result<(), ZKWASMError> {
+  let pp_timer = start_timer!("Producing Public Parameters");
   let pp = WasmSNARK::<E>::setup(step_size);
+  stop_timer!(pp_timer);
 
+  let proving_timer = start_timer!("Proving");
   let (snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size)?;
-  let time = Instant::now();
+  stop_timer!(proving_timer);
+
+  let verification_timer = start_timer!("Verification");
   snark.verify(&pp, &U).unwrap();
-  tracing::info!("Verification time: {:?}", time.elapsed());
+  stop_timer!(verification_timer);
+
   Ok(())
 }
 
@@ -129,7 +138,7 @@ fn test_regression_model() {
 
 #[test]
 fn test_integer_hash() {
-  let step_size = 100;
+  let step_size = 10_000;
   init_logger();
   let wasm_ctx = WASMCtxBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
