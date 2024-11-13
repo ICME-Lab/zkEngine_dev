@@ -2,8 +2,10 @@ use crate::{
   utils::wasm::{decode_func_args, prepare_func_results},
   v1::{error::ZKWASMError, wasm_ctx::WASMCtx},
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::Instant};
 use wasmi::Tracer;
+
+use super::macros::{start_timer, stop_timer};
 
 /// Get inner value of [`Rc<RefCell<T>>`]
 pub fn unwrap_rc_refcell<T>(last_elem: Rc<RefCell<T>>) -> T {
@@ -44,5 +46,25 @@ pub fn execute_wasm(wasm_ctx: &WASMCtx, tracer: Rc<RefCell<Tracer>>) -> Result<(
   // Call the function to invoke.
   func.call_with_trace(&mut store, &func_args, &mut func_results, tracer.clone())?;
   tracing::debug!("wasm func res: {:#?}", func_results);
+  Ok(())
+}
+
+/// Get estimations of the WASM execution trace size
+pub fn estimate_wasm(program: &WASMCtx) -> Result<(), ZKWASMError> {
+  let tracer = Rc::new(RefCell::new(Tracer::new()));
+
+  let execution_timer = start_timer!("Running WASM");
+  execute_wasm(program, tracer.clone())?;
+  stop_timer!(execution_timer);
+
+  let tracer = unwrap_rc_refcell(tracer);
+
+  let IS_stack_len = tracer.IS_stack_len();
+  let IS_mem_len = tracer.IS_mem_len();
+  tracing::info!("stack len: {}", IS_stack_len);
+  tracing::info!("IS_mem.len: {}", IS_mem_len);
+
+  let execution_trace = tracer.into_execution_trace();
+  tracing::info!("Execution trace len: {:?}", execution_trace.len());
   Ok(())
 }

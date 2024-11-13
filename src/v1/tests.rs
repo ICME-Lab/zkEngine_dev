@@ -93,6 +93,26 @@ fn test_complete_int_opcodes() -> Result<(), ZKWASMError> {
 }
 
 #[test]
+fn test_zk_ads() {
+  init_logger();
+  let step_size = 1_000;
+  let input_x = "200.05";
+  let input_y = "-30.0";
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/zk_ads.wasm"))
+    .unwrap()
+    .func_args(vec![
+      String::from("0"),
+      String::from(input_x),
+      String::from(input_y),
+    ])
+    .invoke("is_user_close_enough")
+    .build();
+
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}
+
+#[test]
 fn test_integer_hash() {
   let step_size = 10_000;
   init_logger();
