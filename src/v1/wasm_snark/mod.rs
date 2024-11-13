@@ -280,7 +280,8 @@ where
     // F represents the transition function of the WASM (stack-based) VM.
     // commitment-carrying IVC to prove the repeated execution of F
     let execution_pp = pp.execution();
-    for circuit in circuits.iter() {
+    for (i, circuit) in circuits.iter().enumerate() {
+      tracing::debug!("Proving step {}/{}", i + 1, circuits.len());
       let mut rs = rs_option.unwrap_or_else(|| {
         RecursiveSNARK::new(execution_pp, circuit, &z0)
           .expect("failed to construct initial recursive SNARK")
@@ -375,7 +376,9 @@ where
     let mut ops_IC_i = E::Scalar::ZERO;
     let mut ops_rs_option: Option<RecursiveSNARK<E>> = None;
 
-    for ops_circuit in ops_circuits.iter() {
+    tracing::debug!("Proving MCC ops circuits");
+    for (i, ops_circuit) in ops_circuits.iter().enumerate() {
+      tracing::debug!("Proving step {}/{}", i + 1, ops_circuits.len());
       let mut ops_rs = ops_rs_option.unwrap_or_else(|| {
         RecursiveSNARK::new(ops_pp, ops_circuit, &ops_z0)
           .expect("failed to construct initial recursive SNARK")
@@ -399,7 +402,9 @@ where
     let scan_z0 = vec![gamma, alpha, E::Scalar::ONE, E::Scalar::ONE];
     let mut scan_rs_option: Option<RecursiveSNARK<E>> = None;
 
-    for scan_circuit in scan_circuits.iter() {
+    tracing::debug!("Proving MCC audit circuits");
+    for (i, scan_circuit) in scan_circuits.iter().enumerate() {
+      tracing::debug!("Proving step {}/{}", i + 1, scan_circuits.len());
       let mut scan_rs = scan_rs_option.unwrap_or_else(|| {
         RecursiveSNARK::new(scan_pp, scan_circuit, &scan_z0)
           .expect("failed to construct initial recursive SNARK")
