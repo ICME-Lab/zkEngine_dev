@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 
+use core::cmp;
+
 use wasmi_core::UntypedValue;
 
 use crate::{engine::bytecode::Instruction, AsContext, Global, Memory};
@@ -36,6 +38,11 @@ impl Tracer {
     /// Getter for max_sp
     pub fn max_sp(&self) -> usize {
         self.max_sp
+    }
+
+    /// Setter for max_sp
+    pub fn set_max_sp(&mut self, sp: usize) {
+        self.max_sp = cmp::max(self.max_sp, sp);
     }
 
     /// Setter for IS

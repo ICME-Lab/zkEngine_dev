@@ -48,6 +48,8 @@ impl StepSize {
   }
 
   /// Set the memory step size
+  ///
+  /// Returns a modified instance of [`StepSize`]
   pub fn set_memory_step_size(mut self, memory: usize) -> Self {
     self.memory = memory;
     self

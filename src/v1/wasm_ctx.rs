@@ -139,6 +139,8 @@ impl ZKWASMCtx for WASMCtx {
      */
     let IS_stack_len = tracer.IS_stack_len();
     let IS_mem_len = tracer.IS_mem_len();
+    let max_sp = tracer.max_sp();
+    tracing::debug!("max_sp: {}", max_sp);
     tracing::debug!("stack len: {}", IS_stack_len);
     let IS = tracer.IS();
     tracing::debug!("IS_mem.len: {}", IS_mem_len);

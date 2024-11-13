@@ -250,6 +250,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 () => {
                     if let Some(tracer) = self.tracer.clone() {
                         let mut tracer = tracer.borrow_mut();
+                        tracer.set_max_sp(vm.pre_sp);
                         match *instr {
                             Instr::Return(drop_keep) => {
                                 tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
