@@ -29,8 +29,8 @@ use super::{error::ZKWASMError, wasm_ctx::ZKWASMCtx};
 mod gadgets;
 mod mcc;
 
-#[derive(Clone, Debug, Copy)]
 /// Step size of used for zkVM execution
+#[derive(Clone, Debug, Copy)]
 pub struct StepSize {
   execution: usize,
   memory: usize,
