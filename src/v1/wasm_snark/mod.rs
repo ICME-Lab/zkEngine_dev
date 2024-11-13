@@ -29,6 +29,31 @@ use super::{error::ZKWASMError, wasm_ctx::ZKWASMCtx};
 mod gadgets;
 mod mcc;
 
+#[derive(Clone, Debug, Copy)]
+/// Step size of used for zkVM execution
+pub struct StepSize {
+  execution: usize,
+  memory: usize,
+}
+
+impl StepSize {
+  /// Create a new instance of [`StepSize`]
+  ///
+  /// Sets both execution and memory step size to `step_size`
+  pub fn new(step_size: usize) -> Self {
+    Self {
+      execution: step_size,
+      memory: step_size,
+    }
+  }
+
+  /// Set the memory step size
+  pub fn set_memory_step_size(mut self, memory: usize) -> Self {
+    self.memory = memory;
+    self
+  }
+}
+
 #[derive(Clone, Debug)]
 /// BatchedWasmTransitionCircuit
 pub struct BatchedWasmTransitionCircuit {
@@ -189,21 +214,21 @@ where
 {
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
-  pub fn setup(step_size: usize) -> WASMPublicParams<E> {
+  pub fn setup(step_size: StepSize) -> WASMPublicParams<E> {
     let execution_pp = PublicParams::<E>::setup(
-      &BatchedWasmTransitionCircuit::empty(step_size),
+      &BatchedWasmTransitionCircuit::empty(step_size.execution),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
 
     let ops_pp = PublicParams::<E>::setup(
-      &BatchedOpsCircuit::empty(step_size),
+      &BatchedOpsCircuit::empty(step_size.execution),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
 
     let scan_pp = PublicParams::<E>::setup(
-      &ScanCircuit::empty(step_size),
+      &ScanCircuit::empty(step_size.memory),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
@@ -219,7 +244,7 @@ where
   pub fn prove(
     pp: &WASMPublicParams<E>,
     program: impl ZKWASMCtx,
-    step_size: usize,
+    step_size: StepSize,
   ) -> Result<(Self, ZKWASMInstance<E>), ZKWASMError> {
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
@@ -236,7 +261,7 @@ where
     // Pad the execution trace, so the length is a multiple of step_size
     {
       let len = execution_trace.len();
-      let pad_len = step_size - (len % step_size);
+      let pad_len = step_size.execution - (len % step_size.execution);
       (0..pad_len).for_each(|_| {
         execution_trace.push(WitnessVM::default());
       })
@@ -264,7 +289,7 @@ where
       .collect();
 
     let circuits = circuits
-      .chunks(step_size)
+      .chunks(step_size.execution)
       .map(|chunk| BatchedWasmTransitionCircuit {
         circuits: chunk.to_vec(),
       })
@@ -315,7 +340,7 @@ where
       .collect::<Vec<_>>();
 
     let ops_circuits = ops_circuits
-      .chunks(step_size)
+      .chunks(step_size.execution)
       .map(|chunk| BatchedOpsCircuit {
         circuits: chunk.to_vec(),
       })
@@ -330,16 +355,19 @@ where
     // Pad IS and FS , so length is a multiple of step_size
     {
       let len = IS.len();
-      let pad_len = step_size - (len % step_size);
+      let pad_len = step_size.memory - (len % step_size.memory);
       (0..pad_len).for_each(|i| {
         IS.push((len + i, 0, 0));
         FS.push((len + i, 0, 0));
       })
     }
     // sanity check
-    assert_eq!(IS.len() % step_size, 0);
+    assert_eq!(IS.len() % step_size.memory, 0);
 
-    for (IS_chunk, FS_chunk) in IS.chunks(step_size).zip_eq(FS.chunks(step_size)) {
+    for (IS_chunk, FS_chunk) in IS
+      .chunks(step_size.memory)
+      .zip_eq(FS.chunks(step_size.memory))
+    {
       let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
       IC_pprime = IC::<E>::commit(
         &scan_pp.ck_primary,

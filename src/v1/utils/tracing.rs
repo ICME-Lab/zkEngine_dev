@@ -14,7 +14,7 @@ pub fn unwrap_rc_refcell<T>(last_elem: Rc<RefCell<T>>) -> T {
 }
 
 /// Get estimations of the WASM execution trace size
-pub fn estimate_wasm(program: &WASMCtx) -> Result<(), ZKWASMError> {
+pub fn estimate_wasm(program: impl ZKWASMCtx) -> Result<(), ZKWASMError> {
   let execution_timer = start_timer!("Running WASM");
   let (execution_trace, _, IS_stack_len, IS_mem_len) = program.execution_trace()?;
   stop_timer!(execution_timer);
