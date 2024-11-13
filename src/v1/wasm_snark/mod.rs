@@ -1,6 +1,4 @@
 //! Implements SNARK proving the WASM module computation
-use std::{cell::RefCell, rc::Rc};
-
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField, PrimeFieldBits};
 use gadgets::{
@@ -19,15 +17,19 @@ use nova::{
   },
   traits::{snark::default_ck_hint, CurveCycleEquipped, Engine, TranscriptEngineTrait},
 };
+use std::{cell::RefCell, rc::Rc, time::Instant};
 
 use serde::{Deserialize, Serialize};
 use wasmi::{
-  AddressOffset, BCGlobalIdx, BranchOffset, DropKeep, Instruction as Instr, Tracer, WitnessVM,
+  AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, DropKeep, Instruction as Instr,
+  Tracer, WitnessVM,
 };
 
-use crate::v1::utils::tracing::{execute_wasm, unwrap_rc_refcell};
-
 use super::{error::ZKWASMError, wasm_ctx::WASMCtx};
+use crate::v1::utils::{
+  macros::{start_timer, stop_timer},
+  tracing::{execute_wasm, unwrap_rc_refcell},
+};
 
 mod gadgets;
 mod mcc;
@@ -193,6 +195,7 @@ where
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
   pub fn setup(step_size: usize) -> WASMPublicParams<E> {
+    let timer = start_timer!("Producing Public Params");
     let execution_pp = PublicParams::<E>::setup(
       &BatchedWasmTransitionCircuit::empty(step_size),
       &*default_ck_hint(),
@@ -210,7 +213,7 @@ where
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
-
+    stop_timer!(timer);
     WASMPublicParams {
       execution_pp,
       ops_pp,
@@ -548,6 +551,8 @@ where
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
     self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
+    self.visit_global_get(cs.namespace(|| "global.get"), &mut switches)?;
+    self.visit_global_set(cs.namespace(|| "global.set"), &mut switches)?;
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
@@ -568,6 +573,7 @@ where
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
     self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
+    self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
     self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
     self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
     self.visit_store(cs.namespace(|| "store"), &mut switches)?;
@@ -767,6 +773,21 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::GlobalGet(BCGlobalIdx::from(0)) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// BrTable
+  fn visit_br_table<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::BrTable(BranchTableTargets::try_from(0).unwrap()) }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }

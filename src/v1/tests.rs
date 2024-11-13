@@ -114,6 +114,34 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
 }
 
 #[test]
+fn test_regression_model() {
+  let step_size = 1_000;
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/regression_model.wasm"))
+    .unwrap()
+    .func_args(vec!["10".to_string()])
+    .invoke("regression")
+    .build();
+
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}
+
+#[test]
+fn test_integer_hash() {
+  let step_size = 100;
+  init_logger();
+  let wasm_ctx = WASMCtxBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
+    .unwrap()
+    .func_args(vec!["10".to_string()])
+    .invoke("integer_hash")
+    .build();
+
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}
+
+#[test]
 fn test_bls() {
   let step_size = 1_000_000;
   init_logger();

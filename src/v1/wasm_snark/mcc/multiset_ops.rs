@@ -81,6 +81,7 @@ pub fn step_RS_WS(
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
     }
     Instr::Br(_) => {}
+    Instr::BrTable(_) => {}
     Instr::Drop => {}
     Instr::CallInternal(..) => {}
     Instr::DropKeep => {

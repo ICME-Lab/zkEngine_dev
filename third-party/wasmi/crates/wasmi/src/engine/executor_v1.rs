@@ -1906,6 +1906,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     vm.I = idx.to_u32() as u64;
                     vm.Y = value;
             }
+            Instr::BrTable(..) => {}
             _ => unimplemented!(),
         }
 
@@ -2154,6 +2155,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::GlobalGet(..) => {
                 vm.Y = self.sp.last().to_bits();
             }
+
             _ => {}
         }
     }
