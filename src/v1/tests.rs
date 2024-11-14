@@ -113,9 +113,8 @@ fn test_integer_hash() {
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
-  estimate_wasm(wasm_ctx).unwrap();
 
-  // test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
 #[test]
