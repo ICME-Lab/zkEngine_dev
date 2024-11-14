@@ -307,11 +307,7 @@ pub fn step_RS_WS(
     Instr::HostCallStackStep => {
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
-
-    Instr::MemoryGrow => {}
-    Instr::MemorySize => {}
     Instr::CallIndirect(..) => {}
-
     _ => unimplemented!("{:?}", instr),
   }
 

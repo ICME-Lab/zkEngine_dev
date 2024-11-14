@@ -18,6 +18,7 @@ pub struct WASMArgsBuilder {
   program: Vec<u8>,
   invoke: String,
   func_args: Vec<String>,
+  end_slice: Option<usize>,
 }
 
 impl WASMArgsBuilder {
@@ -47,12 +48,19 @@ impl WASMArgsBuilder {
     self
   }
 
+  /// Set the end slice
+  pub fn end_slice(mut self, end_slice: usize) -> Self {
+    self.end_slice = Some(end_slice);
+    self
+  }
+
   /// Build the WASM context
   pub fn build(self) -> WASMArgs {
     WASMArgs {
       program: self.program,
       func_args: self.func_args,
       invoke: self.invoke,
+      end_slice: self.end_slice,
     }
   }
 }
@@ -63,6 +71,7 @@ pub struct WASMArgs {
   pub(in crate::v1) program: Vec<u8>,
   pub(in crate::v1) invoke: String,
   pub(in crate::v1) func_args: Vec<String>,
+  pub(in crate::v1) end_slice: Option<usize>,
 }
 
 impl Default for WASMArgsBuilder {
@@ -71,6 +80,7 @@ impl Default for WASMArgsBuilder {
       program: vec![],
       invoke: "main".to_string(),
       func_args: vec![],
+      end_slice: None,
     }
   }
 }
@@ -223,6 +233,12 @@ impl ZKWASMCtx for WasiWASMCtx {
       execution_trace.len()
     );
 
+    let end_slice = self.args.end_slice.unwrap_or(execution_trace.len());
+    let execution_trace = execution_trace[..end_slice].to_vec();
+    tracing::debug!(
+      "last execution trace: {:#?}",
+      execution_trace.last().unwrap()
+    );
     Ok((execution_trace, IS, IS_stack_len, IS_mem_len))
   }
 }
@@ -230,4 +246,26 @@ impl ZKWASMCtx for WasiWASMCtx {
 /// zkvm uses a seed to generate random numbers.
 pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
   Box::new(StdRng::from_seed([0; 32]))
+}
+
+/// Definition for WASM execution context
+pub trait ZKWASMCtxTest {
+  /// User provided host data owned by the [`Store`].
+  type T;
+
+  /// Returns an exclusive reference to the [`Store`] of the [`Context`].
+  fn store_mut(&mut self) -> &mut wasmi::Store<Self::T>;
+
+  /// Returns a shared reference to the [`Store`] of the [`Context`].
+  fn store(&self) -> &wasmi::Store<Self::T>;
+
+  /// To get a trace you need a function to invoke.
+  ///
+  /// Gets a function to invoke from an instantiated WASM module.
+  fn func(&self, fn_name: &str) -> Result<wasmi::Func, ZKWASMError>;
+
+  /// Get the execution trace from WASM execution context
+  fn execution_trace(&self) -> Result<ExecutionTrace, ZKWASMError> {
+    todo!();
+  }
 }

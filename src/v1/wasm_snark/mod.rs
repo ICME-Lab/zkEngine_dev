@@ -1001,12 +1001,14 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let read_val = Self::read(
-      cs.namespace(|| "read at local_depth"),
-      &local_depth,
-      &self.RS[0],
-      switch,
-    )?;
+    // let read_val = Self::read(
+    //   cs.namespace(|| "read at local_depth"),
+    //   &local_depth,
+    //   &self.RS[0],
+    //   switch,
+    // )?;
+
+    let read_val = Self::alloc_num(&mut cs, || "read_val", || Ok(F::from(self.vm.P)), switch)?;
 
     let pre_sp = Self::alloc_num(
       &mut cs,

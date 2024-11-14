@@ -140,17 +140,17 @@ fn test_zk_ads() {
 
 #[test]
 fn test_gradient_boosting() {
-  let step_size = StepSize::new(10_000);
+  let step_size = StepSize::new(1_000).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .unwrap()
     .invoke("_start")
+    .end_slice(10_000)
     .build();
 
   let wasm_ctx = WasiWASMCtx::new(wasm_args);
-  estimate_wasm(wasm_ctx).unwrap();
-  // test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
 #[test]

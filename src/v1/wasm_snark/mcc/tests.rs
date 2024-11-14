@@ -63,33 +63,31 @@ where
     |(a, v, t): (usize, u64, u64)| -> (F, F, F) { (F::from(a as u64), F::from(v), F::from(t)) };
 
   let F_ops = |RS: Vec<(usize, u64, u64)>, WS: Vec<(usize, u64, u64)>| -> (F, F) {
-    let h_RS = F::ONE;
-    let h_WS = F::ONE;
-
-    RS.into_iter()
+    let h_RS = RS
+      .into_iter()
       .map(int_to_fe)
       .map(hash_func)
-      .fold(h_RS, |acc, x| acc * x);
-    WS.into_iter()
+      .fold(F::ONE, |acc, x| acc * x);
+    let h_WS = WS
+      .into_iter()
       .map(int_to_fe)
       .map(hash_func)
-      .fold(h_WS, |acc, x| acc * x);
+      .fold(F::ONE, |acc, x| acc * x);
 
     (h_RS, h_WS)
   };
 
   let F_scan = |IS: Vec<(usize, u64, u64)>, FS: Vec<(usize, u64, u64)>| {
-    let h_IS = F::ONE;
-    let h_FS = F::ONE;
-
-    IS.into_iter()
+    let h_IS = IS
+      .into_iter()
       .map(int_to_fe)
       .map(hash_func)
-      .fold(h_IS, |acc, x| acc * x);
-    FS.into_iter()
+      .fold(F::ONE, |acc, x| acc * x);
+    let h_FS = FS
+      .into_iter()
       .map(int_to_fe)
       .map(hash_func)
-      .fold(h_FS, |acc, x| acc * x);
+      .fold(F::ONE, |acc, x| acc * x);
 
     (h_IS, h_FS)
   };
@@ -99,6 +97,7 @@ where
 
   // Check that the grand product of RS and WS is equal to the grand product of IS and FS
   assert_eq!(h_IS * h_WS, h_RS * h_FS);
+  println!("h_RS: {:#?}", h_RS);
   Ok(())
 }
 
