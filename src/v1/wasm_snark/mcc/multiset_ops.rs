@@ -286,6 +286,32 @@ pub fn step_RS_WS(
       write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
 
+    Instr::MemoryFill => {}
+    Instr::MemoryCopy => {}
+    Instr::MemoryFillStep => {
+      let read_addr = vm.Y as usize + stack_len;
+      read_op(read_addr, global_ts, FS, &mut RS, &mut WS);
+
+      let write_addr = vm.X as usize + stack_len;
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::MemoryCopyStep => {
+      let write_addr = vm.X as usize + stack_len;
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    Instr::HostCallStep => {
+      let write_addr = vm.Y as usize + stack_len;
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::HostCallStackStep => {
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    Instr::MemoryGrow => {}
+    Instr::MemorySize => {}
+    Instr::CallIndirect(..) => {}
+
     _ => unimplemented!("{:?}", instr),
   }
 

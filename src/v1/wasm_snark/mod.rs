@@ -597,6 +597,13 @@ where
     self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
     self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
+    self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
+    self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
+    self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switches)?;
+    self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switches)?;
+    self
+      .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
+    self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -772,6 +779,96 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Unreachable }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.copy
+  fn visit_memory_copy<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryCopy }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.copy step
+  fn visit_memory_copy_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryCopyStep }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.fill
+  fn visit_memory_fill<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryFill }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.fill step
+  fn visit_memory_fill_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryFillStep }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// host call stack step
+  fn visit_host_call_stack_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::HostCallStackStep }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// host call step
+  fn visit_host_call_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::HostCallStep }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }

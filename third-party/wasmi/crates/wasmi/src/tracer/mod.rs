@@ -55,6 +55,15 @@ impl Tracer {
         self.max_sp = cmp::max(self.max_sp, sp);
     }
 
+    /// Getter for IS_stack
+    pub fn IS_stack(&self) -> Vec<(usize, u64, u64)> {
+        let mut IS_stack = self.IS_stack.to_vec();
+        if self.max_sp() > IS_stack.len() {
+            IS_stack.extend((IS_stack.len()..=self.max_sp()).map(|i| (i, 0, 0)));
+        }
+        IS_stack
+    }
+
     /// Setter for IS
     pub(crate) fn set_IS_stack(&mut self, stack: &[UntypedValue]) {
         self.IS_stack = stack
@@ -76,7 +85,7 @@ impl Tracer {
 
     /// Getter for IS
     pub fn IS(&self) -> Vec<(usize, u64, u64)> {
-        let mut IS = self.IS_stack.to_vec();
+        let mut IS = self.IS_stack();
         let stack_len = IS.len();
         let linear_mem_len = self.IS_mem.len();
         IS.extend(self.IS_mem.iter().map(|(i, v, _)| (*i + stack_len, *v, 0)));
