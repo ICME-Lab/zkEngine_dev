@@ -29,125 +29,6 @@ use super::{error::ZKWASMError, wasm_ctx::ZKWASMCtx};
 mod gadgets;
 mod mcc;
 
-/// Step size of used for zkVM execution
-#[derive(Clone, Debug, Copy)]
-pub struct StepSize {
-  execution: usize,
-  memory: usize,
-}
-
-impl StepSize {
-  /// Create a new instance of [`StepSize`]
-  ///
-  /// Sets both execution and memory step size to `step_size`
-  pub fn new(step_size: usize) -> Self {
-    Self {
-      execution: step_size,
-      memory: step_size,
-    }
-  }
-
-  /// Set the memory step size
-  ///
-  /// Returns a modified instance of [`StepSize`]
-  pub fn set_memory_step_size(mut self, memory: usize) -> Self {
-    self.memory = memory;
-    self
-  }
-}
-
-#[derive(Clone, Debug)]
-/// BatchedWasmTransitionCircuit
-pub struct BatchedWasmTransitionCircuit {
-  circuits: Vec<WASMTransitionCircuit>,
-}
-
-impl<F> StepCircuit<F> for BatchedWasmTransitionCircuit
-where
-  F: PrimeField + PrimeFieldBits,
-{
-  fn arity(&self) -> usize {
-    1
-  }
-
-  fn synthesize<CS: ConstraintSystem<F>>(
-    &self,
-    cs: &mut CS,
-    z: &[AllocatedNum<F>],
-  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    let mut z = z.to_vec();
-
-    for circuit in self.circuits.iter() {
-      z = circuit.synthesize(cs, &z)?;
-    }
-
-    Ok(z)
-  }
-
-  fn non_deterministic_advice(&self) -> Vec<F> {
-    self
-      .circuits
-      .iter()
-      .flat_map(|circuit| circuit.non_deterministic_advice())
-      .collect()
-  }
-}
-
-impl BatchedWasmTransitionCircuit {
-  /// Create an empty instance of [`BatchedWasmTransitionCircuit`]
-  pub fn empty(step_size: usize) -> Self {
-    Self {
-      circuits: vec![WASMTransitionCircuit::default(); step_size],
-    }
-  }
-}
-
-#[derive(Clone, Debug)]
-/// BatchedWasmTransitionCircuit
-pub struct BatchedOpsCircuit {
-  circuits: Vec<OpsCircuit>,
-}
-
-impl<F> StepCircuit<F> for BatchedOpsCircuit
-where
-  F: PrimeField,
-{
-  fn arity(&self) -> usize {
-    5
-  }
-
-  fn synthesize<CS: ConstraintSystem<F>>(
-    &self,
-    cs: &mut CS,
-    z: &[AllocatedNum<F>],
-  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    let mut z = z.to_vec();
-
-    for circuit in self.circuits.iter() {
-      z = circuit.synthesize(cs, &z)?;
-    }
-
-    Ok(z)
-  }
-
-  fn non_deterministic_advice(&self) -> Vec<F> {
-    self
-      .circuits
-      .iter()
-      .flat_map(|circuit| circuit.non_deterministic_advice())
-      .collect()
-  }
-}
-
-impl BatchedOpsCircuit {
-  /// Create an empty instance of [`BatchedOpsCircuit`]
-  pub fn empty(step_size: usize) -> Self {
-    Self {
-      circuits: vec![OpsCircuit::default(); step_size],
-    }
-  }
-}
-
 /// Maximum number of memory ops allowed per step of the zkVM
 pub const MEMORY_OPS_PER_STEP: usize = 8;
 
@@ -530,6 +411,125 @@ where
     }
 
     Ok(())
+  }
+}
+
+/// Step size of used for zkVM execution
+#[derive(Clone, Debug, Copy)]
+pub struct StepSize {
+  execution: usize,
+  memory: usize,
+}
+
+impl StepSize {
+  /// Create a new instance of [`StepSize`]
+  ///
+  /// Sets both execution and memory step size to `step_size`
+  pub fn new(step_size: usize) -> Self {
+    Self {
+      execution: step_size,
+      memory: step_size,
+    }
+  }
+
+  /// Set the memory step size
+  ///
+  /// Returns a modified instance of [`StepSize`]
+  pub fn set_memory_step_size(mut self, memory: usize) -> Self {
+    self.memory = memory;
+    self
+  }
+}
+
+#[derive(Clone, Debug)]
+/// BatchedWasmTransitionCircuit
+pub struct BatchedWasmTransitionCircuit {
+  circuits: Vec<WASMTransitionCircuit>,
+}
+
+impl<F> StepCircuit<F> for BatchedWasmTransitionCircuit
+where
+  F: PrimeField + PrimeFieldBits,
+{
+  fn arity(&self) -> usize {
+    1
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    z: &[AllocatedNum<F>],
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    let mut z = z.to_vec();
+
+    for circuit in self.circuits.iter() {
+      z = circuit.synthesize(cs, &z)?;
+    }
+
+    Ok(z)
+  }
+
+  fn non_deterministic_advice(&self) -> Vec<F> {
+    self
+      .circuits
+      .iter()
+      .flat_map(|circuit| circuit.non_deterministic_advice())
+      .collect()
+  }
+}
+
+impl BatchedWasmTransitionCircuit {
+  /// Create an empty instance of [`BatchedWasmTransitionCircuit`]
+  pub fn empty(step_size: usize) -> Self {
+    Self {
+      circuits: vec![WASMTransitionCircuit::default(); step_size],
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
+/// BatchedWasmTransitionCircuit
+pub struct BatchedOpsCircuit {
+  circuits: Vec<OpsCircuit>,
+}
+
+impl<F> StepCircuit<F> for BatchedOpsCircuit
+where
+  F: PrimeField,
+{
+  fn arity(&self) -> usize {
+    5
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    z: &[AllocatedNum<F>],
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    let mut z = z.to_vec();
+
+    for circuit in self.circuits.iter() {
+      z = circuit.synthesize(cs, &z)?;
+    }
+
+    Ok(z)
+  }
+
+  fn non_deterministic_advice(&self) -> Vec<F> {
+    self
+      .circuits
+      .iter()
+      .flat_map(|circuit| circuit.non_deterministic_advice())
+      .collect()
+  }
+}
+
+impl BatchedOpsCircuit {
+  /// Create an empty instance of [`BatchedOpsCircuit`]
+  pub fn empty(step_size: usize) -> Self {
+    Self {
+      circuits: vec![OpsCircuit::default(); step_size],
+    }
   }
 }
 

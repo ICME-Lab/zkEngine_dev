@@ -30,6 +30,16 @@ impl Tracer {
         Tracer::default()
     }
 
+    /// Get len of execution trace
+    pub fn len(&self) -> usize {
+        self.execution_trace.len()
+    }
+
+    /// Get last instruction traced
+    pub fn last(&self) -> Option<Instruction> {
+        self.execution_trace.last().map(|witness| witness.instr)
+    }
+
     /// Extract the execution trace from the tracer
     pub fn into_execution_trace(self) -> Vec<WitnessVM> {
         self.execution_trace

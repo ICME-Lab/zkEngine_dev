@@ -224,21 +224,32 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
             // Get the pre-execution VM state at this timestamp
             let mut vm = if self.tracer.is_some() {
+                let mut vm = WitnessVM::default();
+                if let Some(tracer) = self.tracer.clone() {
                 // run this fn to get the usize value of [`ValueStackPtr`]
                 self.sync_stack_ptr();
+                let mut tracer = tracer.borrow_mut();
 
-
+                let len = tracer.len();
+                if len != 0 && matches!(tracer.last(), Some(Instr::HostCallStackStep)) {
+                    tracer.execution_trace.extend(self.trace_host_call());
+                }
 
                 // Capture/Trace the necessary pre-execution values
-                let vm = self.execute_instr_pre(self.value_stack.stack_ptr, self.pc());
+                 vm = self.execute_instr_pre(self.value_stack.stack_ptr, self.pc());
 
-                if let Instr::BrAdjust(..) = *instr {
-                    if let Some(tracer) = self.tracer.clone() {
-                        let mut tracer = tracer.borrow_mut();
-                        let drop_keep = self.fetch_drop_keep(1);
-                        tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
-                    };
-                };
+                // handle tracing edge cases
+                match *instr {
+                    Instr::MemoryCopy => {
+                            tracer.execution_trace.extend(self.trace_memory_copy(vm.clone()));
+                    },
+                    Instr::BrAdjust(..) => {
+                            let drop_keep = self.fetch_drop_keep(1);
+                            tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                    }
+                    _ => {}
+                }
+                }
 
                 vm
             } else {
@@ -254,6 +265,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         match *instr {
                             Instr::Return(drop_keep) => {
                                 tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                            }
+                            Instr::MemoryFill => {
+                                tracer.execution_trace.extend(self.trace_memory_fill(vm.clone()));
                             }
                             _ => {}
                         }
@@ -1921,7 +1935,29 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::BrTable(..) => {}
             Instr::BrAdjust(..) => {}
-            _ => unimplemented!(),
+            Instr::MemoryCopy => {
+                let num_bytes_to_copy = self.sp.nth_back(1).to_bits();
+                let src = self.sp.nth_back(2).to_bits();
+                let destination = self.sp.nth_back(3).to_bits();
+                vm.I = num_bytes_to_copy;
+                vm.Y = src;
+                vm.X = destination;
+            }
+            Instr::MemoryFill => {
+                let size = self.sp.nth_back(1).to_bits();
+                let value = self.sp.nth_back(2).to_bits();
+                let offset = self.sp.nth_back(3).to_bits();
+                vm.I = size;
+                vm.Y = value;
+                vm.X = offset;
+            }
+            Instr::Call(..) => {
+                tracing::info!("Making call");
+            }
+            _ => {
+                println!("Instruction not supported: {:?}", instruction);
+                unimplemented!();
+            },
         }
 
         vm
@@ -2191,6 +2227,131 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             vm.Y = self.sp.nth_back(keep as usize).to_bits();
             keep -= 1;
 
+            vms.push(vm);
+        }
+
+        vms
+    }
+
+    /// Special method to handle memory copy
+    fn trace_memory_copy(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
+        use Instruction as Instr;
+
+        let num_bytes_to_copy = init_vm.I;
+        let src = init_vm.Y;
+        let destination = init_vm.X;
+
+        init_vm.instr = Instr::MemoryCopyStep;
+        init_vm.J = init_vm.instr.index_j();
+        let mut vms = Vec::new();
+
+        let memory = self.cache.default_memory(self.ctx);
+        let memref = self.ctx.resolve_memory(&memory);
+
+        let mut val_vec = vec![];
+        let mut i = 0;
+        let mut j = 0;
+
+        while i < num_bytes_to_copy {
+            let mut buf = [0u8; 8];
+            memref.read((src / 8 + j) as usize * 8, &mut buf).unwrap();
+            let val = u64::from_le_bytes(buf);
+            val_vec.push(val);
+            i += 8;
+            j += 1;
+        }
+
+        if src % 8 != 0 {
+            let mut buf = [0u8; 8];
+            memref.read((src / 8 + j) as usize * 8, &mut buf).unwrap();
+            let val = u64::from_le_bytes(buf);
+            val_vec.push(val);
+        }
+
+        for (i, val) in val_vec.into_iter().enumerate() {
+            let mut vm = init_vm.clone();
+            vm.P = val;
+            vm.Y = src / 8 + i as u64;
+            vm.X = destination / 8 + i as u64;
+            vms.push(vm);
+        }
+
+        vms
+    }
+
+    /// Special method to handle memory copy
+    fn trace_memory_fill(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
+        use Instruction as Instr;
+
+        let size = init_vm.I;
+        let value = init_vm.Y;
+        let offset = init_vm.X;
+
+        init_vm.instr = Instr::MemoryFillStep;
+        init_vm.J = init_vm.instr.index_j();
+        let mut vms = Vec::new();
+
+        let memory = self.cache.default_memory(self.ctx);
+        let memref = self.ctx.resolve_memory(&memory);
+
+        let mut new_val_vec = vec![];
+
+        let mut i = 0;
+        let mut j = 0;
+        while i < size {
+            let mut updated_buf = [0u8; 8];
+            memref
+                .read((offset / 8 + j) as usize * 8, &mut updated_buf)
+                .unwrap();
+            let val = u64::from_le_bytes(updated_buf);
+            new_val_vec.push(val);
+            i += 8;
+            j += 1;
+        }
+
+        if offset % 8 != 0 {
+            let mut updated_buf = [0u8; 8];
+            memref
+                .read((offset / 8 + j) as usize * 8, &mut updated_buf)
+                .unwrap();
+            let val = u64::from_le_bytes(updated_buf);
+            new_val_vec.push(val);
+        }
+
+        for (i, new_val) in new_val_vec.into_iter().enumerate() {
+            let mut vm = init_vm.clone();
+            vm.P = new_val;
+            vm.X = offset / 8 + i as u64;
+            vms.push(vm);
+        }
+
+        vms
+    }
+
+    /// Special tracing method to handle host calls
+    fn trace_host_call(&mut self) -> Vec<WitnessVM> {
+        use Instruction as Instr;
+        let mut init_vm = WitnessVM::default();
+        init_vm.instr = Instr::HostCallStep;
+        init_vm.J = init_vm.instr.index_j();
+
+        let memory = self.cache.default_memory(self.ctx);
+        let memref = self.ctx.resolve_memory(&memory);
+
+        let pages: u32 = self
+            .ctx
+            .resolve_memory(self.cache.default_memory(self.ctx))
+            .current_pages()
+            .into();
+
+        let mut vms = Vec::new();
+
+        for i in 0..(pages * 8192) {
+            let mut vm = init_vm.clone();
+            let mut buf = [0u8; 8];
+            memref.read(i as usize * 8, &mut buf).unwrap();
+            vm.Y = i as u64; // address
+            vm.P = u64::from_le_bytes(buf); // value
             vms.push(vm);
         }
 

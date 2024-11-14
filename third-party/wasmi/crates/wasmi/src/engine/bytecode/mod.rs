@@ -389,6 +389,10 @@ pub enum Instruction {
 
     // Used for zkWASM
     DropKeep,
+    MemoryCopyStep,
+    MemoryFillStep,
+    HostCallStep,
+    HostCallStackStep,
 }
 
 impl Instruction {
@@ -452,7 +456,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 37;
+    pub const MAX_J: u64 = 46;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
@@ -653,6 +657,15 @@ impl Instruction {
             Self::GlobalSet(..) => 34,
             Self::BrTable(..) => 35,
             Self::BrAdjust(..) => 36,
+            Self::MemoryCopy => 37,
+            Self::MemoryFill => 38,
+            Self::MemoryGrow => 39,
+            Self::MemorySize => 40,
+            Self::MemoryCopyStep => 41,
+            Self::MemoryFillStep => 42,
+            Self::HostCallStep => 43,
+            Self::Call(..) => 44,
+            Self::HostCallStackStep => 45,
 
             Self::CallInternal(..) => 0, // TODO: all 0 J_indexes
             Self::Drop => 0,

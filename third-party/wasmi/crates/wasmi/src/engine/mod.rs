@@ -1147,15 +1147,7 @@ impl<'engine> EngineExecutor<'engine> {
                 self.tracer_prepare_wasm_call(tracer.clone(), &self.stack.values.entries.to_vec());
                 self.execute_wasm_func_with_trace(ctx.as_context_mut(), tracer)?;
             }
-            FuncEntity::Host(host_func) => {
-                let host_func = *host_func;
-                self.stack.call_host(
-                    ctx.as_context_mut(),
-                    host_func,
-                    None,
-                    &self.res.func_types,
-                )?;
-            }
+            FuncEntity::Host(..) => unimplemented!(),
         };
         let results = self.write_results_back(results);
         Ok(results)
@@ -1353,11 +1345,12 @@ impl<'engine> EngineExecutor<'engine> {
                         FuncEntity::Wasm(_) => unreachable!("`func` must be a host function"),
                         FuncEntity::Host(host_func) => *host_func,
                     };
-                    let result = self.stack.call_host(
+                    let result = self.stack.call_host_with_trace(
                         ctx.as_context_mut(),
                         host_func,
                         Some(&instance),
                         &self.res.func_types,
+                        tracer.clone(),
                     );
                     if self.stack.frames.peek().is_some() {
                         // Case: There is a frame on the call stack.
