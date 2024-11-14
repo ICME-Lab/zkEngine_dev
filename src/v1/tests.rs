@@ -155,7 +155,7 @@ fn test_gradient_boosting() {
 
 #[test]
 fn test_bls() {
-  let step_size = StepSize::new(10_000);
+  let _step_size = StepSize::new(10_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/bls.wasm"))

@@ -247,7 +247,6 @@ impl Stack {
         func_types: &FuncTypeRegistry,
         tracer: Rc<RefCell<Tracer>>,
     ) -> Result<(), Trap> {
-        tracing::info!("Calling host function: {:?}", host_func);
         // The host function signature is required for properly
         // adjusting, inspecting and manipulating the value stack.
         let (input_types, output_types) = func_types
@@ -316,7 +315,7 @@ impl Stack {
         }
 
         // We add a dummy write to indicate to tracer that a host function was called
-        if max_inout == 0 {
+        if stack_vms.is_empty() {
             let mut vm = stack_witness_vm.clone();
             vm.pre_sp = post_sp - 1;
             vm.P = self.values.stack_ptr().nth_back(1).to_bits();

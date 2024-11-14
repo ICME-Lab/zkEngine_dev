@@ -667,7 +667,7 @@ impl Instruction {
             Self::Call(..) => 44,
             Self::HostCallStackStep => 45,
 
-            Self::CallInternal(..) => 0, // TODO: all 0 J_indexes
+            Self::CallInternal(..) | Self::CallIndirect(..) => 0, // TODO: all 0 J_indexes
             Self::Drop => 0,
             Self::Return(..) => Self::MAX_J, // TODO
             _ => {

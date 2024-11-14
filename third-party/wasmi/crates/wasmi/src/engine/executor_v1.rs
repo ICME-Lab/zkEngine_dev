@@ -1952,8 +1952,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = offset;
             }
             Instr::Call(..) => {
-                tracing::info!("Making call");
             }
+            Instr::CallIndirect(..) => {}
             _ => {
                 println!("Instruction not supported: {:?}", instruction);
                 unimplemented!();

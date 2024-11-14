@@ -146,7 +146,7 @@ impl ZKWASMCtx for WASMCtx {
     tracing::debug!("IS_mem.len: {}", IS_mem_len);
 
     let execution_trace = tracer.into_execution_trace();
-    tracing::trace!(
+    tracing::debug!(
       "Non padded execution trace len: {:?}",
       execution_trace.len()
     );
@@ -216,9 +216,9 @@ impl ZKWASMCtx for WasiWASMCtx {
     tracing::debug!("stack len: {}", IS_stack_len);
     let IS = tracer.IS();
     tracing::debug!("IS_mem.len: {}", IS_mem_len);
-
+    tracing::debug!("max_sp: {}", tracer.max_sp());
     let execution_trace = tracer.into_execution_trace();
-    tracing::trace!(
+    tracing::debug!(
       "Non padded execution trace len: {:?}",
       execution_trace.len()
     );
