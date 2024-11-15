@@ -252,6 +252,11 @@ impl Stack {
         let (input_types, output_types) = func_types
             .resolve_func_type(host_func.ty_dedup())
             .params_results();
+
+        // Stack pointer before the call for tracing
+        let pre_sp = self.values.stack_ptr();
+        let pre_sp = pre_sp.offset_from(self.values.base_ptr()) as usize;
+
         // In case the host function returns more values than it takes
         // we are required to extend the value stack.
         let len_inputs = input_types.len();
@@ -268,6 +273,18 @@ impl Stack {
         } else {
             0
         };
+        let mut stack_vms = Vec::new();
+
+        let mut init_vm = WitnessVM::default();
+        init_vm.instr = Instruction::CallZeroWrite;
+        init_vm.J = init_vm.instr.index_j();
+
+        for i in 0..delta {
+            let mut vm = init_vm.clone();
+            vm.pre_sp = pre_sp + i;
+            stack_vms.push(vm);
+        }
+
         let params_results = FuncParams::new(
             self.values.peek_as_slice_mut(max_inout),
             len_inputs,
@@ -303,7 +320,6 @@ impl Stack {
         stack_witness_vm.instr = Instruction::HostCallStackStep;
         stack_witness_vm.J = stack_witness_vm.instr.index_j();
 
-        let mut stack_vms = Vec::new();
         let post_sp = self.values.stack_ptr();
         let post_sp = post_sp.offset_from(self.values.base_ptr()) as usize;
 

@@ -796,7 +796,7 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::CallInternalStep }.index_j();
+    let J: u64 = { Instr::CallZeroWrite }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }

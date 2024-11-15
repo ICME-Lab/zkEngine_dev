@@ -172,13 +172,12 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
 
 #[test]
 fn test_gradient_boosting() {
-  let step_size = StepSize::new(500).set_memory_step_size(50_000);
+  let step_size = StepSize::new(10_000).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .unwrap()
     .invoke("_start")
-    .end_slice(7306)
     .build();
 
   let wasm_ctx = WasiWASMCtx::new(wasm_args);

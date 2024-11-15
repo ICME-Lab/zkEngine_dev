@@ -393,7 +393,7 @@ pub enum Instruction {
     MemoryFillStep,
     HostCallStep,
     HostCallStackStep,
-    CallInternalStep,
+    CallZeroWrite,
 }
 
 impl Instruction {
@@ -666,7 +666,7 @@ impl Instruction {
             Self::MemoryFillStep => 42,
             Self::HostCallStep => 43,
             Self::HostCallStackStep => 44,
-            Self::CallInternalStep => 45,
+            Self::CallZeroWrite => 45,
 
             Self::CallInternal(..) | Self::CallIndirect(..) | Self::Call(..) => 0, // TODO: all 0 J_indexes
             Self::Drop => 0,

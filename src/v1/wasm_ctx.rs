@@ -162,6 +162,7 @@ impl ZKWASMCtx for WASMCtx {
     );
 
     let end_slice = self.args.end_slice.unwrap_or(execution_trace.len());
+    let end_slice = std::cmp::min(end_slice, execution_trace.len());
     let execution_trace = execution_trace[..end_slice].to_vec();
 
     Ok((execution_trace, IS, IS_stack_len, IS_mem_len))
@@ -237,6 +238,7 @@ impl ZKWASMCtx for WasiWASMCtx {
     );
 
     let end_slice = self.args.end_slice.unwrap_or(execution_trace.len());
+    let end_slice = std::cmp::min(end_slice, execution_trace.len());
     let execution_trace = execution_trace[..end_slice].to_vec();
     Ok((execution_trace, IS, IS_stack_len, IS_mem_len))
   }

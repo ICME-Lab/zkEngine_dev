@@ -316,7 +316,7 @@ pub fn step_RS_WS(
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
       write_op(vm.pre_sp - 1, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
-    Instr::CallInternalStep => {
+    Instr::CallZeroWrite => {
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
     _ => unimplemented!("{:?}", instr),
