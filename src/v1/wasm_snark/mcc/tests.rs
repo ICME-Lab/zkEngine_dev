@@ -97,7 +97,6 @@ where
 
   // Check that the grand product of RS and WS is equal to the grand product of IS and FS
   assert_eq!(h_IS * h_WS, h_RS * h_FS);
-  println!("h_RS: {:#?}", h_RS);
   Ok(())
 }
 

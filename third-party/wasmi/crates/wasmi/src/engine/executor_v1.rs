@@ -230,8 +230,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 self.sync_stack_ptr();
                 let mut tracer = tracer.borrow_mut();
 
-                let len = tracer.len();
-                if len != 0 && matches!(tracer.last(), Some(Instr::HostCallStackStep)) {
+                if matches!(tracer.last(), Some(Instr::HostCallStackStep)) {
                     tracer.execution_trace.extend(self.trace_host_call());
                 }
 
@@ -263,6 +262,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         let mut tracer = tracer.borrow_mut();
                         tracer.set_max_sp(vm.pre_sp);
                         match *instr {
+                            Instr::CallInternal(compiled_func) => {
+                                tracer.execution_trace.extend(self.trace_call_internal(vm.clone(), compiled_func));
+                            }
                             Instr::Return(drop_keep) => {
                                 tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
                             }
@@ -2294,12 +2296,32 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         vms
     }
 
+    /// Special method to handle CallInternal
+    fn trace_call_internal(&self, mut init_vm: WitnessVM, compiled_func: CompiledFunc) -> Vec<WitnessVM> {
+        use Instruction as Instr;
+
+        let len = self.code_map.header(compiled_func).len_locals();
+        let pre_sp = init_vm.pre_sp;
+
+        init_vm.instr = Instr::CallInternalStep;
+        init_vm.J = init_vm.instr.index_j();
+        let mut vms = Vec::new();
+
+        for i in 0..len {
+            let mut vm = init_vm.clone();
+            vm.pre_sp = pre_sp + i;
+            vms.push(vm);
+        };
+
+        vms
+    }
+
     /// Special method to handle memory copy
     fn trace_memory_fill(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
         use Instruction as Instr;
 
         let size = init_vm.I;
-        let value = init_vm.Y;
+        let _value = init_vm.Y;
         let offset = init_vm.X;
 
         init_vm.instr = Instr::MemoryFillStep;

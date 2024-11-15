@@ -533,7 +533,7 @@ impl BatchedOpsCircuit {
   }
 }
 
-/// Multiplexer circuit representing a step in a WASM module's computation
+/// Switchboard circuit representing a step in a WASM module's computation
 #[derive(Clone, Debug)]
 pub struct WASMTransitionCircuit {
   vm: WitnessVM,
@@ -606,6 +606,7 @@ where
     self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
     self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
     self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
+    self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -781,6 +782,21 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Unreachable }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.size
+  fn visit_call_internal_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::CallInternalStep }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }
