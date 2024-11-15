@@ -308,6 +308,10 @@ pub fn step_RS_WS(
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::CallIndirect(..) => {}
+
+    Instr::MemorySize => {
+      write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
     _ => unimplemented!("{:?}", instr),
   }
 

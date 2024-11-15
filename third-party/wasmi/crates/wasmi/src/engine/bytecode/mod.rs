@@ -456,7 +456,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 45;
+    pub const MAX_J: u64 = 46;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit

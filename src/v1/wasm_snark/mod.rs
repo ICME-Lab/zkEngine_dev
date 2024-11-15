@@ -604,6 +604,7 @@ where
     self
       .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
     self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
+    self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -794,6 +795,21 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryCopy }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.size
+  fn visit_memory_size<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemorySize }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }
@@ -994,7 +1010,7 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::local_get(0).unwrap() }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let local_depth = Self::alloc_num(
+    let _local_depth = Self::alloc_num(
       &mut cs,
       || "local depth",
       || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),

@@ -1954,6 +1954,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::Call(..) => {
             }
             Instr::CallIndirect(..) => {}
+            Instr::MemorySize => {}
             _ => {
                 println!("Instruction not supported: {:?}", instruction);
                 unimplemented!();
@@ -2205,7 +2206,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::GlobalGet(..) => {
                 vm.Y = self.sp.last().to_bits();
             }
-
+            Instr::MemorySize => {
+                vm.Y = self.sp.last().to_bits();
+            }
             _ => {}
         }
     }
