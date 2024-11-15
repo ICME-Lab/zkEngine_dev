@@ -167,7 +167,6 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
   let wasm_ctx = WASMCtx::new(wasm_args);
 
   test_wasm_snark_with(wasm_ctx, step_size)?;
-  // estimate_wasm(wasm_ctx)?;
   Ok(())
 }
 
