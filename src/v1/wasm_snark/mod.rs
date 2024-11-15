@@ -605,6 +605,7 @@ where
       .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
     self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
     self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
+    self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -814,6 +815,21 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
+  /// memory.size
+  fn visit_memory_grow<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryGrow }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
   /// memory.copy step
   fn visit_memory_copy_step<CS, F>(
     &self,
@@ -1010,21 +1026,21 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::local_get(0).unwrap() }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let _local_depth = Self::alloc_num(
+    let local_depth = Self::alloc_num(
       &mut cs,
       || "local depth",
       || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
       switch,
     )?;
 
-    // let read_val = Self::read(
-    //   cs.namespace(|| "read at local_depth"),
-    //   &local_depth,
-    //   &self.RS[0],
-    //   switch,
-    // )?;
+    let read_val = Self::read(
+      cs.namespace(|| "read at local_depth"),
+      &local_depth,
+      &self.RS[0],
+      switch,
+    )?;
 
-    let read_val = Self::alloc_num(&mut cs, || "read_val", || Ok(F::from(self.vm.P)), switch)?;
+    // let read_val = Self::alloc_num(&mut cs, || "read_val", || Ok(F::from(self.vm.P)), switch)?;
 
     let pre_sp = Self::alloc_num(
       &mut cs,

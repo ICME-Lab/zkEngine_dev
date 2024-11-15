@@ -110,6 +110,14 @@ impl Tracer {
         }
     }
 
+    /// Grow linear memory
+    pub fn memory_grow(&mut self, pages: u64) {
+        let curr_mem_size = self.IS_mem.len();
+        for i in 0..(pages * 8192) {
+            self.IS_mem.push((i as usize + curr_mem_size, 0, 0));
+        }
+    }
+
     /// Push globals
     pub fn push_global(&mut self, globalidx: usize, globalref: &Global, context: impl AsContext) {
         let value = UntypedValue::from(globalref.get(&context));

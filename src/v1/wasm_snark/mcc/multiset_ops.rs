@@ -312,6 +312,10 @@ pub fn step_RS_WS(
     Instr::MemorySize => {
       write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
+    Instr::MemoryGrow => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
+      write_op(vm.pre_sp - 1, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
     _ => unimplemented!("{:?}", instr),
   }
 

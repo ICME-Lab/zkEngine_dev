@@ -269,6 +269,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                             Instr::MemoryFill => {
                                 tracer.execution_trace.extend(self.trace_memory_fill(vm.clone()));
                             }
+                            Instr::MemoryGrow => {
+                                let last = self.sp.last().to_bits() as i32;
+                                if last != -1 {
+                                    tracer.memory_grow(vm.Y);
+                                };
+                            }
                             _ => {}
                         }
                         // Get post instruction VM state changes
@@ -1955,6 +1961,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::CallIndirect(..) => {}
             Instr::MemorySize => {}
+            Instr::MemoryGrow => {
+                vm.Y = self.sp.last().to_bits();
+            }
             _ => {
                 println!("Instruction not supported: {:?}", instruction);
                 unimplemented!();
@@ -2208,6 +2217,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::MemorySize => {
                 vm.Y = self.sp.last().to_bits();
+            }
+            Instr::MemoryGrow => {
+                vm.P = self.sp.last().to_bits();
             }
             _ => {}
         }
