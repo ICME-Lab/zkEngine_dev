@@ -4,7 +4,7 @@
     ;; The maximum amount of bytes to process per iteration.
     (global $MAX_N i64 (i64.const 250000))
 
-    (func (export "run") (param $N i64) (result i64)
+    (func (export "main") (param $N i64) (result i64)
         (local $i i32)
         (local $n i32)
         (if (i64.gt_u (local.get $N) (global.get $MAX_N))

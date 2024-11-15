@@ -139,6 +139,22 @@ fn test_zk_ads() {
 }
 
 #[test]
+fn test_bulk_ops() -> Result<(), ZKWASMError> {
+  let step_size = StepSize::new(1000).set_memory_step_size(10_000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/misc/bulk-ops.wat"))?
+    .func_args(vec!["200".to_string()])
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
+}
+
+#[test]
 fn test_gradient_boosting() {
   let step_size = StepSize::new(1_000).set_memory_step_size(50_000);
   init_logger();
