@@ -102,22 +102,6 @@ fn test_complete_int_opcodes() -> Result<(), ZKWASMError> {
 }
 
 #[test]
-fn test_integer_hash() {
-  let step_size = StepSize::new(10_000);
-  init_logger();
-  let wasm_args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
-    .unwrap()
-    .func_args(vec!["100".to_string()])
-    .invoke("integer_hash")
-    .build();
-
-  let wasm_ctx = WASMCtx::new(wasm_args);
-
-  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
-}
-
-#[test]
 fn test_zk_ads() {
   init_logger();
   let step_size = StepSize::new(500).set_memory_step_size(50_000);
@@ -168,6 +152,22 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
 
   test_wasm_snark_with(wasm_ctx, step_size)?;
   Ok(())
+}
+
+#[test]
+fn test_integer_hash() {
+  let step_size = StepSize::new(5_000).set_memory_step_size(50_000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
+    .unwrap()
+    .func_args(vec!["100".to_string()])
+    .invoke("integer_hash")
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
 #[test]

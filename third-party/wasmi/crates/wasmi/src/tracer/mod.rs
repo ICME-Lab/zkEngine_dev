@@ -75,7 +75,7 @@ impl Tracer {
 
     /// Get IS_stack len
     pub fn IS_stack_len(&self) -> usize {
-        self.max_sp() + 1
+        self.IS_stack().len()
     }
 
     /// Get IS_mem len
