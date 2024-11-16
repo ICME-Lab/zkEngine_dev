@@ -276,7 +276,7 @@ impl Stack {
         let mut stack_vms = Vec::new();
 
         let mut init_vm = WitnessVM::default();
-        init_vm.instr = Instruction::CallZeroWrite;
+        init_vm.instr = Instruction::HostCallStackStep;
         init_vm.J = init_vm.instr.index_j();
 
         for i in 0..delta {

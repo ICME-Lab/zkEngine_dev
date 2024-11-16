@@ -5,10 +5,13 @@ use ff::PrimeField;
 use nova::{provider::Bn256EngineIPA, traits::Engine};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 
-use crate::v1::{
-  error::ZKWASMError,
-  wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
-  wasm_snark::mcc::multiset_ops::step_RS_WS,
+use crate::{
+  utils::logging::init_logger,
+  v1::{
+    error::ZKWASMError,
+    wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+    wasm_snark::mcc::multiset_ops::step_RS_WS,
+  },
 };
 
 /// Curve Cycle to prove/verify on
@@ -116,6 +119,7 @@ fn test_integer_hash() {
 
 #[test]
 fn test_gradient_boosting() {
+  init_logger();
   let mut rng = StdRng::from_seed([1; 32]);
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
