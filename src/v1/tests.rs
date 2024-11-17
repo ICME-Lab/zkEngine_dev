@@ -9,7 +9,6 @@ use crate::{
 
 use super::{
   error::ZKWASMError,
-  utils::tracing::estimate_wasm,
   wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
   wasm_snark::{StepSize, WasmSNARK},
 };
