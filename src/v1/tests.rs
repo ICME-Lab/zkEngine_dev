@@ -156,7 +156,7 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
 
 #[test]
 fn test_integer_hash() {
-  let step_size = StepSize::new(5_000).set_memory_step_size(50_000);
+  let step_size = StepSize::new(2_500).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
