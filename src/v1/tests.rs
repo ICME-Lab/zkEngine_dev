@@ -9,6 +9,7 @@ use crate::{
 
 use super::{
   error::ZKWASMError,
+  utils::tracing::estimate_wasm,
   wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
   wasm_snark::{StepSize, WasmSNARK},
 };
@@ -177,6 +178,24 @@ fn test_gradient_boosting() {
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .unwrap()
     .invoke("_start")
+    .build();
+
+  let wasm_ctx = WasiWASMCtx::new(wasm_args);
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}
+
+#[test]
+fn test_uni_poly_eval() {
+  let x = "1";
+  let size = "10";
+
+  let step_size = StepSize::new(2_500).set_memory_step_size(50_000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/misc/uni-poly-eval.wasm"))
+    .unwrap()
+    .invoke("eval")
+    .func_args(vec![String::from(x), String::from(size)])
     .build();
 
   let wasm_ctx = WasiWASMCtx::new(wasm_args);
