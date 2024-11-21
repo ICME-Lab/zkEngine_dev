@@ -33,7 +33,7 @@ use wasmi_core::F32;
 ///
 /// For example the `BrTable` instruction is unrolled into separate instructions
 /// each representing either the `BrTable` head or one of its branching targets.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
 pub enum Instruction {
     LocalGet(LocalDepth),
     LocalSet(LocalDepth),
@@ -74,6 +74,7 @@ pub enum Instruction {
     /// branch instructions as determined by [`BranchTableTargets`]. Branch
     /// instructions that may follow are [`Instruction::Br] and [`Instruction::Return`].
     BrTable(BranchTableTargets),
+    #[default]
     Unreachable,
     ConsumeFuel(BlockFuel),
     Return(DropKeep),
@@ -151,16 +152,19 @@ pub enum Instruction {
     I64Load(AddressOffset),
     F32Load(AddressOffset),
     F64Load(AddressOffset),
+
     I32Load8S(AddressOffset),
     I32Load8U(AddressOffset),
     I32Load16S(AddressOffset),
     I32Load16U(AddressOffset),
+
     I64Load8S(AddressOffset),
     I64Load8U(AddressOffset),
     I64Load16S(AddressOffset),
     I64Load16U(AddressOffset),
     I64Load32S(AddressOffset),
     I64Load32U(AddressOffset),
+
     I32Store(AddressOffset),
     I64Store(AddressOffset),
     F32Store(AddressOffset),
@@ -239,6 +243,9 @@ pub enum Instruction {
     I32LeU,
     I32GeS,
     I32GeU,
+
+    // i64
+    // comparisons
     I64Eqz,
     I64Eq,
     I64Ne,
@@ -250,6 +257,9 @@ pub enum Instruction {
     I64LeU,
     I64GeS,
     I64GeU,
+
+    // f32
+    // binary comparisons
     F32Eq,
     F32Ne,
     F32Lt,
@@ -262,9 +272,13 @@ pub enum Instruction {
     F64Gt,
     F64Le,
     F64Ge,
+
     I32Clz,
     I32Ctz,
     I32Popcnt,
+
+    // i32
+    // binary
     I32Add,
     I32Sub,
     I32Mul,
@@ -280,6 +294,8 @@ pub enum Instruction {
     I32ShrU,
     I32Rotl,
     I32Rotr,
+
+    // i64
     I64Clz,
     I64Ctz,
     I64Popcnt,
@@ -298,6 +314,8 @@ pub enum Instruction {
     I64ShrU,
     I64Rotl,
     I64Rotr,
+
+    // unary
     F32Abs,
     F32Neg,
     F32Ceil,
@@ -305,6 +323,8 @@ pub enum Instruction {
     F32Trunc,
     F32Nearest,
     F32Sqrt,
+
+    // binary
     F32Add,
     F32Sub,
     F32Mul,
@@ -312,6 +332,8 @@ pub enum Instruction {
     F32Min,
     F32Max,
     F32Copysign,
+
+    // unary
     F64Abs,
     F64Neg,
     F64Ceil,
@@ -319,6 +341,8 @@ pub enum Instruction {
     F64Trunc,
     F64Nearest,
     F64Sqrt,
+
+    // binary
     F64Add,
     F64Sub,
     F64Mul,
@@ -326,6 +350,8 @@ pub enum Instruction {
     F64Min,
     F64Max,
     F64Copysign,
+
+    // unary
     I32WrapI64,
     I32TruncF32S,
     I32TruncF32U,
@@ -360,6 +386,14 @@ pub enum Instruction {
     I64TruncSatF32U,
     I64TruncSatF64S,
     I64TruncSatF64U,
+
+    // Used for zkWASM
+    DropKeep,
+    MemoryCopyStep,
+    MemoryFillStep,
+    HostCallStep,
+    HostCallStackStep,
+    CallZeroWrite,
 }
 
 impl Instruction {
@@ -418,6 +452,229 @@ impl Instruction {
         match self {
             Self::ConsumeFuel(block_fuel) => block_fuel.bump_by(delta),
             instr => panic!("expected Instruction::ConsumeFuel but found: {instr:?}"),
+        }
+    }
+}
+
+impl Instruction {
+    pub const MAX_J: u64 = 46;
+
+    /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
+    /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
+    /// we use this index to constraint the right computation result for the corresponding instruction getting executed.
+    pub fn index_j(&self) -> u64 {
+        match self {
+            Self::Unreachable => 0,
+            Self::I64Const32(..)
+            | Self::Const32(..)
+            | Self::ConstRef(..)
+            | Self::F64Const32(..) => 1,
+            Self::LocalGet(..) => 2,
+            Self::I64Add => 3,
+            Self::I64Mul => 4,
+            Self::I64And => 5,
+            Self::BrIfEqz(..) => 6,
+            Self::LocalSet(..) => 7,
+            Self::Br(..) => 8,
+            Self::BrIfNez(..) => 9,
+            Self::DropKeep => 10,
+
+            // Store opcodes
+            Self::I32Store(..)
+            | Self::I32Store8(..)
+            | Self::I32Store16(..)
+            | Self::F32Store(..) 
+            | Self::F64Store(..)
+            | Self::I64Store(..)
+            | Self::I64Store8(..)
+            | Self::I64Store16(..)
+            | Self::I64Store32(..) => 11,
+
+            // Load opcodes
+            Self::I32Load(..)
+            | Self::I32Load8U(..)
+            | Self::I32Load8S(..)
+            | Self::I32Load16U(..)
+            | Self::I32Load16S(..)
+            | Self::F32Load(..)  
+            | Self::F64Load(..)
+            | Self::I64Load(..)
+            | Self::I64Load8S(..)
+            | Self::I64Load8U(..)
+            | Self::I64Load16S(..)
+            | Self::I64Load16U(..)
+            | Self::I64Load32S(..)
+            | Self::I64Load32U(..) => 12,
+
+            Self::LocalTee(..) => 13,
+            Self::I64Xor => 14,
+            Self::I64Or => 15,
+            Self::I64Clz => 16,
+            Self::I64Ctz => 17,
+            Self::I64Popcnt => 18,
+
+            // visit_unary
+            Self::F32Abs
+            | Self::F32Neg
+            | Self::F32Ceil
+            | Self::F32Floor
+            | Self::F32Trunc
+            | Self::F32Nearest
+            | Self::F32Sqrt
+            | Self::F64Abs
+            | Self::F64Neg
+            | Self::F64Ceil
+            | Self::F64Floor
+            | Self::F64Trunc
+            | Self::F64Nearest
+            | Self::F64Sqrt
+            | Self::I32WrapI64
+            | Self::I32TruncF32S
+            | Self::I32TruncF32U
+            | Self::I32TruncF64S
+            | Self::I32TruncF64U
+            | Self::I64ExtendI32S
+            | Self::I64ExtendI32U
+            | Self::I64TruncF32S
+            | Self::I64TruncF32U
+            | Self::I64TruncF64S
+            | Self::I64TruncF64U
+            | Self::F32ConvertI32S
+            | Self::F32ConvertI32U
+            | Self::F32ConvertI64S
+            | Self::F32ConvertI64U
+            | Self::F32DemoteF64
+            | Self::F64ConvertI32S
+            | Self::F64ConvertI32U
+            | Self::F64ConvertI64S
+            | Self::F64ConvertI64U
+            | Self::F64PromoteF32
+            | Self::I32Extend8S
+            | Self::I32Extend16S
+            | Self::I64Extend8S
+            | Self::I64Extend16S
+            | Self::I64Extend32S
+            | Self::I32TruncSatF32S
+            | Self::I32TruncSatF32U
+            | Self::I32TruncSatF64S
+            | Self::I32TruncSatF64U
+            | Self::I64TruncSatF32S
+            | Self::I64TruncSatF32U
+            | Self::I64TruncSatF64S
+            | Self::I64TruncSatF64U
+            // i32
+            | Self::I32Clz
+            | Self::I32Ctz
+            | Self::I32Popcnt
+             => 19,
+
+            // visit_binary
+            Self::F32Eq
+            | Self::F32Ne
+            | Self::F32Lt
+            | Self::F32Gt
+            | Self::F32Le
+            | Self::F32Ge
+            | Self::F64Eq
+            | Self::F64Ne
+            | Self::F64Lt
+            | Self::F64Gt
+            | Self::F64Le
+            | Self::F64Ge
+            | Self::F32Add
+            | Self::F32Sub
+            | Self::F32Mul
+            | Self::F32Div
+            | Self::F32Min
+            | Self::F32Max
+            | Self::F32Copysign
+            | Self::F64Add
+            | Self::F64Sub
+            | Self::F64Mul
+            | Self::F64Div
+            | Self::F64Min
+            | Self::F64Max
+            | Self::F64Copysign
+
+            // i64
+            // comparisons
+            | Self::I64Eq
+            | Self::I64Ne
+            | Self::I64LtS
+            | Self::I64LtU
+            | Self::I64GtS
+            | Self::I64GtU
+            | Self::I64LeS
+            | Self::I64LeU
+            | Self::I64GeS
+            | Self::I64GeU
+
+            // I32
+            // comparisons
+            | Self::I32Eq
+            | Self::I32Ne
+            | Self::I32LtS
+            | Self::I32LtU
+            | Self::I32GtS
+            | Self::I32GtU
+            | Self::I32LeS
+            | Self::I32LeU
+            | Self::I32GeS
+            | Self::I32GeU
+
+            // i32
+            // binary
+            | Self::I32Add
+            | Self::I32Sub
+            | Self::I32Mul
+            | Self::I32DivS
+            | Self::I32DivU
+            | Self::I32RemS
+            | Self::I32RemU
+            | Self::I32And
+            | Self::I32Or
+            | Self::I32Xor
+            | Self::I32Shl
+            | Self::I32ShrS
+            | Self::I32ShrU
+            | Self::I32Rotl
+            | Self::I32Rotr
+             => 20,
+
+            Self::I64Sub => 21,
+            Self::I64Shl => 22,
+            Self::I64ShrS => 23,
+            Self::I64ShrU => 24,
+            Self::I64Rotl => 25,
+            Self::I64Rotr => 26,
+            Self::I64DivS => 27,
+            Self::I64DivU => 28,
+            Self::I64RemS => 29,
+            Self::I64RemU => 30,
+
+            Self::I64Eqz | Self::I32Eqz => 31,
+            Self::Select => 32,
+            Self::GlobalGet(..) => 33,
+            Self::GlobalSet(..) => 34,
+            Self::BrTable(..) => 35,
+            Self::BrAdjust(..) => 36,
+            Self::MemoryCopy => 37,
+            Self::MemoryFill => 38,
+            Self::MemoryGrow => 39,
+            Self::MemorySize => 40,
+            Self::MemoryCopyStep => 41,
+            Self::MemoryFillStep => 42,
+            Self::HostCallStep => 43,
+            Self::HostCallStackStep => 44,
+            Self::CallZeroWrite => 45,
+
+            Self::CallInternal(..) | Self::CallIndirect(..) | Self::Call(..) => 0, // TODO: all 0 J_indexes
+            Self::Drop => 0,
+            Self::Return(..) => Self::MAX_J, // TODO
+            _ => {
+                println!("{:?}", self);
+                unimplemented!()
+            }
         }
     }
 }

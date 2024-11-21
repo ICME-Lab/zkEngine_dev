@@ -25,6 +25,7 @@ use crate::{
     Memory,
     Table,
     Tracer,
+    TracerV0,
     Value,
 };
 use std::{cell::RefCell, rc::Rc};
@@ -77,6 +78,7 @@ impl Module {
         // The only thing that is missing is to run the `start` function.
         Ok(InstancePre::new(handle, builder))
     }
+
     /// Instantiates a new [`Instance`] from the given compiled [`Module`].
     ///
     /// Uses the given `context` to store the instance data to.
@@ -94,11 +96,71 @@ impl Module {
     ///
     /// [`Linker`]: struct.Linker.html
     /// [`Func`]: [`crate::Func`]
-    pub(crate) fn instantiate_with_tracer<I>(
+    pub(crate) fn instantiate_with_trace<I>(
         &self,
         mut context: impl AsContextMut,
         externals: I,
         tracer: Rc<RefCell<Tracer>>,
+    ) -> Result<InstancePre, Error>
+    where
+        I: IntoIterator<Item = Extern>,
+    {
+        context
+            .as_context_mut()
+            .store
+            .check_new_instances_limit(1)?;
+        let handle = context.as_context_mut().store.inner.alloc_instance();
+        let mut builder = InstanceEntity::build(self);
+
+        self.extract_imports(&context, &mut builder, externals)?;
+        self.extract_functions(&mut context, &mut builder, handle);
+        self.extract_tables(&mut context, &mut builder)?;
+        self.extract_memories(&mut context, &mut builder)?;
+        self.extract_globals(&mut context, &mut builder);
+        self.extract_exports(&mut builder);
+        self.extract_start_fn(&mut builder);
+
+        self.initialize_table_elements(&mut context, &mut builder)?;
+        self.initialize_memory_data(&mut context, &mut builder)?;
+
+        let mut tracer = tracer.borrow_mut();
+        for i in 0..self.len_globals() {
+            let globalref = builder.get_global(i as u32);
+            tracer.push_global(i, &globalref, &context);
+        }
+
+        if self.memories.len() > 0 {
+            let memref = builder.get_memory(0);
+            tracer.push_init_memory(memref, &context);
+        }
+
+        // At this point the module instantiation is nearly done.
+        // The only thing that is missing is to run the `start` function.
+        Ok(InstancePre::new(handle, builder))
+    }
+
+    /// Instantiates a new [`Instance`] from the given compiled [`Module`].
+    ///
+    /// Uses the given `context` to store the instance data to.
+    /// The given `externals` are joined with the imports in the same order in which they occurred.
+    ///
+    /// # Note
+    ///
+    /// This is a very low-level API. For a more high-level API users should use the
+    /// corresponding instantiation methods provided by the [`Linker`].
+    ///
+    /// # Errors
+    ///
+    /// If the given `externals` do not satisfy the required imports, e.g. if an externally
+    /// provided [`Func`] has a different function signature than required by the module import.
+    ///
+    /// [`Linker`]: struct.Linker.html
+    /// [`Func`]: [`crate::Func`]
+    pub(crate) fn instantiate_with_trace_v0<I>(
+        &self,
+        mut context: impl AsContextMut,
+        externals: I,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<InstancePre, Error>
     where
         I: IntoIterator<Item = Extern>,

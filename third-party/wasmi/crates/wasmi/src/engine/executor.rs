@@ -3,20 +3,32 @@ use sha2::Digest;
 use super::{
     bytecode::{BranchOffset, F64Const32},
     const_pool::ConstRef,
-    CompiledFunc, ConstPoolView,
+    CompiledFunc,
+    ConstPoolView,
 };
 use crate::{
     core::TrapCode,
     engine::{
         bytecode::{
-            AddressOffset, BlockFuel, BranchTableTargets, DataSegmentIdx, ElementSegmentIdx,
-            FuncIdx, GlobalIdx, Instruction, LocalDepth, SignatureIdx, TableIdx,
+            AddressOffset,
+            BlockFuel,
+            BranchTableTargets,
+            DataSegmentIdx,
+            ElementSegmentIdx,
+            FuncIdx,
+            GlobalIdx,
+            Instruction,
+            LocalDepth,
+            SignatureIdx,
+            TableIdx,
         },
         cache::InstanceCache,
         code_map::{CodeMap, InstructionPtr},
         config::FuelCosts,
         stack::{CallStack, ValueStackPtr},
-        DropKeep, FuncFrame, ValueStack,
+        DropKeep,
+        FuncFrame,
+        ValueStack,
     },
     error::EntityGrowError,
     etable::{
@@ -28,11 +40,17 @@ use crate::{
     module::DEFAULT_MEMORY_INDEX,
     store::ResourceLimiterRef,
     table::TableEntity,
-    tracer::{
+    tracer_v0::{
         continuations::ImageID,
         mtable::{MemoryReadSize, MemoryStoreSize, VarType},
     },
-    FuelConsumptionMode, Func, FuncRef, Instance, StoreInner, Table, Tracer,
+    FuelConsumptionMode,
+    Func,
+    FuncRef,
+    Instance,
+    StoreInner,
+    Table,
+    TracerV0,
 };
 
 use core::cmp::{self};
@@ -129,7 +147,7 @@ pub fn execute_wasm<'ctx, 'engine>(
 ///
 /// If the Wasm execution traps.
 #[inline(never)]
-pub fn execute_wasm_with_trace<'ctx, 'engine>(
+pub fn execute_wasm_with_trace_v0<'ctx, 'engine>(
     ctx: &'ctx mut StoreInner,
     cache: &'engine mut InstanceCache,
     value_stack: &'engine mut ValueStack,
@@ -137,7 +155,7 @@ pub fn execute_wasm_with_trace<'ctx, 'engine>(
     code_map: &'engine CodeMap,
     const_pool: ConstPoolView<'engine>,
     resource_limiter: &'ctx mut ResourceLimiterRef<'ctx>,
-    tracer: Rc<RefCell<Tracer>>,
+    tracer: Rc<RefCell<TracerV0>>,
 ) -> Result<WasmOutcome, TrapCode> {
     Executor::new(
         ctx,
@@ -202,7 +220,7 @@ struct Executor<'ctx, 'engine> {
     /// A read-only view to a pool of constant values.
     const_pool: ConstPoolView<'engine>,
     /// This is used to build an execution trace from the WASM module.
-    tracer: Option<Rc<RefCell<Tracer>>>,
+    tracer: Option<Rc<RefCell<TracerV0>>>,
 }
 
 macro_rules! forward_call {
@@ -230,7 +248,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         call_stack: &'engine mut CallStack,
         code_map: &'engine CodeMap,
         const_pool: ConstPoolView<'engine>,
-        tracer: Option<Rc<RefCell<Tracer>>>,
+        tracer: Option<Rc<RefCell<TracerV0>>>,
     ) -> Self {
         let frame = call_stack.pop().expect("must have frame on the call stack");
         let sp = value_stack.stack_ptr();
@@ -248,7 +266,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         }
     }
 
-    fn get_tracer_if_active(&self) -> Option<Rc<RefCell<Tracer>>> {
+    fn get_tracer_if_active(&self) -> Option<Rc<RefCell<TracerV0>>> {
         if self.tracer.is_some() {
             self.tracer.clone()
         } else {
@@ -3192,6 +3210,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 Instr::I64Extend8S => self.visit_i64_extend8_s(),
                 Instr::I64Extend16S => self.visit_i64_extend16_s(),
                 Instr::I64Extend32S => self.visit_i64_extend32_s(),
+                _ => {
+                    unimplemented!()
+                }
             };
             trace_post!();
         }

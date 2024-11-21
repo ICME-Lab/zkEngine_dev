@@ -1,4 +1,4 @@
-(func (export "foo") (param i32) (result i32)
+(func (export "main") (param i32) (result i32)
        (local i32)
        (block
            (block

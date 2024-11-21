@@ -93,6 +93,7 @@ mod store;
 mod table;
 
 mod tracer;
+mod tracer_v0;
 mod value;
 
 /// Definitions from the `wasmi_core` crate.
@@ -114,6 +115,14 @@ pub mod errors {
 
 pub use self::{
     engine::{
+        bytecode::{
+            AddressOffset,
+            BranchOffset,
+            BranchTableTargets,
+            DropKeep,
+            GlobalIdx as BCGlobalIdx,
+            Instruction,
+        },
         Config,
         Engine,
         EngineBackend,
@@ -155,7 +164,8 @@ pub use self::{
     },
     store::{AsContext, AsContextMut, Store, StoreContext, StoreContextMut},
     table::{Table, TableType},
-    tracer::{continuations, etable, mtable, TraceSliceValues, Tracer},
+    tracer::{Tracer, WitnessVM},
+    tracer_v0::{continuations, etable, mtable, TraceSliceValues, TracerV0},
     value::Value,
 };
 use self::{

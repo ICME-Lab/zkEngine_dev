@@ -11,7 +11,7 @@ use wasmi_core::UntypedValue;
 ///   function execution via the [`Engine`].
 ///
 /// [`Engine`]: [`crate::Engine`]
-pub trait CallParams {
+pub trait CallParams: Clone {
     /// The iterator over the parameter values.
     type Params: ExactSizeIterator<Item = UntypedValue>;
 

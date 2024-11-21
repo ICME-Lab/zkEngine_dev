@@ -74,7 +74,7 @@ impl ValueStackPtr {
     /// Returns the [`UntypedValue`] at the current stack pointer.
     #[must_use]
     #[inline]
-    fn get(self) -> UntypedValue {
+    pub fn get(self) -> UntypedValue {
         // SAFETY: Within Wasm bytecode execution we are guaranteed by
         //         Wasm validation and `wasmi` codegen to never run out
         //         of valid bounds using this method.

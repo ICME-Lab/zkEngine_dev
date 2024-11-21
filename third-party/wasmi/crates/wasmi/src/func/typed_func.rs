@@ -4,7 +4,7 @@ use crate::{
     AsContext,
     AsContextMut,
     Error,
-    Tracer,
+    TracerV0,
     TypedResumableCall,
 };
 use alloc::rc::Rc;
@@ -109,18 +109,18 @@ where
         )
     }
 
-    pub fn call_with_trace(
+    pub fn call_with_trace_v0(
         &self,
         mut ctx: impl AsContextMut,
         params: Params,
-        tracer: Rc<RefCell<Tracer>>,
+        tracer: Rc<RefCell<TracerV0>>,
     ) -> Result<Results, Trap> {
         // Note: Cloning an [`Engine`] is intentionally a cheap operation.
         ctx.as_context()
             .store
             .engine()
             .clone()
-            .execute_func_with_trace(
+            .execute_func_with_trace_v0(
                 ctx.as_context_mut(),
                 &self.func,
                 params,
@@ -220,8 +220,8 @@ where
 }
 
 /// The typed parameters of a [`TypedFunc`].
-pub trait WasmParams: WasmTypeList {}
-impl<T> WasmParams for T where T: WasmTypeList {}
+pub trait WasmParams: WasmTypeList + Clone {}
+impl<T> WasmParams for T where T: WasmTypeList + Clone {}
 
 /// The typed results of a [`TypedFunc`].
 pub trait WasmResults: WasmTypeList {}

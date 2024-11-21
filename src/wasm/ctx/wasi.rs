@@ -5,7 +5,7 @@ use rand::{rngs::StdRng, RngCore, SeedableRng};
 use std::{cell::RefCell, rc::Rc};
 use wasmi::{
   core::UntypedValue, etable::ETable, Engine, ExternType, Func, FuncType, Linker, Module, Store,
-  Tracer,
+  TracerV0,
 };
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx, WasiCtxBuilder};
 
@@ -28,7 +28,7 @@ pub struct WasiWASMCtx<WA: ZKWASMArgs> {
   /// The given WASM module
   module: wasmi::Module,
   /// The structure that containt the execution trace of the WASM module
-  tracer: Rc<RefCell<Tracer>>,
+  tracer: Rc<RefCell<TracerV0>>,
   /// The arguments needed to run the WASM module.
   wasm_args: WA,
 }
@@ -53,7 +53,7 @@ where
     let module = Module::new(&engine, wasm_bytes)?;
 
     // Create a new tracer
-    let tracer = Rc::new(RefCell::new(Tracer::new(wasm_args.trace_slice_values())));
+    let tracer = Rc::new(RefCell::new(TracerV0::new(wasm_args.trace_slice_values())));
 
     // build wasi ctx to add to linker.
     let wasi = WasiCtx::new(zkvm_random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
@@ -64,7 +64,7 @@ where
 
     // Instantiate the module and trace WASM linear memory and global memory initializations
     let instance = linker
-      .instantiate_with_tracer(&mut store, &module, tracer.clone())?
+      .instantiate_with_trace_v0(&mut store, &module, tracer.clone())?
       .start(&mut store)?;
 
     // Return the new instance of `WasiWASMCtx`
@@ -100,7 +100,7 @@ where
     let module = Module::new(&engine, wasm_bytes)?;
 
     // Create a new tracer
-    let tracer = Rc::new(RefCell::new(Tracer::new(wasm_args.trace_slice_values())));
+    let tracer = Rc::new(RefCell::new(TracerV0::new(wasm_args.trace_slice_values())));
 
     // build wasi ctx to add to linker.
     let wasi = WasiCtxBuilder::new()
@@ -117,7 +117,7 @@ where
 
     // Instantiate the module and trace WASM linear memory and global memory initializations
     let instance = linker
-      .instantiate_with_tracer(&mut store, &module, tracer.clone())?
+      .instantiate_with_trace_v0(&mut store, &module, tracer.clone())?
       .start(&mut store)?;
 
     // Return the new instance of `WasiWASMCtx`
@@ -183,7 +183,7 @@ impl<WA: ZKWASMArgs + Clone> ZKWASMContext for WasiWASMCtx<WA> {
   }
 
   /// Retrive the tracer
-  fn tracer(&self) -> anyhow::Result<Rc<RefCell<Tracer>>> {
+  fn tracer(&self) -> anyhow::Result<Rc<RefCell<TracerV0>>> {
     Ok(self.tracer.clone())
   }
 
@@ -226,7 +226,7 @@ impl<WA: ZKWASMArgs + Clone> ZKWASMContext for WasiWASMCtx<WA> {
 
     // Call the function to invoke.
     // Gets the execution trace.
-    func.call_with_trace(
+    func.call_with_trace_v0(
       self.store_mut(),
       &func_args,
       &mut func_results,

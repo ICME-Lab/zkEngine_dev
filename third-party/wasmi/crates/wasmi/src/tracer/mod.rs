@@ -1,84 +1,101 @@
-pub mod continuations;
-pub mod etable;
-pub mod mtable;
+#![allow(non_snake_case)]
 
-use crate::{AsContext, Global, Memory};
-use mtable::imtable::IMTable;
+use core::cmp;
+
 use wasmi_core::UntypedValue;
 
-use self::{
-    continuations::{ImageID, MemorySnapshot},
-    etable::ETable,
-    mtable::{memory_event_of_step, LocationType, MTable},
-};
+use crate::{engine::bytecode::Instruction, AsContext, Global, Memory};
 
-/// Represents a slice range of the execution trace
-///
-/// Also used to store the start and end indexes of the memory snapshot
-#[derive(Debug, Clone, Default, Copy)]
-pub struct TraceSliceValues {
-    /// Start opcode
-    pub(crate) start: usize,
-    /// End opcode
-    pub(crate) end: usize,
-}
-
-impl TraceSliceValues {
-    /// Build new `TraceSliceValues`
-    pub fn new(start: usize, end: usize) -> Self {
-        TraceSliceValues { start, end }
-    }
-
-    /// Get start value
-    pub fn start(&self) -> usize {
-        self.start
-    }
-
-    /// Get end value
-    pub fn end(&self) -> usize {
-        self.end
-    }
-
-    /// Setter for start value
-    pub fn set_start(&mut self, start: usize) {
-        self.start = start;
-    }
-
-    /// Setter for end value
-    pub fn set_end(&mut self, end: usize) {
-        self.end = end;
-    }
-}
-
-/// Builds execution trace
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
+/// Hold the execution trace from VM execution and manages other miscellaneous
+/// information needed by the zkWASM
 pub struct Tracer {
-    /// Initial memory table
-    imtable: IMTable,
-    /// Execution table
-    pub etable: ETable,
-    /// Function inputs used for memory trace initialization
-    pub fn_inputs: Vec<UntypedValue>,
-    /// Stores memory snapshot at specified points in the execution trace.
-    ///
-    /// Used for continuations.
-    pub memory_snapshot: MemorySnapshot,
+    /// Holds the VM state at each timestamp of the execution
+    pub(crate) execution_trace: Vec<WitnessVM>,
+    /// This is used to maintain the max stack address. We use this to
+    /// construct the IS for MCC
+    max_sp: usize,
+    /// Stack Initial Set for MCC
+    IS_stack: Vec<(usize, u64, u64)>,
+    /// Linear memory initial set
+    IS_mem: Vec<(usize, u64, u64)>,
+    /// Initial set of globals
+    IS_globals: Vec<(usize, u64, u64)>,
 }
 
 impl Tracer {
-    // Initialize execution trace builder
-    pub fn new(trace_slice_values: TraceSliceValues) -> Self {
-        // Build memory snapshot with slice values
-        // Which end and start opcodes to take snapshot at
-        let memory_snapshot = MemorySnapshot::new(trace_slice_values);
+    /// Creates a new [`TracerV0`] for generating execution trace during VM
+    /// execution
+    pub fn new() -> Self {
+        Tracer::default()
+    }
 
-        // Build init tracer
-        Tracer {
-            imtable: IMTable::default(),
-            etable: ETable::default(),
-            fn_inputs: Vec::new(),
-            memory_snapshot,
+    /// Get len of execution trace
+    pub fn len(&self) -> usize {
+        self.execution_trace.len()
+    }
+
+    /// Get last instruction traced
+    pub fn last(&self) -> Option<Instruction> {
+        self.execution_trace.last().map(|witness| witness.instr)
+    }
+
+    /// Extract the execution trace from the tracer
+    pub fn into_execution_trace(self) -> Vec<WitnessVM> {
+        self.execution_trace
+    }
+
+    /// Getter for max_sp
+    pub fn max_sp(&self) -> usize {
+        self.max_sp
+    }
+
+    /// Setter for max_sp
+    pub fn set_max_sp(&mut self, sp: usize) {
+        self.max_sp = cmp::max(self.max_sp, sp);
+    }
+
+    /// Getter for IS_stack
+    pub fn IS_stack(&self) -> Vec<(usize, u64, u64)> {
+        let mut IS_stack = self.IS_stack.to_vec();
+        if self.max_sp() > IS_stack.len() {
+            IS_stack.extend((IS_stack.len()..=self.max_sp()).map(|i| (i, 0, 0)));
         }
+        IS_stack
+    }
+
+    /// Setter for IS
+    pub(crate) fn set_IS_stack(&mut self, stack: &[UntypedValue]) {
+        self.IS_stack = stack
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (i, (*v).into(), 0))
+            .collect();
+    }
+
+    /// Get IS_stack len
+    pub fn IS_stack_len(&self) -> usize {
+        self.IS_stack().len()
+    }
+
+    /// Get IS_mem len
+    pub fn IS_mem_len(&self) -> usize {
+        self.IS_mem.len()
+    }
+
+    /// Getter for IS
+    pub fn IS(&self) -> Vec<(usize, u64, u64)> {
+        let mut IS = self.IS_stack();
+        let stack_len = IS.len();
+        let linear_mem_len = self.IS_mem.len();
+        IS.extend(self.IS_mem.iter().map(|(i, v, _)| (*i + stack_len, *v, 0)));
+        IS.extend(
+            self.IS_globals
+                .iter()
+                .map(|(i, v, _)| (*i + stack_len + linear_mem_len, *v, 0)),
+        );
+
+        IS
     }
 
     /// Push initial heap/linear WASM memory to tracer for MCC
@@ -89,88 +106,47 @@ impl Tracer {
             memref
                 .read(&context, (i * 8).try_into().unwrap(), &mut buf)
                 .unwrap();
-            self.imtable
-                .push(i as usize, u64::from_le_bytes(buf), LocationType::Heap);
+            self.IS_mem.push((i as usize, u64::from_le_bytes(buf), 0));
         }
     }
 
-    /// Push global memory values to tracer for MCC
+    /// Grow linear memory
+    pub fn memory_grow(&mut self, pages: u64) {
+        let curr_mem_size = self.IS_mem.len();
+        for i in 0..(pages * 8192) {
+            self.IS_mem.push((i as usize + curr_mem_size, 0, 0));
+        }
+    }
+
+    /// Push globals
     pub fn push_global(&mut self, globalidx: usize, globalref: &Global, context: impl AsContext) {
         let value = UntypedValue::from(globalref.get(&context));
-        self.imtable
-            .push(globalidx, value.to_bits(), LocationType::Global);
+        self.IS_globals.push((globalidx, value.to_bits(), 0));
     }
+}
 
-    /// Push local memory values to tracer for MCC
-    pub fn push_len_locals(&mut self, len_locals: usize, pre_sp: usize) {
-        let n = len_locals + self.fn_inputs.len();
-        for i in 0..n {
-            if i < self.fn_inputs.len() {
-                self.imtable
-                    .push(pre_sp + i, self.fn_inputs[i].to_bits(), LocationType::Stack);
-            } else {
-                self.imtable.push(pre_sp + i, 0, LocationType::Stack);
-            }
-        }
-    }
-
-    /// Set WASM function inputs for MCC
-    pub fn set_inputs(&mut self, inputs: Vec<UntypedValue>) {
-        self.fn_inputs = inputs;
-    }
-
-    /// Get memory trace from execution trace
-    pub fn mtable(&self) -> MTable {
-        let mentries = self
-            .etable
-            .entries()
-            .iter()
-            .map(|eentry| memory_event_of_step(eentry, &mut 1))
-            .collect::<Vec<Vec<_>>>()
-            .concat();
-
-        MTable::new_with_imtable(mentries, &self.imtable)
-    }
-
-    /// Getter for shard start value
-    pub fn shard_start(&self) -> usize {
-        self.memory_snapshot.start()
-    }
-
-    /// Getter for shard end value
-    pub fn shard_end(&self) -> usize {
-        self.memory_snapshot.end()
-    }
-
-    /// Setter for memory snapshot input ImageID
-    pub fn set_memory_snapshot_input(&mut self, input: ImageID) {
-        self.memory_snapshot.set_system_state_input(input);
-    }
-
-    /// Setter for memory snapshot ouput ImageID
-    pub fn set_memory_snapshot_output(&mut self, output: ImageID) {
-        self.memory_snapshot.set_system_state_output(output);
-    }
-
-    /// Getter for memory snapshot output ImageID
-    pub fn memory_snapshot_output(&self) -> &ImageID {
-        self.memory_snapshot.system_state_output()
-    }
-
-    /// Getter for memory snapshot
-    pub fn memory_snapshot(&self) -> &MemorySnapshot {
-        &self.memory_snapshot
-    }
-
-    /// Get Execution Table
-    ///
-    /// Performs a clone
-    pub fn etable(&self) -> ETable {
-        self.etable.clone()
-    }
-
-    /// Get reference to `IMTable`
-    pub fn imtable(&self) -> &IMTable {
-        &self.imtable
-    }
+/// The VM state at each step of execution
+#[derive(Clone, Debug, Default)]
+pub struct WitnessVM {
+    /// Stack pointer before execution
+    pub pre_sp: usize,
+    /// Program counter ([`InstructionPtr`]) before execution
+    pub pc: usize,
+    /// Explict trace of instruction. Used to determine read and write for MCC
+    pub instr: Instruction,
+    /// Unique index for the opcode type
+    pub J: u64,
+    /// Immediate instruction value
+    pub I: u64,
+    /// First argument value. Holds an instructions"read" value.
+    pub X: u64,
+    /// Second argument value.Holds an instructions"read" value.
+    pub Y: u64,
+    /// Result of instuction. Used to hold the result of a computation instruction.
+    /// Also is used to hold an instructions "write" value.
+    pub Z: u64,
+    /// Holds a "push" or "write" value, for example when an instruction pushes a value on the stack
+    pub P: u64,
+    /// Holds a "push" or "write" value, for example when an instruction pushes a value on the stack
+    pub Q: u64,
 }

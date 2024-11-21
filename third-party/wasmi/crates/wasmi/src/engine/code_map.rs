@@ -143,7 +143,7 @@ pub struct CodeMap {
     ///
     /// Also this improves efficiency of deallocating the [`CodeMap`]
     /// and generally improves data locality.
-    instrs: Vec<Instruction>,
+    pub instrs: Vec<Instruction>,
 }
 
 impl Default for CodeMap {
