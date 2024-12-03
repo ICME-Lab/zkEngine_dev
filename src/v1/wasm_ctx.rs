@@ -15,7 +15,7 @@ pub struct WASMArgsBuilder {
   program: Vec<u8>,
   invoke: String,
   func_args: Vec<String>,
-  end_slice: Option<usize>,
+  trace_slice_vals: Option<TraceSliceValues>,
 }
 
 impl WASMArgsBuilder {
@@ -46,8 +46,8 @@ impl WASMArgsBuilder {
   }
 
   /// Set the end slice
-  pub fn end_slice(mut self, end_slice: usize) -> Self {
-    self.end_slice = Some(end_slice);
+  pub fn trace_slice(mut self, trace_slice_vals: TraceSliceValues) -> Self {
+    self.trace_slice_vals = Some(trace_slice_vals);
     self
   }
 
@@ -57,7 +57,7 @@ impl WASMArgsBuilder {
       program: self.program,
       func_args: self.func_args,
       invoke: self.invoke,
-      end_slice: self.end_slice,
+      trace_slice_vals: self.trace_slice_vals,
     }
   }
 }
@@ -68,7 +68,17 @@ pub struct WASMArgs {
   pub(in crate::v1) program: Vec<u8>,
   pub(in crate::v1) invoke: String,
   pub(in crate::v1) func_args: Vec<String>,
-  pub(in crate::v1) end_slice: Option<usize>,
+  pub(in crate::v1) trace_slice_vals: Option<TraceSliceValues>,
+}
+
+impl WASMArgs {
+  /// Get the start value of the trace slice
+  pub fn start(&self) -> usize {
+    self
+      .trace_slice_vals
+      .map(|val| val.start())
+      .unwrap_or_default()
+  }
 }
 
 impl Default for WASMArgsBuilder {
@@ -77,8 +87,49 @@ impl Default for WASMArgsBuilder {
       program: vec![],
       invoke: "main".to_string(),
       func_args: vec![],
-      end_slice: None,
+      trace_slice_vals: None,
     }
+  }
+}
+
+/// Used to set start and end values to slice execution trace. Used in sharding/continuations
+#[derive(Debug, Clone, Default, Copy)]
+pub struct TraceSliceValues {
+  /// Start opcode
+  pub(crate) start: usize,
+  /// End opcode
+  pub(crate) end: usize,
+}
+
+impl TraceSliceValues {
+  /// Build new `TraceSliceValues`
+  ///
+  /// # Panics
+  ///
+  /// panics if start is greater than or equal to end
+  pub fn new(start: usize, end: usize) -> Self {
+    assert!(start < end);
+    TraceSliceValues { start, end }
+  }
+
+  /// Get start value
+  pub fn start(&self) -> usize {
+    self.start
+  }
+
+  /// Get end value
+  pub fn end(&self) -> usize {
+    self.end
+  }
+
+  /// Setter for start value
+  pub fn set_start(&mut self, start: usize) {
+    self.start = start;
+  }
+
+  /// Setter for end value
+  pub fn set_end(&mut self, end: usize) {
+    self.end = end;
   }
 }
 
@@ -153,8 +204,15 @@ pub trait ZKWASMCtx {
       execution_trace.len()
     );
 
-    let end_slice = self.args().end_slice.unwrap_or(execution_trace.len());
-    let end_slice = std::cmp::min(end_slice, execution_trace.len());
+    let end_slice = {
+      let end_slice_val = self
+        .args()
+        .trace_slice_vals
+        .map(|val| val.end())
+        .unwrap_or(execution_trace.len());
+      std::cmp::min(end_slice_val, execution_trace.len())
+    };
+
     let execution_trace = execution_trace[..end_slice].to_vec();
 
     Ok((execution_trace, IS, IS_stack_len, IS_mem_len))

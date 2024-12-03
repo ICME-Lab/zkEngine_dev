@@ -9,7 +9,7 @@ use crate::{
 
 use super::{
   error::ZKWASMError,
-  wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
   wasm_snark::{StepSize, WasmSNARK},
 };
 
@@ -202,15 +202,17 @@ fn test_uni_poly_eval() {
 }
 
 #[test]
-fn test_bls() {
+fn test_bls() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(1_000).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/bls.wasm"))
     .unwrap()
-    .end_slice(10_000)
+    .trace_slice(TraceSliceValues::new(10_000, 20_000))
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
-  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
 }

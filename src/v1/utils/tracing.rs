@@ -22,3 +22,9 @@ pub fn estimate_wasm(program: impl ZKWASMCtx) -> Result<(), ZKWASMError> {
   stop_timer!(execution_timer);
   Ok(())
 }
+
+/// Split vector and return Vec's
+pub fn split_vector<T>(mut vec: Vec<T>, split_index: usize) -> (Vec<T>, Vec<T>) {
+  let second_part = vec.split_off(split_index);
+  (vec, second_part)
+}

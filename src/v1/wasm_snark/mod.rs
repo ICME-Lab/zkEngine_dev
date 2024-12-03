@@ -1,4 +1,5 @@
 //! Implements SNARK proving the WASM module computation
+use crate::v1::utils::tracing::split_vector;
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{Field, PrimeField, PrimeFieldBits};
 use gadgets::{
@@ -17,7 +18,6 @@ use nova::{
   },
   traits::{snark::default_ck_hint, CurveCycleEquipped, Engine, TranscriptEngineTrait},
 };
-
 use serde::{Deserialize, Serialize};
 use wasmi::{
   AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, DropKeep, Instruction as Instr,
@@ -135,16 +135,29 @@ where
 
     // Compute multisets to perform grand product checks (uses global_ts)
 
-    let (mut execution_trace, mut IS, IS_stack_len, IS_mem_len) = program.execution_trace()?;
+    let (start_execution_trace, mut IS, IS_stack_len, IS_mem_len) = program.execution_trace()?;
+
+    // construct IS
+    let start = program.args().start();
+    tracing::debug!(
+      "slice values, start: {start}, end: {}",
+      start_execution_trace.len()
+    );
+    let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
+
+    IS_execution_trace.iter().for_each(|vm| {
+      let _ = step_RS_WS(vm, &mut IS, &mut global_ts, IS_stack_len, IS_mem_len);
+    });
+    let IS_gts = global_ts;
 
     let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut FS = IS.clone();
 
     // Pad the execution trace, so the length is a multiple of step_size
-    {
-      let len = execution_trace.len();
-      let pad_len = step_size.execution - (len % step_size.execution);
+    let non_padded_len = execution_trace.len();
+    if non_padded_len % step_size.execution != 0 {
+      let pad_len = step_size.execution - (non_padded_len % step_size.execution);
       (0..pad_len).for_each(|_| {
         execution_trace.push(WitnessVM::default());
       })
@@ -276,11 +289,11 @@ where
      * ***** F_ops proving *****
      */
 
-    // ops_z0 = [gamma, alpha, ts=0, h_RS=1, h_WS=1]
+    // ops_z0 = [gamma, alpha, ts=gts, h_RS=1, h_WS=1]
     let ops_z0 = vec![
       gamma,
       alpha,
-      E::Scalar::ZERO,
+      E::Scalar::from(IS_gts),
       E::Scalar::ONE,
       E::Scalar::ONE,
     ];
