@@ -43,7 +43,7 @@ where
   }
 
   /// Combine the shards [`WasmSNARK`]s
-  pub fn sharding(
+  pub fn prove_sharding(
     &mut self,
     pp: &ShardingPublicParams<E>,
     wasm_snarks: &[WasmSNARK<E>],
