@@ -54,7 +54,7 @@ checksum = "37bf3594c4c988a53154954629820791dde498571819ae4ca50ca811e060cc95"
 [[package]]
 name = "arecibo"
 version = "0.2.0"
-source = "git+https://github.com/wyattbenno777/arecibo?branch=feat%2Fnebula#126774a6b1833eef57dd3a61a04ec657f91eef97"
+source = "git+https://github.com/wyattbenno777/arecibo?branch=feat%2Fnebula-4.4.3#d0163cbb96a1bc65d447640d8cc560765b053a44"
 dependencies = [
  "abomonation",
  "abomonation_derive_ng",

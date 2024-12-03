@@ -14,6 +14,7 @@ use mcc::{
 use nova::{
   nebula::{
     ic::IC,
+    l2::{sharding::MemoryCommitmentsTraits, Layer1PP, Layer1RSTrait},
     rs::{PublicParams, RecursiveSNARK, StepCircuit},
   },
   traits::{snark::default_ck_hint, CurveCycleEquipped, Engine, TranscriptEngineTrait},
@@ -48,6 +49,21 @@ where
   // scan instance
   scan_z0: Vec<<E as Engine>::Scalar>,
   scan_IC_i: <E as Engine>::Scalar,
+  IC_IS: <E as Engine>::Scalar,
+  IC_FS: <E as Engine>::Scalar,
+}
+
+impl<E> MemoryCommitmentsTraits<E> for ZKWASMInstance<E>
+where
+  E: CurveCycleEquipped,
+{
+  fn C_IS(&self) -> <E as Engine>::Scalar {
+    self.IC_IS
+  }
+
+  fn C_FS(&self) -> <E as Engine>::Scalar {
+    self.IC_FS
+  }
 }
 
 /// [`WasmSNARK`] public parameters
@@ -77,6 +93,21 @@ where
   /// Get the scan public params
   pub fn scan(&self) -> &PublicParams<E> {
     &self.scan_pp
+  }
+}
+
+impl<E> Layer1PP<E> for WASMPublicParams<E>
+where
+  E: CurveCycleEquipped,
+{
+  fn into_parts(
+    self,
+  ) -> (
+    nova::nebula::rs::PublicParams<E>,
+    nova::nebula::rs::PublicParams<E>,
+    nova::nebula::rs::PublicParams<E>,
+  ) {
+    (self.execution_pp, self.ops_pp, self.scan_pp)
   }
 }
 
@@ -245,6 +276,8 @@ where
     // build scan circuits
     let mut scan_IC_i = E::Scalar::ZERO;
     let mut IC_pprime = E::Scalar::ZERO;
+    let mut IC_IS = E::Scalar::ZERO;
+    let mut IC_FS = E::Scalar::ZERO;
 
     let mut scan_circuits = Vec::new();
 
@@ -264,6 +297,26 @@ where
       .chunks(step_size.memory)
       .zip_eq(FS.chunks(step_size.memory))
     {
+      IC_IS = IC::<E>::commit(
+        &scan_pp.ck_primary,
+        &scan_pp.ro_consts_primary,
+        IC_IS,
+        IS_chunk
+          .iter()
+          .flat_map(|avt| avt_tuple_to_scalar_vec(*avt))
+          .collect(),
+      );
+
+      IC_FS = IC::<E>::commit(
+        &scan_pp.ck_primary,
+        &scan_pp.ro_consts_primary,
+        IC_FS,
+        FS_chunk
+          .iter()
+          .flat_map(|avt| avt_tuple_to_scalar_vec(*avt))
+          .collect(),
+      );
+
       let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
       IC_pprime = IC::<E>::commit(
         &scan_pp.ck_primary,
@@ -354,6 +407,8 @@ where
       ops_IC_i,
       scan_z0,
       scan_IC_i,
+      IC_IS,
+      IC_FS,
     };
 
     Ok((
@@ -424,6 +479,23 @@ where
     }
 
     Ok(())
+  }
+}
+
+impl<E> Layer1RSTrait<E> for WasmSNARK<E>
+where
+  E: CurveCycleEquipped,
+{
+  fn F(&self) -> &RecursiveSNARK<E> {
+    &self.execution_rs
+  }
+
+  fn ops(&self) -> &RecursiveSNARK<E> {
+    &self.ops_rs
+  }
+
+  fn scan(&self) -> &RecursiveSNARK<E> {
+    &self.scan_rs
   }
 }
 
