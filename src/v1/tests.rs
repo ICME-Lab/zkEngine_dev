@@ -22,7 +22,7 @@ fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result
   stop_timer!(pp_timer);
 
   let proving_timer = start_timer!("Producing WasmSNARK");
-  let (snark, U) = WasmSNARK::<E>::prove(&pp, wasm_ctx, step_size)?;
+  let (snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size)?;
   stop_timer!(proving_timer);
 
   let verification_timer = start_timer!("Verifying WasmSNARK");

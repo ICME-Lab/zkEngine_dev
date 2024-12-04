@@ -157,7 +157,7 @@ where
   /// Produce a SNARK for WASM program input
   pub fn prove(
     pp: &WASMPublicParams<E>,
-    program: impl ZKWASMCtx,
+    program: &impl ZKWASMCtx,
     step_size: StepSize,
   ) -> Result<(Self, ZKWASMInstance<E>), ZKWASMError> {
     // We maintain a timestamp counter `globa_ts` that is initialized to
