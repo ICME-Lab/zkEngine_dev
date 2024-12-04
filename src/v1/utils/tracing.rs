@@ -20,7 +20,7 @@ pub fn unwrap_rc_refcell<T>(last_elem: Rc<RefCell<T>>) -> T {
 #[allow(dead_code)]
 #[tracing::instrument(skip_all, name = "estimate_wasm")]
 /// Get estimations of the WASM execution trace size
-pub fn estimate_wasm(program: impl ZKWASMCtx) -> Result<ExecutionTrace, ZKWASMError> {
+pub fn estimate_wasm(program: &impl ZKWASMCtx) -> Result<ExecutionTrace, ZKWASMError> {
   program.execution_trace()
 }
 
