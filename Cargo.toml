@@ -25,7 +25,7 @@ paste = "1.0.14"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing = { version = "0.1.40", features = ["log"] }
 thiserror = "1.0.61"
-
+tracing-texray = "0.2.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }

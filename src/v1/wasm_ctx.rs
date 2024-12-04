@@ -10,7 +10,7 @@ use wasmi::{Tracer, WitnessVM};
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
 /// Builder for [`WASMCtx`]. Defines the WASM execution context that will be used for proving
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WASMArgsBuilder {
   program: Vec<u8>,
   invoke: String,
@@ -134,7 +134,7 @@ impl TraceSliceValues {
 }
 
 /// Execution trace, Initial memory trace, Initial stack trace length, Initial linear memory length
-type ExecutionTrace = (Vec<WitnessVM>, Vec<(usize, u64, u64)>, usize, usize);
+pub type ExecutionTrace = (Vec<WitnessVM>, Vec<(usize, u64, u64)>, usize, usize);
 
 /// Definition for WASM execution context
 pub trait ZKWASMCtx {
