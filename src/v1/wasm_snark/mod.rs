@@ -163,9 +163,6 @@ where
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
     let mut global_ts = 0;
-
-    // Compute multisets to perform grand product checks (uses global_ts)
-
     let (start_execution_trace, mut IS, IS_stack_len, IS_mem_len) = program.execution_trace()?;
 
     // construct IS
@@ -175,10 +172,46 @@ where
       start_execution_trace.len()
     );
     let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
+    tracing::debug!("IS execution trace length: {:#?}", IS_execution_trace.len());
 
-    IS_execution_trace.iter().for_each(|vm| {
+    // Calculate shard size
+    let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
+    let sharding_pad_len = if shard_size % step_size.execution != 0 {
+      step_size.execution - (shard_size % step_size.execution)
+    } else {
+      0
+    };
+
+    tracing::debug!("shard size: {shard_size}, sharding pad len: {sharding_pad_len}");
+
+    IS_execution_trace.iter().enumerate().for_each(|(i, vm)| {
+      if i != 0 && i % shard_size == 0 {
+        tracing::debug!("adding {sharding_pad_len} padding at step i: {i}");
+        for _ in 0..sharding_pad_len {
+          let _ = step_RS_WS(
+            &WitnessVM::default(),
+            &mut IS,
+            &mut global_ts,
+            IS_stack_len,
+            IS_mem_len,
+          );
+        }
+      }
       let _ = step_RS_WS(vm, &mut IS, &mut global_ts, IS_stack_len, IS_mem_len);
     });
+
+    if !IS_execution_trace.is_empty() {
+      for _ in 0..sharding_pad_len {
+        let _ = step_RS_WS(
+          &WitnessVM::default(),
+          &mut IS,
+          &mut global_ts,
+          IS_stack_len,
+          IS_mem_len,
+        );
+      }
+    }
+
     let IS_gts = global_ts;
 
     let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();

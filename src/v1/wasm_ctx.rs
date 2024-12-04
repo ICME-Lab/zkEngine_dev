@@ -79,6 +79,11 @@ impl WASMArgs {
       .map(|val| val.start())
       .unwrap_or_default()
   }
+
+  /// Get the shard_size
+  pub fn shard_size(&self) -> Option<usize> {
+    self.trace_slice_vals.map(|val| val.shard_size())
+  }
 }
 
 impl Default for WASMArgsBuilder {
@@ -130,6 +135,11 @@ impl TraceSliceValues {
   /// Setter for end value
   pub fn set_end(&mut self, end: usize) {
     self.end = end;
+  }
+
+  /// Calculate the shard_size
+  pub fn shard_size(&self) -> usize {
+    self.end - self.start
   }
 }
 

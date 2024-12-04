@@ -13,10 +13,26 @@ use crate::{
     wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
   },
 };
+use nova::nebula::l2::sharding::MemoryCommitmentsTraits;
 use std::time::Instant;
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
+
+#[test]
+fn test_sharding_eq_func_mismatch() {
+  init_logger();
+  let step_size = StepSize::new(100);
+  let wasm_args_builder = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/eq_func.wat"))
+    .unwrap()
+    .invoke("eq_func")
+    .func_args(vec!["255".to_string(), "255".to_string()]);
+
+  let shard_opcode_size = 499;
+
+  sim_nodes_and_orchestrator_node(&wasm_args_builder, step_size, shard_opcode_size);
+}
 
 #[test]
 fn test_sharding_zk_ads() {
@@ -76,6 +92,66 @@ fn test_sharding_integer_hash() {
     .invoke("integer_hash");
 
   let shard_opcode_size = 2500;
+  sim_nodes_and_orchestrator_node(&wasm_args_builder, step_size, shard_opcode_size);
+}
+
+#[test]
+fn test_sharding_zk_ads_mismatch() {
+  init_logger();
+  let step_size = StepSize::new(100).set_memory_step_size(50_000);
+  let input_x = "200.05";
+  let input_y = "-30.0";
+  let wasm_args_builder = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/zk_ads.wasm"))
+    .unwrap()
+    .func_args(vec![
+      String::from("0"),
+      String::from(input_x),
+      String::from(input_y),
+    ])
+    .invoke("is_user_close_enough");
+
+  let shard_opcode_size = 499;
+  sim_nodes_and_orchestrator_node(&wasm_args_builder, step_size, shard_opcode_size);
+}
+
+#[test]
+fn test_sharding_zk_ads_mismatch2() {
+  init_logger();
+  let step_size = StepSize::new(99).set_memory_step_size(50_000);
+  let input_x = "200.05";
+  let input_y = "-30.0";
+  let wasm_args_builder = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/zk_ads.wasm"))
+    .unwrap()
+    .func_args(vec![
+      String::from("0"),
+      String::from(input_x),
+      String::from(input_y),
+    ])
+    .invoke("is_user_close_enough");
+
+  let shard_opcode_size = 500;
+  sim_nodes_and_orchestrator_node(&wasm_args_builder, step_size, shard_opcode_size);
+}
+
+#[test]
+fn test_sharding_zk_ads_mismatch3() {
+  init_logger();
+  let step_size = StepSize::new(177).set_memory_step_size(50_000);
+  let input_x = "200.05";
+  let input_y = "-30.0";
+  let wasm_args_builder = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/zk_ads.wasm"))
+    .unwrap()
+    .func_args(vec![
+      String::from("0"),
+      String::from(input_x),
+      String::from(input_y),
+    ])
+    .invoke("is_user_close_enough");
+
+  let shard_opcode_size = 1011;
   sim_nodes_and_orchestrator_node(&wasm_args_builder, step_size, shard_opcode_size);
 }
 
