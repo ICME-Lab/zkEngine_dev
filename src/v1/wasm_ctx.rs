@@ -80,6 +80,11 @@ impl WASMArgs {
       .unwrap_or_default()
   }
 
+  /// Check if program is being sharded
+  pub fn is_sharded(&self) -> bool {
+    self.start() != 0
+  }
+
   /// Get the shard_size
   pub fn shard_size(&self) -> Option<usize> {
     self.trace_slice_vals.map(|val| val.shard_size())
@@ -144,7 +149,7 @@ impl TraceSliceValues {
 }
 
 /// Execution trace, Initial memory trace, Initial stack trace length, Initial linear memory length
-pub type ExecutionTrace = (Vec<WitnessVM>, Vec<(usize, u64, u64)>, usize, usize);
+pub type ExecutionTrace = (Vec<WitnessVM>, Vec<(usize, u64, u64)>, ISMemSizes);
 
 /// Definition for WASM execution context
 pub trait ZKWASMCtx {
@@ -225,7 +230,11 @@ pub trait ZKWASMCtx {
 
     let execution_trace = execution_trace[..end_slice].to_vec();
 
-    Ok((execution_trace, IS, IS_stack_len, IS_mem_len))
+    Ok((
+      execution_trace,
+      IS,
+      ISMemSizes::new(IS_stack_len, IS_mem_len),
+    ))
   }
 }
 
@@ -293,4 +302,30 @@ impl ZKWASMCtx for WasiWASMCtx {
 /// zkvm uses a seed to generate random numbers.
 pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
   Box::new(StdRng::from_seed([0; 32]))
+}
+
+/// Memory sizes for the initial state
+pub struct ISMemSizes {
+  IS_stack_len: usize,
+  IS_mem_len: usize,
+}
+
+impl ISMemSizes {
+  /// Create a new instance of [`ISMemSizes`]
+  pub fn new(IS_stack_len: usize, IS_mem_len: usize) -> Self {
+    Self {
+      IS_stack_len,
+      IS_mem_len,
+    }
+  }
+
+  /// Get the stack length
+  pub fn stack_len(&self) -> usize {
+    self.IS_stack_len
+  }
+
+  /// Get the memory length
+  pub fn mem_len(&self) -> usize {
+    self.IS_mem_len
+  }
 }

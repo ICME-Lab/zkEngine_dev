@@ -25,7 +25,10 @@ use wasmi::{
   WitnessVM,
 };
 
-use super::{error::ZKWASMError, wasm_ctx::ZKWASMCtx};
+use super::{
+  error::ZKWASMError,
+  wasm_ctx::{ISMemSizes, ZKWASMCtx},
+};
 
 mod gadgets;
 mod mcc;
@@ -163,10 +166,12 @@ where
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
     let mut global_ts = 0;
-    let (start_execution_trace, mut IS, IS_stack_len, IS_mem_len) = program.execution_trace()?;
+    let (start_execution_trace, mut IS, IS_sizes) = program.execution_trace()?;
 
     // construct IS
     let start = program.args().start();
+    let is_sharded = program.args().is_sharded();
+
     tracing::debug!(
       "slice values, start: {start}, end: {}",
       start_execution_trace.len()
@@ -176,41 +181,15 @@ where
 
     // Calculate shard size
     let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
-    let sharding_pad_len = if shard_size % step_size.execution != 0 {
-      step_size.execution - (shard_size % step_size.execution)
-    } else {
-      0
-    };
-
-    tracing::debug!("shard size: {shard_size}, sharding pad len: {sharding_pad_len}");
-
-    IS_execution_trace.iter().enumerate().for_each(|(i, vm)| {
-      if i != 0 && i % shard_size == 0 {
-        tracing::debug!("adding {sharding_pad_len} padding at step i: {i}");
-        for _ in 0..sharding_pad_len {
-          let _ = step_RS_WS(
-            &WitnessVM::default(),
-            &mut IS,
-            &mut global_ts,
-            IS_stack_len,
-            IS_mem_len,
-          );
-        }
-      }
-      let _ = step_RS_WS(vm, &mut IS, &mut global_ts, IS_stack_len, IS_mem_len);
-    });
-
-    if !IS_execution_trace.is_empty() {
-      for _ in 0..sharding_pad_len {
-        let _ = step_RS_WS(
-          &WitnessVM::default(),
-          &mut IS,
-          &mut global_ts,
-          IS_stack_len,
-          IS_mem_len,
-        );
-      }
-    }
+    construct_IS(
+      shard_size,
+      step_size,
+      is_sharded,
+      IS_execution_trace,
+      &mut IS,
+      &mut global_ts,
+      &IS_sizes,
+    );
 
     let IS_gts = global_ts;
 
@@ -234,7 +213,7 @@ where
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
       .into_iter()
       .map(|vm| {
-        let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, IS_stack_len, IS_mem_len);
+        let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, &IS_sizes);
 
         RS.push(step_rs.clone());
         WS.push(step_ws.clone());
@@ -243,7 +222,7 @@ where
           vm,
           RS: step_rs,
           WS: step_ws,
-          stack_len: IS_stack_len,
+          stack_len: IS_sizes.stack_len(),
         }
       })
       .collect();
@@ -512,6 +491,49 @@ where
     }
 
     Ok(())
+  }
+}
+
+/// Helper function to construct IS when WASM program is being sharded
+pub fn construct_IS(
+  shard_size: usize,
+  step_size: StepSize,
+  is_sharded: bool,
+  IS_execution_trace: Vec<WitnessVM>,
+  IS: &mut [(usize, u64, u64)],
+  global_ts: &mut u64,
+  IS_sizes: &ISMemSizes,
+) {
+  // Calculate shard size
+  let sharding_pad_len = if shard_size % step_size.execution != 0 && is_sharded {
+    step_size.execution - (shard_size % step_size.execution)
+  } else {
+    0
+  };
+
+  tracing::debug!("shard size: {shard_size}, sharding pad len: {sharding_pad_len}");
+
+  IS_execution_trace.iter().enumerate().for_each(|(i, vm)| {
+    if i != 0 && i % shard_size == 0 {
+      tracing::debug!("adding {sharding_pad_len} padding at step i: {i}");
+      IS_padding(sharding_pad_len, IS, global_ts, IS_sizes);
+    }
+    let _ = step_RS_WS(vm, IS, global_ts, IS_sizes);
+  });
+
+  if !IS_execution_trace.is_empty() && is_sharded {
+    IS_padding(sharding_pad_len, IS, global_ts, IS_sizes);
+  }
+}
+
+fn IS_padding(
+  sharding_pad_len: usize,
+  IS: &mut [(usize, u64, u64)],
+  global_ts: &mut u64,
+  IS_sizes: &ISMemSizes,
+) {
+  for _ in 0..sharding_pad_len {
+    let _ = step_RS_WS(&WitnessVM::default(), IS, global_ts, IS_sizes);
   }
 }
 

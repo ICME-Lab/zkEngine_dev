@@ -40,7 +40,7 @@ where
 
   // Compute multisets to perform grand product checks (uses global_ts)
 
-  let (execution_trace, IS, IS_stack_len, IS_mem_len) = program.execution_trace()?;
+  let (execution_trace, IS, IS_sizes) = program.execution_trace()?;
 
   let mut RS: Vec<(usize, u64, u64)> = Vec::new();
   let mut WS: Vec<(usize, u64, u64)> = Vec::new();
@@ -51,7 +51,7 @@ where
 
   // Build the WASMTransitionCircuit from each traced execution frame.
   execution_trace.into_iter().for_each(|vm| {
-    let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, IS_stack_len, IS_mem_len);
+    let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, &IS_sizes);
 
     RS.extend(step_rs);
     WS.extend(step_ws);

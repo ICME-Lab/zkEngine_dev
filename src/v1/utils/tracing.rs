@@ -2,9 +2,7 @@ use crate::v1::{
   error::ZKWASMError,
   wasm_ctx::{ExecutionTrace, ZKWASMCtx},
 };
-use std::{cell::RefCell, rc::Rc, time::Instant};
-
-use super::macros::{start_timer, stop_timer};
+use std::{cell::RefCell, rc::Rc};
 
 /// Get inner value of [`Rc<RefCell<T>>`]
 ///

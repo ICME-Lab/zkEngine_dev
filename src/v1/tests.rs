@@ -1,17 +1,14 @@
-use std::{path::PathBuf, time::Instant};
-
-use nova::provider::Bn256EngineIPA;
-
-use crate::{
-  utils::logging::init_logger,
-  v1::utils::macros::{start_timer, stop_timer},
-};
-
 use super::{
   error::ZKWASMError,
   wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
   wasm_snark::{StepSize, WasmSNARK},
 };
+use crate::{
+  utils::logging::init_logger,
+  v1::utils::macros::{start_timer, stop_timer},
+};
+use nova::provider::Bn256EngineIPA;
+use std::{path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
