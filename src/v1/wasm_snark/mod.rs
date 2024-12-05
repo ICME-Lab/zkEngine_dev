@@ -166,12 +166,18 @@ where
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
     let mut global_ts = 0;
+
+    // `start_execution_trace` is execution trace starting from opcode 0 to opcode `end` in the WASM
+    // program `TraceSliceValues`
+    //
+    // We do not slice the execution trace at `TraceSliceValues` `start` value because we need the
+    // execution trace from opcode 0 to opcode `start` to construct the IS for memory checking and
+    // continuations/sharding
     let (start_execution_trace, mut IS, IS_sizes) = program.execution_trace()?;
 
-    // construct IS
+    // Split the execution trace at `TraceSliceValues` `start` value. Use the first half to
+    // construct IS and use the second half for the actual proving of the shard
     let start = program.args().start();
-    let is_sharded = program.args().is_sharded();
-
     tracing::debug!(
       "slice values, start: {start}, end: {}",
       start_execution_trace.len()
@@ -179,7 +185,8 @@ where
     let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
     tracing::debug!("IS execution trace length: {:#?}", IS_execution_trace.len());
 
-    // Calculate shard size
+    // If this is a shard of a WASM program calculate shard size & construct IS
+    let is_sharded = program.args().is_sharded();
     let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
     construct_IS(
       shard_size,
@@ -191,8 +198,10 @@ where
       &IS_sizes,
     );
 
+    // Get the highest timestamp in the IS
     let IS_gts = global_ts;
 
+    // Construct multisets for MCC
     let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut FS = IS.clone();
@@ -209,7 +218,8 @@ where
     tracing::debug!("execution trace length: {:#?}", execution_trace.len());
     tracing::trace!("execution trace: {:#?}", execution_trace);
 
-    // Build the WASMTransitionCircuit from each traced execution frame.
+    // Build the WASMTransitionCircuit from each traced execution frame and then batch them into
+    // size `step_size`
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
       .into_iter()
       .map(|vm| {
@@ -226,7 +236,6 @@ where
         }
       })
       .collect();
-
     let circuits = circuits
       .chunks(step_size.execution)
       .map(|chunk| BatchedWasmTransitionCircuit {
