@@ -37,6 +37,10 @@ where
   E: CurveCycleEquipped,
 {
   /// Create a new instance of [`ShardingSNARK`]
+  ///
+  /// # Note
+  ///
+  /// Input first shard here
   pub fn new(
     pp: &ShardingPublicParams<E>,
     wasm_snark: &WasmSNARK<E>,
@@ -51,6 +55,10 @@ where
   /// # Panics
   ///
   /// Panics if the number of [`WasmSNARK`]'s  and U's ([`ZKWASMInstance`]'s) are not equal
+  ///
+  /// # Note
+  ///
+  /// Order of shards inputted here matter.
   pub fn prove_sharding(
     &mut self,
     pp: &ShardingPublicParams<E>,
