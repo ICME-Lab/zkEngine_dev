@@ -39,3 +39,15 @@ wasmi_wasi = { path = "./third-party/wasmi/crates/wasi" }
 [patch.crates-io]
 # This is needed to ensure halo2curves, which imports pasta-curves, uses the *same* traits in bn256_grumpkin
 pasta_curves = { git = "https://github.com/lurk-lab/pasta_curves", branch = "dev" }
+
+[[example]]
+name = "fib"
+path = "examples/v1/fib.rs"
+
+[[example]]
+name = "fib_large"
+path = "examples/v1/fib_large.rs"
+
+[[example]]
+name = "kth_factor"
+path = "examples/v1/kth_factor.rs"

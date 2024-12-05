@@ -213,3 +213,35 @@ fn test_bls() -> Result<(), ZKWASMError> {
 
   Ok(())
 }
+
+#[test]
+fn test_fib_large() -> Result<(), ZKWASMError> {
+  let step_size = StepSize::new(1_000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/misc/fib.wat"))?
+    .invoke("fib")
+    .func_args(vec![String::from("1000")])
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
+}
+
+#[test]
+fn test_fib_small() -> Result<(), ZKWASMError> {
+  let step_size = StepSize::new(10);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/misc/fib.wat"))?
+    .invoke("fib")
+    .func_args(vec![String::from("16")])
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
+}
