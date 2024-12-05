@@ -8,6 +8,7 @@ use nova::{
   nebula::l2::{AggregationPublicParams, AggregationRecursiveSNARK},
   traits::CurveCycleEquipped,
 };
+use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 mod tests;
@@ -21,6 +22,7 @@ where
 }
 
 /// Aggregation SNARK used to aggregate [`WasmSNARK`]'s
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AggregationSNARK<E>
 where
   E: CurveCycleEquipped,

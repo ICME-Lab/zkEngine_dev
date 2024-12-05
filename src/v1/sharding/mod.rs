@@ -11,6 +11,7 @@ use nova::{
   nebula::l2::sharding::{ShardingPublicParams, ShardingRecursiveSNARK},
   traits::CurveCycleEquipped,
 };
+use serde::{Deserialize, Serialize};
 #[cfg(test)]
 mod tests;
 
@@ -23,6 +24,7 @@ where
 }
 
 /// Sharding SNARK used to aggregate [`WasmSNARK`]'s
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ShardingSNARK<E>
 where
   E: CurveCycleEquipped,

@@ -5,12 +5,13 @@ use crate::{
   v1::utils::tracing::unwrap_rc_refcell,
 };
 use rand::{rngs::StdRng, RngCore, SeedableRng};
+use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use wasmi::{Tracer, WitnessVM};
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
 /// Builder for [`WASMCtx`]. Defines the WASM execution context that will be used for proving
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WASMArgsBuilder {
   program: Vec<u8>,
   invoke: String,
@@ -63,7 +64,7 @@ impl WASMArgsBuilder {
 }
 
 /// WASM execution context: contains the WASM program and its [`WASMCtxMetaData`]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WASMArgs {
   pub(in crate::v1) program: Vec<u8>,
   pub(in crate::v1) invoke: String,
@@ -103,7 +104,7 @@ impl Default for WASMArgsBuilder {
 }
 
 /// Used to set start and end values to slice execution trace. Used in sharding/continuations
-#[derive(Debug, Clone, Default, Copy)]
+#[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
 pub struct TraceSliceValues {
   /// Start opcode
   pub(crate) start: usize,

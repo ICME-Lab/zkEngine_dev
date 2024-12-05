@@ -37,6 +37,7 @@ mod mcc;
 pub const MEMORY_OPS_PER_STEP: usize = 8;
 
 /// Public i/o for WASM execution proving
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ZKWASMInstance<E>
 where
   E: CurveCycleEquipped,
@@ -70,6 +71,7 @@ where
 }
 
 /// [`WasmSNARK`] public parameters
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WASMPublicParams<E>
 where
   E: CurveCycleEquipped,
