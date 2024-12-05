@@ -81,14 +81,14 @@ fn test_sharding_kth_factor() {
 #[test]
 fn test_sharding_integer_hash() {
   init_logger();
-  let step_size = StepSize::new(500).set_memory_step_size(50_000);
+  let step_size = StepSize::new(1_000).set_memory_step_size(50_000);
   let wasm_args_builder = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
     .unwrap()
     .func_args(vec!["100".to_string()])
     .invoke("integer_hash");
 
-  let shard_opcode_size = 2500;
+  let shard_opcode_size = 10_000;
   sim_nodes_and_orchestrator_node(&wasm_args_builder, step_size, shard_opcode_size);
 }
 
