@@ -1,7 +1,7 @@
 use ff::PrimeField;
 use wasmi::{Instruction as Instr, WitnessVM};
 
-use crate::v1::wasm_snark::MEMORY_OPS_PER_STEP;
+use crate::v1::{wasm_ctx::ISMemSizes, wasm_snark::MEMORY_OPS_PER_STEP};
 
 /// Get the RS & WS for a single execution step. A RS (read-set) & a WS (write-set) are of the form
 /// of a vector of (address, value, timestamp) tuples
@@ -9,8 +9,7 @@ pub fn step_RS_WS(
   vm: &WitnessVM,
   FS: &mut [(usize, u64, u64)],
   global_ts: &mut u64,
-  stack_len: usize,
-  mem_len: usize,
+  IS_sizes: &ISMemSizes,
 ) -> (
   Vec<(usize, u64, u64)>, // RS
   Vec<(usize, u64, u64)>, // WS
@@ -111,8 +110,8 @@ pub fn step_RS_WS(
       // Linear mem ops
       let effective_addr = vm.I as usize;
 
-      let write_addr_1 = effective_addr / 8 + stack_len;
-      let write_addr_2 = effective_addr / 8 + 1 + stack_len;
+      let write_addr_1 = effective_addr / 8 + IS_sizes.stack_len();
+      let write_addr_2 = effective_addr / 8 + 1 + IS_sizes.stack_len();
       write_op(write_addr_1, vm.P, global_ts, FS, &mut RS, &mut WS);
       write_op(write_addr_2, vm.Q, global_ts, FS, &mut RS, &mut WS);
     }
@@ -137,8 +136,8 @@ pub fn step_RS_WS(
       // linear mem ops
       let effective_addr = vm.I as usize;
 
-      let read_addr_1 = effective_addr / 8 + stack_len;
-      let read_addr_2 = effective_addr / 8 + 1 + stack_len;
+      let read_addr_1 = effective_addr / 8 + IS_sizes.stack_len();
+      let read_addr_2 = effective_addr / 8 + 1 + IS_sizes.stack_len();
 
       read_op(read_addr_1, global_ts, FS, &mut RS, &mut WS);
       read_op(read_addr_2, global_ts, FS, &mut RS, &mut WS);
@@ -275,13 +274,13 @@ pub fn step_RS_WS(
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::GlobalGet(..) => {
-      let read_addr = stack_len + mem_len + vm.I as usize;
+      let read_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
       read_op(read_addr, global_ts, FS, &mut RS, &mut WS); // Y
       write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
 
     Instr::GlobalSet(..) => {
-      let write_addr = stack_len + mem_len + vm.I as usize;
+      let write_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
       write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
@@ -289,19 +288,19 @@ pub fn step_RS_WS(
     Instr::MemoryFill => {}
     Instr::MemoryCopy => {}
     Instr::MemoryFillStep => {
-      let read_addr = vm.Y as usize + stack_len;
+      let read_addr = vm.Y as usize + IS_sizes.stack_len();
       read_op(read_addr, global_ts, FS, &mut RS, &mut WS);
 
-      let write_addr = vm.X as usize + stack_len;
+      let write_addr = vm.X as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::MemoryCopyStep => {
-      let write_addr = vm.X as usize + stack_len;
+      let write_addr = vm.X as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
 
     Instr::HostCallStep => {
-      let write_addr = vm.Y as usize + stack_len;
+      let write_addr = vm.Y as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::HostCallStackStep => {

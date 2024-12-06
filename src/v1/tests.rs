@@ -1,17 +1,14 @@
-use std::{path::PathBuf, time::Instant};
-
-use nova::provider::Bn256EngineIPA;
-
+use super::{
+  error::ZKWASMError,
+  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+  wasm_snark::{StepSize, WasmSNARK},
+};
 use crate::{
   utils::logging::init_logger,
   v1::utils::macros::{start_timer, stop_timer},
 };
-
-use super::{
-  error::ZKWASMError,
-  wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
-  wasm_snark::{StepSize, WasmSNARK},
-};
+use nova::provider::Bn256EngineIPA;
+use std::{path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
@@ -22,7 +19,7 @@ fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result
   stop_timer!(pp_timer);
 
   let proving_timer = start_timer!("Producing WasmSNARK");
-  let (snark, U) = WasmSNARK::<E>::prove(&pp, wasm_ctx, step_size)?;
+  let (snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size)?;
   stop_timer!(proving_timer);
 
   let verification_timer = start_timer!("Verifying WasmSNARK");
@@ -202,15 +199,49 @@ fn test_uni_poly_eval() {
 }
 
 #[test]
-fn test_bls() {
+fn test_bls() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(1_000).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/bls.wasm"))
     .unwrap()
-    .end_slice(10_000)
+    .trace_slice(TraceSliceValues::new(10_000, 20_000))
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
-  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
+}
+
+#[test]
+fn test_fib_large() -> Result<(), ZKWASMError> {
+  let step_size = StepSize::new(1_000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/misc/fib.wat"))?
+    .invoke("fib")
+    .func_args(vec![String::from("1000")])
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
+}
+
+#[test]
+fn test_fib_small() -> Result<(), ZKWASMError> {
+  let step_size = StepSize::new(10);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/misc/fib.wat"))?
+    .invoke("fib")
+    .func_args(vec![String::from("16")])
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  test_wasm_snark_with(wasm_ctx, step_size)?;
+
+  Ok(())
 }

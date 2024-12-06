@@ -1,24 +1,22 @@
 //! Implementation of WASM execution context for zkVM
+use super::error::ZKWASMError;
 use crate::{
-  utils::wasm::{decode_func_args, prepare_func_results},
+  utils::wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat},
   v1::utils::tracing::unwrap_rc_refcell,
 };
 use rand::{rngs::StdRng, RngCore, SeedableRng};
+use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use wasmi::{Tracer, WitnessVM};
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
-use crate::utils::wasm::read_wasm_or_wat;
-
-use super::error::ZKWASMError;
-
 /// Builder for [`WASMCtx`]. Defines the WASM execution context that will be used for proving
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WASMArgsBuilder {
   program: Vec<u8>,
   invoke: String,
   func_args: Vec<String>,
-  end_slice: Option<usize>,
+  trace_slice_vals: Option<TraceSliceValues>,
 }
 
 impl WASMArgsBuilder {
@@ -49,8 +47,8 @@ impl WASMArgsBuilder {
   }
 
   /// Set the end slice
-  pub fn end_slice(mut self, end_slice: usize) -> Self {
-    self.end_slice = Some(end_slice);
+  pub fn trace_slice(mut self, trace_slice_vals: TraceSliceValues) -> Self {
+    self.trace_slice_vals = Some(trace_slice_vals);
     self
   }
 
@@ -60,18 +58,38 @@ impl WASMArgsBuilder {
       program: self.program,
       func_args: self.func_args,
       invoke: self.invoke,
-      end_slice: self.end_slice,
+      trace_slice_vals: self.trace_slice_vals,
     }
   }
 }
 
 /// WASM execution context: contains the WASM program and its [`WASMCtxMetaData`]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WASMArgs {
   pub(in crate::v1) program: Vec<u8>,
   pub(in crate::v1) invoke: String,
   pub(in crate::v1) func_args: Vec<String>,
-  pub(in crate::v1) end_slice: Option<usize>,
+  pub(in crate::v1) trace_slice_vals: Option<TraceSliceValues>,
+}
+
+impl WASMArgs {
+  /// Get the start value of the trace slice
+  pub fn start(&self) -> usize {
+    self
+      .trace_slice_vals
+      .map(|val| val.start())
+      .unwrap_or_default()
+  }
+
+  /// Check if program is being sharded
+  pub fn is_sharded(&self) -> bool {
+    self.start() != 0
+  }
+
+  /// Get the shard_size
+  pub fn shard_size(&self) -> Option<usize> {
+    self.trace_slice_vals.map(|val| val.shard_size())
+  }
 }
 
 impl Default for WASMArgsBuilder {
@@ -80,45 +98,86 @@ impl Default for WASMArgsBuilder {
       program: vec![],
       invoke: "main".to_string(),
       func_args: vec![],
-      end_slice: None,
+      trace_slice_vals: None,
     }
   }
 }
 
-/// Execution trace, Initial memory trace, Initial stack trace length, Initial linear memory length
-type ExecutionTrace = (Vec<WitnessVM>, Vec<(usize, u64, u64)>, usize, usize);
-
-/// Definition for WASM execution context
-pub trait ZKWASMCtx {
-  /// Get the execution trace from WASM execution context
-  fn execution_trace(&self) -> Result<ExecutionTrace, ZKWASMError>;
+/// Used to set start and end values to slice execution trace. Used in sharding/continuations
+#[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
+pub struct TraceSliceValues {
+  /// Start opcode
+  pub(crate) start: usize,
+  /// End opcode
+  pub(crate) end: usize,
 }
 
-#[derive(Debug, Clone)]
-/// Wasm execution context
-pub struct WASMCtx {
-  args: WASMArgs,
-}
+impl TraceSliceValues {
+  /// Build new `TraceSliceValues`
+  ///
+  /// # Panics
+  ///
+  /// panics if start is greater than or equal to end
+  pub fn new(start: usize, end: usize) -> Self {
+    assert!(start < end);
+    TraceSliceValues { start, end }
+  }
 
-impl WASMCtx {
-  /// Create a new instance of [`WASMCtx`]
-  pub fn new(args: WASMArgs) -> Self {
-    Self { args }
+  /// Get start value
+  pub fn start(&self) -> usize {
+    self.start
+  }
+
+  /// Get end value
+  pub fn end(&self) -> usize {
+    self.end
+  }
+
+  /// Setter for start value
+  pub fn set_start(&mut self, start: usize) {
+    self.start = start;
+  }
+
+  /// Setter for end value
+  pub fn set_end(&mut self, end: usize) {
+    self.end = end;
+  }
+
+  /// Calculate the shard_size
+  pub fn shard_size(&self) -> usize {
+    self.end - self.start
   }
 }
 
-impl ZKWASMCtx for WASMCtx {
+/// Execution trace, Initial memory trace, Initial stack trace length, Initial linear memory length
+pub type ExecutionTrace = (Vec<WitnessVM>, Vec<(usize, u64, u64)>, ISMemSizes);
+
+/// Definition for WASM execution context
+pub trait ZKWASMCtx {
+  /// Data type used in wasmi::Store
+  type T;
+
+  /// create store
+  fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T>;
+
+  /// create linker
+  fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError>;
+
+  /// Getter for WASM args
+  fn args(&self) -> &WASMArgs;
+
+  /// Get the execution trace from WASM execution context
   fn execution_trace(&self) -> Result<ExecutionTrace, ZKWASMError> {
     // Execute WASM module and build execution trace documenting vm state at
     // each step. Also get meta-date from execution like the max height of the [`ValueStack`]
     let tracer = Rc::new(RefCell::new(Tracer::new()));
     // Setup and parse the wasm bytecode.
     let engine = wasmi::Engine::default();
-    let linker = <wasmi::Linker<()>>::new(&engine);
-    let module = wasmi::Module::new(&engine, &self.args.program[..])?;
+    let module = wasmi::Module::new(&engine, &self.args().program[..])?;
 
-    // Create a new store & add wasi through the linker
-    let mut store = wasmi::Store::new(&engine, ());
+    // Create a new store and linker
+    let mut store = Self::create_store(&engine);
+    let linker = Self::create_linker(&engine)?;
 
     // Instantiate the module and trace WASM linear memory and global memory initializations
     let instance = linker
@@ -126,7 +185,7 @@ impl ZKWASMCtx for WASMCtx {
       .start(&mut store)?;
 
     let func = instance
-      .get_func(&store, &self.args.invoke)
+      .get_func(&store, &self.args().invoke)
       .ok_or_else(|| {
         ZKWASMError::WasmiError(wasmi::Error::Func(
           wasmi::errors::FuncError::ExportedFuncNotFound,
@@ -135,7 +194,7 @@ impl ZKWASMCtx for WASMCtx {
 
     // Prepare i/o
     let ty = func.ty(&store);
-    let func_args = decode_func_args(&ty, &self.args.func_args)?;
+    let func_args = decode_func_args(&ty, &self.args().func_args)?;
     let mut func_results = prepare_func_results(&ty);
 
     // Call the function to invoke.
@@ -161,11 +220,51 @@ impl ZKWASMCtx for WASMCtx {
       execution_trace.len()
     );
 
-    let end_slice = self.args.end_slice.unwrap_or(execution_trace.len());
-    let end_slice = std::cmp::min(end_slice, execution_trace.len());
+    let end_slice = {
+      let end_slice_val = self
+        .args()
+        .trace_slice_vals
+        .map(|val| val.end())
+        .unwrap_or(execution_trace.len());
+      std::cmp::min(end_slice_val, execution_trace.len())
+    };
+
     let execution_trace = execution_trace[..end_slice].to_vec();
 
-    Ok((execution_trace, IS, IS_stack_len, IS_mem_len))
+    Ok((
+      execution_trace,
+      IS,
+      ISMemSizes::new(IS_stack_len, IS_mem_len),
+    ))
+  }
+}
+
+#[derive(Debug, Clone)]
+/// Wasm execution context
+pub struct WASMCtx {
+  args: WASMArgs,
+}
+
+impl WASMCtx {
+  /// Create a new instance of [`WASMCtx`]
+  pub fn new(args: WASMArgs) -> Self {
+    Self { args }
+  }
+}
+
+impl ZKWASMCtx for WASMCtx {
+  type T = ();
+
+  fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
+    wasmi::Store::new(engine, ())
+  }
+
+  fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+    Ok(<wasmi::Linker<()>>::new(engine))
+  }
+
+  fn args(&self) -> &WASMArgs {
+    &self.args
   }
 }
 
@@ -183,68 +282,51 @@ impl WasiWASMCtx {
 }
 
 impl ZKWASMCtx for WasiWASMCtx {
-  fn execution_trace(&self) -> Result<ExecutionTrace, ZKWASMError> {
-    // Execute WASM module and build execution trace documenting vm state at
-    // each step. Also get meta-date from execution like the max height of the [`ValueStack`]
-    let tracer = Rc::new(RefCell::new(Tracer::new()));
-    // build wasi ctx to add to linker.
+  type T = WasiCtx;
+
+  fn args(&self) -> &WASMArgs {
+    &self.args
+  }
+
+  fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
     let wasi = WasiCtx::new(zkvm_random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
-    // Setup and parse the wasm bytecode.
-    let engine = wasmi::Engine::default();
-    let mut linker = <wasmi::Linker<WasiCtx>>::new(&engine);
-    let module = wasmi::Module::new(&engine, &self.args.program[..])?;
+    wasmi::Store::new(engine, wasi)
+  }
 
-    // Create a new store & add wasi through the linker
-    let mut store = wasmi::Store::new(&engine, wasi);
+  fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+    let mut linker = <wasmi::Linker<WasiCtx>>::new(engine);
     wasmi_wasi::add_to_linker(&mut linker, |ctx| ctx)?;
-
-    // Instantiate the module and trace WASM linear memory and global memory initializations
-    let instance = linker
-      .instantiate_with_trace(&mut store, &module, tracer.clone())?
-      .start(&mut store)?;
-
-    let func = instance
-      .get_func(&store, &self.args.invoke)
-      .ok_or_else(|| {
-        ZKWASMError::WasmiError(wasmi::Error::Func(
-          wasmi::errors::FuncError::ExportedFuncNotFound,
-        ))
-      })?;
-
-    // Prepare i/o
-    let ty = func.ty(&store);
-    let func_args = decode_func_args(&ty, &self.args.func_args)?;
-    let mut func_results = prepare_func_results(&ty);
-
-    // Call the function to invoke.
-    func.call_with_trace(&mut store, &func_args, &mut func_results, tracer.clone())?;
-    tracing::debug!("wasm func res: {:#?}", func_results);
-
-    let tracer = unwrap_rc_refcell(tracer);
-
-    /*
-     * Get MCC values:
-     */
-    let IS_stack_len = tracer.IS_stack_len();
-    let IS_mem_len = tracer.IS_mem_len();
-    tracing::debug!("stack len: {}", IS_stack_len);
-    let IS = tracer.IS();
-    tracing::debug!("IS_mem.len: {}", IS_mem_len);
-    tracing::debug!("max_sp: {}", tracer.max_sp());
-    let execution_trace = tracer.into_execution_trace();
-    tracing::debug!(
-      "Non padded execution trace len: {:?}",
-      execution_trace.len()
-    );
-
-    let end_slice = self.args.end_slice.unwrap_or(execution_trace.len());
-    let end_slice = std::cmp::min(end_slice, execution_trace.len());
-    let execution_trace = execution_trace[..end_slice].to_vec();
-    Ok((execution_trace, IS, IS_stack_len, IS_mem_len))
+    Ok(linker)
   }
 }
 
 /// zkvm uses a seed to generate random numbers.
 pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
   Box::new(StdRng::from_seed([0; 32]))
+}
+
+/// Memory sizes for the initial state
+pub struct ISMemSizes {
+  IS_stack_len: usize,
+  IS_mem_len: usize,
+}
+
+impl ISMemSizes {
+  /// Create a new instance of [`ISMemSizes`]
+  pub fn new(IS_stack_len: usize, IS_mem_len: usize) -> Self {
+    Self {
+      IS_stack_len,
+      IS_mem_len,
+    }
+  }
+
+  /// Get the stack length
+  pub fn stack_len(&self) -> usize {
+    self.IS_stack_len
+  }
+
+  /// Get the memory length
+  pub fn mem_len(&self) -> usize {
+    self.IS_mem_len
+  }
 }
