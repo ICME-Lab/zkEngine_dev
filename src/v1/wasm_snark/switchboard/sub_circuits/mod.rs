@@ -1,32 +1,39 @@
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 
-fn add64<F, CS>(mut cs: CS, a: u64, b: u64) -> Result<AllocatedNum<F>, SynthesisError>
+use super::WASMTransitionCircuit as SwitchBoardCircuit;
+
+fn add64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: u64,
+  b_bits: u64,
+  switch: F,
+) -> Result<AllocatedNum<F>, SynthesisError>
 where
   F: PrimeField,
   CS: ConstraintSystem<F>,
 {
   let zero = F::ZERO;
-  let O = F::from_u128(u64::MAX as u128 + 1);
-  let ON: F = zero - O;
+  let range = F::from_u128(u64::MAX as u128 + 1);
+  let ON: F = zero - range;
 
-  let (c, of) = a.overflowing_add(b);
+  let (c, of) = a_bits.overflowing_add(b_bits);
   let o = if of { ON } else { zero };
 
   // construct witness
-  let a = AllocatedNum::alloc(cs.namespace(|| "a"), || Ok(F::from(a)))?;
-  let b = AllocatedNum::alloc(cs.namespace(|| "b"), || Ok(F::from(b)))?;
-  let c = AllocatedNum::alloc(cs.namespace(|| "c"), || Ok(F::from(c)))?;
+  let c = SwitchBoardCircuit::alloc_num(&mut cs, || "c", || Ok(F::from(c)), switch)?;
 
   // note, this is "advice"
-  let o = AllocatedNum::alloc(cs.namespace(|| "o"), || Ok(o))?;
-  let O = AllocatedNum::alloc(cs.namespace(|| "O"), || Ok(O))?;
+  let o = SwitchBoardCircuit::alloc_num(&mut cs, || "o", || Ok(o), switch)?;
+  let range = SwitchBoardCircuit::alloc_num(&mut cs, || "O", || Ok(range), switch)?;
 
   // check o * (o + O) == 0
   cs.enforce(
     || "check o * (o + O) == 0",
     |lc| lc + o.get_variable(),
-    |lc| lc + o.get_variable() + O.get_variable(),
+    |lc| lc + o.get_variable() + range.get_variable(),
     |lc| lc,
   );
 
@@ -112,6 +119,8 @@ mod tests {
   fn test_add64() {
     let mut rng = StdRng::from_seed([100u8; 32]);
 
+    let switch = F::one();
+
     for i in 0..1000 {
       let a = UntypedValue::from(rng.gen::<i64>());
       let b = UntypedValue::from(rng.gen::<i64>());
@@ -125,7 +134,18 @@ mod tests {
       })
       .unwrap();
 
-      let c = add64(cs.namespace(|| "add32"), a.to_bits(), b.to_bits()).unwrap();
+      let alloc_a = AllocatedNum::alloc(cs.namespace(|| "a"), || Ok(F::from(a.to_bits()))).unwrap();
+      let alloc_b = AllocatedNum::alloc(cs.namespace(|| "b"), || Ok(F::from(b.to_bits()))).unwrap();
+
+      let c = add64(
+        cs.namespace(|| "add64"),
+        &alloc_a,
+        &alloc_b,
+        a.to_bits(),
+        b.to_bits(),
+        switch,
+      )
+      .unwrap();
 
       cs.enforce(
         || "expected ==  c",
