@@ -15,6 +15,8 @@ use wasmi::{
   WitnessVM,
 };
 
+mod sub_circuits;
+
 #[derive(Clone, Debug)]
 /// BatchedWasmTransitionCircuit
 pub struct BatchedWasmTransitionCircuit {
