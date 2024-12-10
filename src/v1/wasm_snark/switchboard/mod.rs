@@ -6,6 +6,7 @@ use super::{
   mcc::multiset_ops::avt_tuple_to_scalar_vec,
   MEMORY_OPS_PER_STEP,
 };
+use alu::int64::{add64, mul64};
 use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::{PrimeField, PrimeFieldBits};
 use itertools::Itertools;
@@ -15,7 +16,7 @@ use wasmi::{
   WitnessVM,
 };
 
-mod sub_circuits;
+mod alu;
 
 #[derive(Clone, Debug)]
 /// BatchedWasmTransitionCircuit
@@ -753,7 +754,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
     let Y_addr = Self::alloc_num(
       &mut cs,
@@ -762,10 +763,16 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    // let Z = add(cs.namespace(|| "X + Y"), &X, &Y)?;
-    let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
+    let Z = add64(
+      cs.namespace(|| "X + Y"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
@@ -798,7 +805,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
     let Y_addr = Self::alloc_num(
       &mut cs,
@@ -807,10 +814,16 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    // let Z = mul(cs.namespace(|| "X * Y"), &X, &Y)?;
-    let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
+    let Z = mul64(
+      cs.namespace(|| "X * Y"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),

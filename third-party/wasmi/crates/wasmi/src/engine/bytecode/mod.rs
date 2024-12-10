@@ -396,6 +396,12 @@ pub enum Instruction {
     CallZeroWrite,
 }
 
+impl std::hash::Hash for Instruction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+      self.index_j().hash(state);
+    }
+  }
+
 impl Instruction {
     /// Creates an [`Instruction::Const32`] from the given `i32` constant value.
     pub fn i32_const(value: i32) -> Self {

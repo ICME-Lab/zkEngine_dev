@@ -245,3 +245,32 @@ fn test_fib_small() -> Result<(), ZKWASMError> {
 
   Ok(())
 }
+
+#[test]
+fn test_defi_transaction() {
+  init_logger();
+  let step_size = StepSize::new(500).set_memory_step_size(50_000);
+  // Simulated user and pool balances
+  let user_input_balance = "1000"; // User's balance of token A
+  let pool_input_reserve = "10000"; // Pool's reserve of token A
+  let pool_output_reserve = "10000"; // Pool's reserve of token B
+  let swap_amount = "500"; // Amount of token A to swap for token B
+  let price = "100"; // Price of token A in terms of token B
+
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/use_cases/defi_transaction.wasm"))
+    .unwrap()
+    .func_args(vec![
+      user_input_balance.to_string(),
+      pool_input_reserve.to_string(),
+      pool_output_reserve.to_string(),
+      swap_amount.to_string(),
+      price.to_string(),
+    ])
+    .invoke("main")
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}
