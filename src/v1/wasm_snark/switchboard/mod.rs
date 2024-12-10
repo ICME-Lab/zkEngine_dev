@@ -7,7 +7,9 @@ use super::{
   MEMORY_OPS_PER_STEP,
 };
 use alu::int64::{add64, mul64};
-use bellpepper_core::{self, num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{
+  self, boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError,
+};
 use ff::{PrimeField, PrimeFieldBits};
 use itertools::Itertools;
 use nova::nebula::rs::StepCircuit;
@@ -224,6 +226,26 @@ impl WASMTransitionCircuit {
       let res = value()?;
       Ok(res * switch)
     })
+  }
+
+  /// Allocate a bit into the zkWASM CS
+  fn alloc_bit<CS, F, A, AR>(
+    cs: &mut CS,
+    annotation: A,
+    value: Option<bool>,
+    switch: F,
+  ) -> Result<AllocatedBit, SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+    A: FnOnce() -> AR,
+    AR: Into<String>,
+  {
+    if switch == F::ONE {
+      AllocatedBit::alloc(cs.namespace(annotation), value)
+    } else {
+      AllocatedBit::alloc(cs.namespace(annotation), Some(false))
+    }
   }
 
   /// Allocate a (addr, val, timestamp) tuple into the CS

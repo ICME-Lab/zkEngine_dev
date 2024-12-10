@@ -15,7 +15,7 @@ where
   CS: ConstraintSystem<F>,
 {
   let zero = F::ZERO;
-  let range = F::from(0x100000000u64);
+  let range = F::from(1u64 << 32);
   let ON: F = zero - range;
 
   let (c, of) = a_bits.overflowing_add(b_bits);
