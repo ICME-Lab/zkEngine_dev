@@ -1,9 +1,5 @@
 use crate::v1::wasm_snark::switchboard::WASMTransitionCircuit as SwitchBoardCircuit;
-use bellpepper_core::{
-  boolean::{AllocatedBit, Boolean},
-  num::AllocatedNum,
-  ConstraintSystem, SynthesisError,
-};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 
 pub fn add64<F, CS>(

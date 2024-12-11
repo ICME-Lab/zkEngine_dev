@@ -78,7 +78,6 @@ mod test {
       ])
       .invoke("main")
       .build();
-
     let wasm_ctx = WASMCtx::new(wasm_args);
 
     let (vms, _, _) = wasm_ctx.execution_trace().unwrap();
@@ -91,6 +90,7 @@ mod test {
       wasmi::Instruction::I64Mul,
       wasmi::Instruction::I64Sub,
       wasmi::Instruction::I64Eqz,
+      wasmi::Instruction::I64Eq,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
@@ -134,6 +134,7 @@ mod test {
       wasmi::Instruction::I64Mul,
       wasmi::Instruction::I64Sub,
       wasmi::Instruction::I64Eqz,
+      wasmi::Instruction::I64Eq,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
@@ -166,6 +167,7 @@ mod test {
       wasmi::Instruction::I64Mul,
       wasmi::Instruction::I64Sub,
       wasmi::Instruction::I64Eqz,
+      wasmi::Instruction::I64Eq,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
@@ -197,6 +199,7 @@ mod test {
       wasmi::Instruction::I64Mul,
       wasmi::Instruction::I64Sub,
       wasmi::Instruction::I64Eqz,
+      wasmi::Instruction::I64Eq,
     ];
 
     for instr_to_count in instrs_to_count.iter() {

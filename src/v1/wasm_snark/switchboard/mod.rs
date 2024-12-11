@@ -7,7 +7,7 @@ use super::{
   MEMORY_OPS_PER_STEP,
 };
 use alu::{
-  eqz,
+  eq, eqz,
   int64::{add64, mul64, sub64},
 };
 use bellpepper_core::{
@@ -127,6 +127,7 @@ where
     self.visit_i64_ctz(cs.namespace(|| "i64.ctz"), &mut switches)?;
 
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
+    self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
 
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
@@ -188,9 +189,9 @@ where
       .iter()
       .zip_eq(self.WS.iter())
       .flat_map(|(rs, ws)| {
-        avt_tuple_to_scalar_vec::<F>(*rs)
-          .into_iter()
-          .chain(avt_tuple_to_scalar_vec::<F>(*ws))
+        let rs_vec = avt_tuple_to_scalar_vec::<F>(*rs);
+        let ws_vec = avt_tuple_to_scalar_vec::<F>(*ws);
+        rs_vec.into_iter().chain(ws_vec)
       })
       .collect()
   }
@@ -1818,7 +1819,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.eqz, i32.eqz
+  /// i64., i32.eqz
   fn visit_eqz<CS, F>(
     &self,
     mut cs: CS,
@@ -1884,6 +1885,50 @@ impl WASMTransitionCircuit {
       &last_addr, // pre_sp - 1
       &Z,
       &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.eq, i32.eq
+  fn visit_eq<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Eq }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let Z = eq(cs.namespace(|| "X == Y"), &X, &Y, switch)?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
       switch,
     )?;
 
