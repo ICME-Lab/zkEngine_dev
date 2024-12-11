@@ -125,7 +125,7 @@ where
   let of = SwitchBoardCircuit::alloc_bit(&mut cs, || "of", Some(of), switch)?;
 
   cs.enforce(
-    || "a - b + O*of = c",
+    || "a - b + range*of = c",
     |lc| lc + a.get_variable() - b.get_variable() + (range, of.get_variable()),
     |lc| lc + CS::one(),
     |lc| lc + c.get_variable(),

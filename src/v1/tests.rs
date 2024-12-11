@@ -274,3 +274,31 @@ fn test_defi_transaction() {
 
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
+
+#[test]
+fn test_energy_consumption() {
+  init_logger();
+  let step_size = StepSize::new(200).set_memory_step_size(50_000);
+
+  let total_produced = "5000"; // Total energy produced by the microgrid in some time frame (e.g., in watt-hours).
+  let total_consumed = "4900"; // Total energy consumed by all devices in the microgrid for the same period.
+  let device_count = "100"; // Number of IoT devices or meters in the network.
+  let baseline_price = "100"; // A baseline price or factor used for further calculations (e.g., cost per watt-hour or an
+                              // index).
+
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/use_cases/energy_usage.wasm"))
+    .unwrap()
+    .func_args(vec![
+      total_produced.to_string(),
+      total_consumed.to_string(),
+      device_count.to_string(),
+      baseline_price.to_string(),
+    ])
+    .invoke("main")
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}

@@ -86,7 +86,53 @@ mod test {
 
     let opcodes_count = count_opcodes(&vms);
 
-    let instrs_to_count = [wasmi::Instruction::I64Add, wasmi::Instruction::I64Mul];
+    let instrs_to_count = [
+      wasmi::Instruction::I64Add,
+      wasmi::Instruction::I64Mul,
+      wasmi::Instruction::I64Sub,
+    ];
+
+    for instr_to_count in instrs_to_count.iter() {
+      println!(
+        "{:?}: {:#?}",
+        instr_to_count,
+        opcodes_count[&instr_to_count.index_j()]
+      );
+    }
+  }
+
+  #[test]
+  fn test_count_energy_usage() {
+    let total_produced = "5000"; // Total energy produced by the microgrid in some time frame (e.g., in watt-hours).
+    let total_consumed = "4900"; // Total energy consumed by all devices in the microgrid for the same period.
+    let device_count = "100"; // Number of IoT devices or meters in the network.
+    let baseline_price = "100"; // A baseline price or factor used for further calculations (e.g., cost per watt-hour or an
+                                // index).
+
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/use_cases/energy_usage.wasm"))
+      .unwrap()
+      .func_args(vec![
+        total_produced.to_string(),
+        total_consumed.to_string(),
+        device_count.to_string(),
+        baseline_price.to_string(),
+      ])
+      .invoke("main")
+      .build();
+
+    let wasm_ctx = WASMCtx::new(wasm_args);
+
+    let (vms, _, _) = wasm_ctx.execution_trace().unwrap();
+    println!("vms.len(): {:#?}", vms.len());
+
+    let opcodes_count = count_opcodes(&vms);
+
+    let instrs_to_count = [
+      wasmi::Instruction::I64Add,
+      wasmi::Instruction::I64Mul,
+      wasmi::Instruction::I64Sub,
+    ];
 
     for instr_to_count in instrs_to_count.iter() {
       println!(
@@ -113,7 +159,11 @@ mod test {
 
     let opcodes_count = count_opcodes(&vms);
 
-    let instrs_to_count = [wasmi::Instruction::I64Add, wasmi::Instruction::I64Mul];
+    let instrs_to_count = [
+      wasmi::Instruction::I64Add,
+      wasmi::Instruction::I64Mul,
+      wasmi::Instruction::I64Sub,
+    ];
 
     for instr_to_count in instrs_to_count.iter() {
       println!(
@@ -139,7 +189,11 @@ mod test {
 
     let opcodes_count = count_opcodes(&vms);
 
-    let instrs_to_count = [wasmi::Instruction::I64Add, wasmi::Instruction::I64Mul];
+    let instrs_to_count = [
+      wasmi::Instruction::I64Add,
+      wasmi::Instruction::I64Mul,
+      wasmi::Instruction::I64Sub,
+    ];
 
     for instr_to_count in instrs_to_count.iter() {
       println!(
