@@ -1,12 +1,15 @@
 use super::{
   gadgets::{
-    int::{add, and, eqz, or, popcount, shl_64, shr_s_64, sub, xor},
+    int::{add, and, eqz_bit, or, popcount, shl_64, shr_s_64, sub, xor},
     utils::{alloc_one, conditionally_select},
   },
   mcc::multiset_ops::avt_tuple_to_scalar_vec,
   MEMORY_OPS_PER_STEP,
 };
-use alu::int64::{add64, mul64, sub64};
+use alu::{
+  eqz,
+  int64::{add64, mul64, sub64},
+};
 use bellpepper_core::{
   self, boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError,
 };
@@ -104,6 +107,7 @@ where
     self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
     self.visit_global_get(cs.namespace(|| "global.get"), &mut switches)?;
     self.visit_global_set(cs.namespace(|| "global.set"), &mut switches)?;
+
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
@@ -121,6 +125,9 @@ where
     self.visit_i64_xor(cs.namespace(|| "i64.xor"), &mut switches)?;
     self.visit_i64_clz(cs.namespace(|| "i64.clz"), &mut switches)?;
     self.visit_i64_ctz(cs.namespace(|| "i64.ctz"), &mut switches)?;
+
+    self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
+
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
     self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
@@ -133,7 +140,7 @@ where
     self.visit_popcount(cs.namespace(|| "popcount"), &mut switches)?;
     self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
     self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
-    self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
+
     self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
     self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
     self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
@@ -1034,7 +1041,7 @@ impl WASMTransitionCircuit {
     )?;
 
     let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
-    let condition_eqz = eqz(cs.namespace(|| "condition == 0"), &condition)?;
+    let condition_eqz = eqz_bit(cs.namespace(|| "condition == 0"), &condition)?;
 
     // if condtion == 0 then new_pc = branch_pc else new_pc = next_pc
     //
@@ -1085,7 +1092,7 @@ impl WASMTransitionCircuit {
     )?;
 
     let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
-    let condition_eqz = eqz(cs.namespace(|| "condition == 0"), &condition)?;
+    let condition_eqz = eqz_bit(cs.namespace(|| "condition == 0"), &condition)?;
 
     // if condtion == 0 then new_pc = next_pc  else  new_pc = branch_pc
     //
@@ -1831,9 +1838,9 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _ = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
 
-    let Z = Self::alloc_num(&mut cs, || "unary_op(Y)", || Ok(F::from(self.vm.Z)), switch)?;
+    let Z = eqz(cs.namespace(|| "eqz"), &Y, switch)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),

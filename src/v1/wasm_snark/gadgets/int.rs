@@ -183,7 +183,7 @@ pub fn alloc_negate<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 /// Checks if AllocatedNum is zero
-pub fn eqz<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Boolean, SynthesisError>
+pub fn eqz_bit<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Boolean, SynthesisError>
 where
   F: PrimeField,
   CS: ConstraintSystem<F>,
