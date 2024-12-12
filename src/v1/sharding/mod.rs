@@ -25,6 +25,7 @@ where
 
 /// Sharding SNARK used to aggregate [`WasmSNARK`]'s
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct ShardingSNARK<E>
 where
   E: CurveCycleEquipped,

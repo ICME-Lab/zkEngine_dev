@@ -23,6 +23,7 @@ where
 
 /// Aggregation SNARK used to aggregate [`WasmSNARK`]'s
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct AggregationSNARK<E>
 where
   E: CurveCycleEquipped,
