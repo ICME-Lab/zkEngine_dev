@@ -51,3 +51,7 @@ path = "examples/v1/fib_large.rs"
 [[example]]
 name = "kth_factor"
 path = "examples/v1/kth_factor.rs"
+
+[[example]]
+name = "fib_serde"
+path = "examples/v1/fib_serde.rs"
