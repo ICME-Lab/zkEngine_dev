@@ -72,6 +72,62 @@ where
   Ok(res)
 }
 
+pub fn ne<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  switch: F,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  // Difference between `a` and `b`. This will be zero if `a` and `b` are equal.
+  // result = (a != b)
+  let res = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "a != b",
+    || {
+      let a_val = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+      let b_val = b.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+      if a_val != b_val {
+        Ok(F::ONE)
+      } else {
+        Ok(F::ZERO)
+      }
+    },
+    switch,
+  )?;
+
+  // Inverse of `a - b`, if it exists, otherwise one.
+  let q = cs.alloc(
+    || "q",
+    || {
+      let a_val = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+      let b_val = b.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+      let tmp0 = a_val - b_val;
+      let tmp1 = tmp0.invert();
+
+      if tmp1.is_some().into() {
+        Ok(tmp1.unwrap())
+      } else {
+        Ok(F::ONE)
+      }
+    },
+  )?;
+
+  // (a - b + result) * q = 1.
+  // This enforces that diff and result are not both 0.
+  cs.enforce(
+    || "(a - b + result) * q = 1",
+    |lc| lc + a.get_variable() - b.get_variable(),
+    |lc| lc + q,
+    |lc| lc + res.get_variable(),
+  );
+
+  Ok(res)
+}
+
 /// Returns `1` if a == 0 else `0`
 pub fn eqz<F, CS>(
   mut cs: CS,
@@ -145,7 +201,7 @@ mod tests {
   use wasmi::core::UntypedValue;
 
   use crate::v1::wasm_snark::switchboard::{
-    alu::{eq, eqz},
+    alu::{self, eq, eqz},
     WASMTransitionCircuit as SwitchBoardCircuit,
   };
 
@@ -225,6 +281,54 @@ mod tests {
           .unwrap();
 
       let c = eq(cs.namespace(|| "eq"), &alloc_a, &alloc_b, switch).unwrap();
+
+      cs.enforce(
+        || "expected ==  c",
+        |lc| lc + alloc_expected.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + c.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_ne() {
+    let mut rng = StdRng::from_seed([99u8; 32]);
+
+    let switch = F::zero();
+
+    for _ in 0..1000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let b = if rng.gen::<bool>() {
+        UntypedValue::from(rng.gen::<i64>())
+      } else {
+        a
+      };
+
+      let expected = a.i64_ne(b);
+
+      let mut cs = TestConstraintSystem::<F>::new();
+
+      let alloc_expected = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected",
+        || Ok(F::from(expected.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+      let alloc_b =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+          .unwrap();
+
+      let c = alu::ne(cs.namespace(|| "ne"), &alloc_a, &alloc_b, switch).unwrap();
 
       cs.enforce(
         || "expected ==  c",

@@ -91,6 +91,7 @@ mod test {
       wasmi::Instruction::I64Sub,
       wasmi::Instruction::I64Eqz,
       wasmi::Instruction::I64Eq,
+      wasmi::Instruction::I64Ne,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
@@ -135,6 +136,7 @@ mod test {
       wasmi::Instruction::I64Sub,
       wasmi::Instruction::I64Eqz,
       wasmi::Instruction::I64Eq,
+      wasmi::Instruction::I64Ne,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
@@ -168,6 +170,7 @@ mod test {
       wasmi::Instruction::I64Sub,
       wasmi::Instruction::I64Eqz,
       wasmi::Instruction::I64Eq,
+      wasmi::Instruction::I64Ne,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
@@ -200,6 +203,7 @@ mod test {
       wasmi::Instruction::I64Sub,
       wasmi::Instruction::I64Eqz,
       wasmi::Instruction::I64Eq,
+      wasmi::Instruction::I64Ne,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
