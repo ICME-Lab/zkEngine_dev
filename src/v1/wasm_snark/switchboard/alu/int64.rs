@@ -238,9 +238,9 @@ where
   let as_bs_bit = a_sign_bit * b_sign_bit;
   let as_bs = SwitchBoardCircuit::alloc_bit(&mut cs, || "as_bs", Some(as_bs_bit == 1), switch)?;
 
-  // a_31 + b_31 - 2 a_31 b_31 = ds  (XOR)
+  // a_63 + b_63 - 2 a_63 b_63 = ds  (XOR)
   cs.enforce(
-    || "X_31 + Y_31 - 2 X_31 Y_31 = ds",
+    || "a_63 + b_63 - 2 a_63 b_63 = ds",
     |lc| lc + a_sign.get_variable() + b_sign.get_variable() - (F::from(2u64), as_bs.get_variable()),
     |lc| lc + CS::one(),
     |lc| lc + ds_flag.get_variable(),
@@ -272,6 +272,150 @@ where
   );
 
   Ok((lt_flag, ge_flag, slt_flag, sge_flag))
+}
+
+/// Computes unsigned and signed le and gt
+pub fn le_gt_s<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: u64,
+  b_bits: u64,
+  switch: F,
+) -> Result<
+  (
+    AllocatedNum<F>,
+    AllocatedNum<F>,
+    AllocatedNum<F>,
+    AllocatedNum<F>,
+  ),
+  SynthesisError,
+>
+// Returns (le, gt, sle, sgt)
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let one = SwitchBoardCircuit::alloc_num(&mut cs, || "one", || Ok(F::ONE), switch)?;
+  let range_const = F::from_u128(1_u128 << 64);
+  let (c, of) = b_bits.overflowing_sub(a_bits);
+  let c = SwitchBoardCircuit::alloc_num(&mut cs, || "c", || Ok(F::from(c)), switch)?;
+  let gt = of;
+  let gt_flag = SwitchBoardCircuit::alloc_num(&mut cs, || "gt", || Ok(F::from(gt as u64)), switch)?;
+
+  cs.enforce(
+    || "b - a + range*lt = c",
+    |lc| lc + b.get_variable() - a.get_variable() + (range_const, gt_flag.get_variable()),
+    |lc| lc + CS::one(),
+    |lc| lc + c.get_variable(),
+  );
+
+  // LE flag
+  let le_flag = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "le",
+    || {
+      if a_bits <= b_bits {
+        Ok(F::ONE)
+      } else {
+        Ok(F::ZERO)
+      }
+    },
+    switch,
+  )?;
+
+  // a>b + a<=b = 1
+  cs.enforce(
+    || "a>b + a<=b = 1",
+    |lc| lc + le_flag.get_variable() + gt_flag.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + one.get_variable(),
+  );
+
+  // signed le and gt flags
+  let sgt_flag = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "sgt",
+    || {
+      if (a_bits as i64) > (b_bits as i64) {
+        Ok(F::ONE)
+      } else {
+        Ok(F::ZERO)
+      }
+    },
+    switch,
+  )?;
+
+  let sle_flag = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "sle",
+    || {
+      if (a_bits as i64) <= (b_bits as i64) {
+        Ok(F::ONE)
+      } else {
+        Ok(F::ZERO)
+      }
+    },
+    switch,
+  )?;
+
+  // sle = !sgt
+  cs.enforce(
+    || "sgt = !sle",
+    |lc| lc + CS::one() - sgt_flag.get_variable(),
+    |lc| lc + one.get_variable(),
+    |lc| lc + sle_flag.get_variable(),
+  );
+
+  // invert < if a and b differ in sign
+  // different signs (ds)
+  let a_sign_bit = a_bits >> 63;
+  let a_sign = SwitchBoardCircuit::alloc_bit(&mut cs, || "a_sign", Some(a_sign_bit == 1), switch)?;
+  let b_sign_bit = b_bits >> 63;
+  let b_sign = SwitchBoardCircuit::alloc_bit(&mut cs, || "b_sign", Some(b_sign_bit == 1), switch)?;
+
+  let ds = (a_sign_bit ^ b_sign_bit) != 0;
+
+  let ds_flag = SwitchBoardCircuit::alloc_bit(&mut cs, || "ds", Some(ds), switch)?;
+
+  // compute XOR of a and b sign bits
+  let as_bs_bit = a_sign_bit * b_sign_bit;
+  let as_bs = SwitchBoardCircuit::alloc_bit(&mut cs, || "as_bs", Some(as_bs_bit == 1), switch)?;
+
+  // a_63 + b_63 - 2 a_63 b_63 = ds  (XOR)
+  cs.enforce(
+    || "a_63 + b_63 - 2 a_63 b_63 = ds",
+    |lc| lc + a_sign.get_variable() + b_sign.get_variable() - (F::from(2u64), as_bs.get_variable()),
+    |lc| lc + CS::one(),
+    |lc| lc + ds_flag.get_variable(),
+  );
+
+  // sgt = ds (1 - gt) + (1 - ds) gt
+  let sgtl = SwitchBoardCircuit::alloc_bit(&mut cs, || "sltl", Some(ds & !gt), switch)?;
+  cs.enforce(
+    || "sgtl = ds (1 - gt)",
+    |lc| lc + ds_flag.get_variable(),
+    |lc| lc + CS::one() - gt_flag.get_variable(),
+    |lc| lc + sgtl.get_variable(),
+  );
+
+  let sgtr = SwitchBoardCircuit::alloc_bit(&mut cs, || "sltr", Some(!ds & gt), switch)?;
+  cs.enforce(
+    || "sgtr = (1 - ds) gt",
+    |lc| lc + CS::one() - ds_flag.get_variable(),
+    |lc| lc + gt_flag.get_variable(),
+    |lc| lc + sgtr.get_variable(),
+  );
+
+  // sgt = sgtl + sgtr
+  cs.enforce(
+    || "sgt = sgtl + sgtr",
+    |lc| lc + sgtl.get_variable() + sgtr.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + sgt_flag.get_variable(),
+  );
+
+  Ok((le_flag, gt_flag, sle_flag, sgt_flag))
 }
 
 #[cfg(test)]
@@ -584,6 +728,77 @@ mod tests {
           wasmi::Instruction::I64GeU => ge,
           wasmi::Instruction::I64LtS => slt,
           wasmi::Instruction::I64GeS => sge,
+          _ => panic!("Invalid instruction"),
+        };
+
+        cs.enforce(
+          || "expected ==  res",
+          |lc| lc + alloc_expected.get_variable(),
+          |lc| lc + one_var,
+          |lc| lc + res.get_variable(),
+        );
+        assert!(cs.is_satisfied());
+      }
+    }
+  }
+
+  #[test]
+  fn test_le_and_gt() {
+    let instr = [
+      wasmi::Instruction::I64GtU,
+      wasmi::Instruction::I64LeU,
+      wasmi::Instruction::I64GtS,
+      wasmi::Instruction::I64LeS,
+    ];
+    let mut rng = StdRng::from_seed([103u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let b = UntypedValue::from(rng.gen::<i64>());
+
+      for instr in instr.iter() {
+        let expected = match instr {
+          wasmi::Instruction::I64GtU => a.i64_gt_u(b),
+          wasmi::Instruction::I64LeU => a.i64_le_u(b),
+          wasmi::Instruction::I64GtS => a.i64_gt_s(b),
+          wasmi::Instruction::I64LeS => a.i64_le_s(b),
+          _ => panic!("Invalid instruction"),
+        };
+
+        let mut cs = TestConstraintSystem::<F>::new();
+        let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+        let alloc_expected = SwitchBoardCircuit::alloc_num(
+          &mut cs,
+          || "expected",
+          || Ok(F::from(expected.to_bits())),
+          switch,
+        )
+        .unwrap();
+
+        let alloc_a =
+          SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+            .unwrap();
+        let alloc_b =
+          SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+            .unwrap();
+
+        let (le, gt, sle, sgt) = super::le_gt_s(
+          cs.namespace(|| "le_and_gt"),
+          &alloc_a,
+          &alloc_b,
+          a.to_bits(),
+          b.to_bits(),
+          switch,
+        )
+        .unwrap();
+
+        let res = match instr {
+          wasmi::Instruction::I64GtU => gt,
+          wasmi::Instruction::I64LeU => le,
+          wasmi::Instruction::I64GtS => sgt,
+          wasmi::Instruction::I64LeS => sle,
           _ => panic!("Invalid instruction"),
         };
 

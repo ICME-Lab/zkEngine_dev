@@ -71,6 +71,7 @@ mod test {
       wasmi::Instruction::I64Eq,
       wasmi::Instruction::I64Ne,
       wasmi::Instruction::I64LtU,
+      wasmi::Instruction::I64GtU,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
