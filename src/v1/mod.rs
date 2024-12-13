@@ -5,6 +5,6 @@ pub mod error;
 pub mod sharding;
 #[cfg(test)]
 mod tests;
-mod utils;
+pub mod utils;
 pub mod wasm_ctx;
 pub mod wasm_snark;

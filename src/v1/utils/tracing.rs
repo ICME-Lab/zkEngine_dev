@@ -1,3 +1,5 @@
+//! Utility code
+
 use crate::v1::{
   error::ZKWASMError,
   wasm_ctx::{ExecutionTrace, ZKWASMCtx},
