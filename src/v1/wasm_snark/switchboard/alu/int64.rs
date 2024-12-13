@@ -73,19 +73,14 @@ where
   // # Note
   //
   // This is advice
-  let range = SwitchBoardCircuit::alloc_num(
-    &mut cs,
-    || "range",
-    || Ok(F::from_u128(1_u128 << 64)),
-    switch,
-  )?;
+  let range = F::from_u128(1_u128 << 64);
+
   let trunc = SwitchBoardCircuit::alloc_num(
     &mut cs,
     || "trunc",
     || Ok(F::from_u128(c_128_bits >> 64)),
     switch,
   )?;
-  let left_overs = range.mul(cs.namespace(|| "left_overs"), &trunc)?;
 
   /*
    * Enforce c_128 is the product of a and b
@@ -97,7 +92,7 @@ where
     || "c == c_128 - left_overs",
     |lc| lc + c.get_variable(),
     |lc| lc + CS::one(),
-    |lc| lc + c_intermediate.get_variable() - left_overs.get_variable(),
+    |lc| lc + c_intermediate.get_variable() - (range, trunc.get_variable()),
   );
 
   Ok(c)
