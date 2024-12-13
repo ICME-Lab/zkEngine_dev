@@ -3,7 +3,7 @@
 use nova::errors::NovaError;
 use thiserror::Error;
 
-/// Errors returned by Spark compiler
+/// Errors returned by the zkWASM library
 #[derive(Debug, Error)]
 pub enum ZKWASMError {
   /// Nova error
