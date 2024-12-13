@@ -90,6 +90,11 @@ impl WASMArgs {
   pub fn shard_size(&self) -> Option<usize> {
     self.trace_slice_vals.map(|val| val.shard_size())
   }
+
+  /// Get clone of bytecode.
+  pub fn bytecode(&self) -> Vec<u8> {
+    self.program.clone()
+  }
 }
 
 impl Default for WASMArgsBuilder {
