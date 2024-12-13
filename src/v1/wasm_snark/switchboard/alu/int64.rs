@@ -1,6 +1,7 @@
 use crate::v1::wasm_snark::switchboard::WASMTransitionCircuit as SwitchBoardCircuit;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
+use wasmi::core::UntypedValue;
 
 pub fn add64<F, CS>(
   mut cs: CS,
@@ -418,6 +419,82 @@ where
   Ok((le_flag, gt_flag, sle_flag, sgt_flag))
 }
 
+/// Gadget for zkWASM signed div and rem
+///
+/// # Note
+///
+/// * rhs will never zero due to wasmi validation
+/// * operation result will not overflow due to wasmi validation
+pub fn div_rem_s_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: u64,
+  b_bits: u64,
+  switch: F,
+) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let untyped_a = UntypedValue::from(a_bits);
+  let untyped_b = UntypedValue::from(b_bits);
+
+  let untyped_quotient = untyped_a
+    .i64_div_s(untyped_b)
+    .unwrap_or(UntypedValue::from(0));
+  let untyped_b_star_quotient = untyped_b.i64_mul(untyped_quotient);
+
+  let untyped_rem = untyped_a
+    .i64_rem_s(untyped_b)
+    .unwrap_or(UntypedValue::from(0));
+
+  let quotient = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "quotient",
+    || Ok(F::from(untyped_quotient.to_bits())),
+    switch,
+  )?;
+
+  let rem = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "rem",
+    || Ok(F::from(untyped_rem.to_bits())),
+    switch,
+  )?;
+
+  /*
+   * a = b * quotient + rem
+   */
+
+  let b_star_quotient = mul64(
+    cs.namespace(|| "b_star_quotient"),
+    b,
+    &quotient,
+    b_bits,
+    untyped_quotient.to_bits(),
+    switch,
+  )?;
+
+  let b_star_plus_rem = add64(
+    cs.namespace(|| "b_star_plus_rem"),
+    &b_star_quotient,
+    &rem,
+    untyped_b_star_quotient.to_bits(),
+    untyped_rem.to_bits(),
+    switch,
+  )?;
+
+  cs.enforce(
+    || "a = b * quotient + rem",
+    |lc| lc + b_star_plus_rem.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + a.get_variable(),
+  );
+
+  Ok((quotient, rem))
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -434,6 +511,168 @@ mod tests {
 
   type E = Bn256EngineIPA;
   type F = <E as Engine>::Scalar;
+
+  #[test]
+  fn test_div_rem_s() {
+    let mut rng = StdRng::from_seed([98u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let b = UntypedValue::from(rng.gen::<i64>());
+      let expected_quotient = a.i64_div_s(b);
+      let expected_rem = a.i64_rem_s(b);
+
+      if expected_quotient.is_err() {
+        continue;
+      }
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+
+      let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_quotient",
+        || Ok(F::from(expected_quotient.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_rem",
+        || Ok(F::from(expected_rem.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let alloc_b =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+          .unwrap();
+
+      let (quotient, rem) = super::div_rem_s_64(
+        cs.namespace(|| "div_rem_s"),
+        &alloc_a,
+        &alloc_b,
+        a.to_bits(),
+        b.to_bits(),
+        switch,
+      )
+      .unwrap();
+
+      cs.enforce(
+        || "expected_quotient ==  quotient",
+        |lc| lc + alloc_expected_quotient.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + quotient.get_variable(),
+      );
+
+      cs.enforce(
+        || "expected_rem ==  rem",
+        |lc| lc + alloc_expected_rem.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + rem.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(0);
+      let b = UntypedValue::from(0);
+      let expected_quotient = a.i64_div_s(b);
+      let expected_rem = a.i64_rem_s(b);
+
+      if expected_quotient.is_err() {
+        continue;
+      }
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+
+      let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_quotient",
+        || Ok(F::from(expected_quotient.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_rem",
+        || Ok(F::from(expected_rem.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let alloc_b =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+          .unwrap();
+
+      let (quotient, rem) = super::div_rem_s_64(
+        cs.namespace(|| "div_rem_s"),
+        &alloc_a,
+        &alloc_b,
+        a.to_bits(),
+        b.to_bits(),
+        switch,
+      )
+      .unwrap();
+
+      cs.enforce(
+        || "expected_quotient ==  quotient",
+        |lc| lc + alloc_expected_quotient.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + quotient.get_variable(),
+      );
+
+      cs.enforce(
+        || "expected_rem ==  rem",
+        |lc| lc + alloc_expected_rem.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + rem.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_div_rem_s_edge_case() {
+    let switch = F::one();
+    let a = UntypedValue::from(0);
+    let b = UntypedValue::from(0);
+
+    let mut cs = TestConstraintSystem::<F>::new();
+
+    let alloc_a =
+      SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch).unwrap();
+
+    let alloc_b =
+      SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch).unwrap();
+
+    let _ = super::div_rem_s_64(
+      cs.namespace(|| "div_rem_s"),
+      &alloc_a,
+      &alloc_b,
+      a.to_bits(),
+      b.to_bits(),
+      switch,
+    )
+    .unwrap();
+
+    assert!(cs.is_satisfied());
+  }
 
   #[test]
   fn test_add64() {
