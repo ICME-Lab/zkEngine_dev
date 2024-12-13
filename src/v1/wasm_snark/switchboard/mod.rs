@@ -101,7 +101,9 @@ where
      */
     let mut switches = Vec::new();
     self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
+
     self.visit_const(cs.namespace(|| "const"), &mut switches)?;
+
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
     self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
@@ -111,51 +113,59 @@ where
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
-    self.visit_i64_div_s(cs.namespace(|| "i64.div_s"), &mut switches)?;
     self.visit_i64_div_u(cs.namespace(|| "i64.div_u"), &mut switches)?;
-    self.visit_i64_rem_s(cs.namespace(|| "i64.rem_s"), &mut switches)?;
+    self.visit_i64_div_s(cs.namespace(|| "i64.div_s"), &mut switches)?;
     self.visit_i64_rem_u(cs.namespace(|| "i64.rem_u"), &mut switches)?;
+    self.visit_i64_rem_s(cs.namespace(|| "i64.rem_s"), &mut switches)?;
+
     self.visit_i64_and(cs.namespace(|| "i64.and"), &mut switches)?;
     self.visit_i64_or(cs.namespace(|| "i64.or"), &mut switches)?;
+    self.visit_i64_xor(cs.namespace(|| "i64.xor"), &mut switches)?;
+
     self.visit_i64_shl(cs.namespace(|| "i64.shl"), &mut switches)?;
     self.visit_i64_shr_u(cs.namespace(|| "i64.shr_u"), &mut switches)?;
     self.visit_i64_shr_s(cs.namespace(|| "i64.shr_s"), &mut switches)?;
     self.visit_i64_rotl(cs.namespace(|| "i64.rotl"), &mut switches)?;
     self.visit_i64_rotr(cs.namespace(|| "i64.rotr"), &mut switches)?;
-    self.visit_i64_xor(cs.namespace(|| "i64.xor"), &mut switches)?;
+
     self.visit_i64_clz(cs.namespace(|| "i64.clz"), &mut switches)?;
     self.visit_i64_ctz(cs.namespace(|| "i64.ctz"), &mut switches)?;
-    self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
-    self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
+    self.visit_popcount(cs.namespace(|| "popcount"), &mut switches)?;
 
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
     self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
     self.visit_ne(cs.namespace(|| "visit_ne"), &mut switches)?;
+    self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
+    self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
 
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
     self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
     self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
     self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switches)?;
-    self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
-    self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
+
     self.visit_store(cs.namespace(|| "store"), &mut switches)?;
     self.visit_load(cs.namespace(|| "load"), &mut switches)?;
-    self.visit_popcount(cs.namespace(|| "popcount"), &mut switches)?;
-    self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
-    self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
 
     self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
+
     self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
     self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
     self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switches)?;
     self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switches)?;
+    self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
+    self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
+
     self
       .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
     self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
-    self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
-    self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
     self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
+
+    self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
+    self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
+
+    self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
+    self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
 
     /*
      *  Switch constraints
