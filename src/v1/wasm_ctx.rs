@@ -91,9 +91,9 @@ impl WASMArgs {
     self.trace_slice_vals.map(|val| val.shard_size())
   }
 
-  /// Get clone of bytecode.
-  pub fn bytecode(&self) -> Vec<u8> {
-    self.program.clone()
+  /// Get reference to bytecode.
+  pub fn bytecode(&self) -> &[u8] {
+    &self.program
   }
 }
 
