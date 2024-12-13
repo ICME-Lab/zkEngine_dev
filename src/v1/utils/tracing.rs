@@ -57,6 +57,31 @@ mod test {
   };
   use std::path::PathBuf;
 
+  fn test_count_with(program: &impl ZKWASMCtx) {
+    let (vms, _, _) = program.execution_trace().unwrap();
+    println!("vms.len(): {:#?}", vms.len());
+
+    let opcodes_count = count_opcodes(&vms);
+
+    let instrs_to_count = [
+      wasmi::Instruction::I64Add,
+      wasmi::Instruction::I64Mul,
+      wasmi::Instruction::I64Sub,
+      wasmi::Instruction::I64Eqz,
+      wasmi::Instruction::I64Eq,
+      wasmi::Instruction::I64Ne,
+      wasmi::Instruction::I64LtU,
+    ];
+
+    for instr_to_count in instrs_to_count.iter() {
+      println!(
+        "{:?}: {:#?}",
+        instr_to_count,
+        opcodes_count[&instr_to_count.index_j()]
+      );
+    }
+  }
+
   #[test]
   fn test_count_defi_transaction() {
     // Simulated user and pool balances
@@ -80,27 +105,7 @@ mod test {
       .build();
     let wasm_ctx = WASMCtx::new(wasm_args);
 
-    let (vms, _, _) = wasm_ctx.execution_trace().unwrap();
-    println!("vms.len(): {:#?}", vms.len());
-
-    let opcodes_count = count_opcodes(&vms);
-
-    let instrs_to_count = [
-      wasmi::Instruction::I64Add,
-      wasmi::Instruction::I64Mul,
-      wasmi::Instruction::I64Sub,
-      wasmi::Instruction::I64Eqz,
-      wasmi::Instruction::I64Eq,
-      wasmi::Instruction::I64Ne,
-    ];
-
-    for instr_to_count in instrs_to_count.iter() {
-      println!(
-        "{:?}: {:#?}",
-        instr_to_count,
-        opcodes_count[&instr_to_count.index_j()]
-      );
-    }
+    test_count_with(&wasm_ctx);
   }
 
   #[test]
@@ -125,27 +130,7 @@ mod test {
 
     let wasm_ctx = WASMCtx::new(wasm_args);
 
-    let (vms, _, _) = wasm_ctx.execution_trace().unwrap();
-    println!("vms.len(): {:#?}", vms.len());
-
-    let opcodes_count = count_opcodes(&vms);
-
-    let instrs_to_count = [
-      wasmi::Instruction::I64Add,
-      wasmi::Instruction::I64Mul,
-      wasmi::Instruction::I64Sub,
-      wasmi::Instruction::I64Eqz,
-      wasmi::Instruction::I64Eq,
-      wasmi::Instruction::I64Ne,
-    ];
-
-    for instr_to_count in instrs_to_count.iter() {
-      println!(
-        "{:?}: {:#?}",
-        instr_to_count,
-        opcodes_count[&instr_to_count.index_j()]
-      );
-    }
+    test_count_with(&wasm_ctx);
   }
 
   #[test]
@@ -159,27 +144,7 @@ mod test {
 
     let wasm_ctx = WASMCtx::new(wasm_args);
 
-    let (vms, _, _) = wasm_ctx.execution_trace().unwrap();
-    println!("vms.len(): {:#?}", vms.len());
-
-    let opcodes_count = count_opcodes(&vms);
-
-    let instrs_to_count = [
-      wasmi::Instruction::I64Add,
-      wasmi::Instruction::I64Mul,
-      wasmi::Instruction::I64Sub,
-      wasmi::Instruction::I64Eqz,
-      wasmi::Instruction::I64Eq,
-      wasmi::Instruction::I64Ne,
-    ];
-
-    for instr_to_count in instrs_to_count.iter() {
-      println!(
-        "{:?}: {:#?}",
-        instr_to_count,
-        opcodes_count[&instr_to_count.index_j()]
-      );
-    }
+    test_count_with(&wasm_ctx);
   }
 
   #[test]
@@ -192,26 +157,6 @@ mod test {
 
     let wasm_ctx = WasiWASMCtx::new(wasm_args);
 
-    let (vms, _, _) = wasm_ctx.execution_trace().unwrap();
-    println!("vms.len(): {:#?}", vms.len());
-
-    let opcodes_count = count_opcodes(&vms);
-
-    let instrs_to_count = [
-      wasmi::Instruction::I64Add,
-      wasmi::Instruction::I64Mul,
-      wasmi::Instruction::I64Sub,
-      wasmi::Instruction::I64Eqz,
-      wasmi::Instruction::I64Eq,
-      wasmi::Instruction::I64Ne,
-    ];
-
-    for instr_to_count in instrs_to_count.iter() {
-      println!(
-        "{:?}: {:#?}",
-        instr_to_count,
-        opcodes_count[&instr_to_count.index_j()]
-      );
-    }
+    test_count_with(&wasm_ctx);
   }
 }

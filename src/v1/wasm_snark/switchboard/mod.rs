@@ -8,7 +8,7 @@ use super::{
 };
 use alu::{
   eq, eqz,
-  int64::{add64, mul64, sub64},
+  int64::{add64, lt_ge_s, mul64, sub64},
 };
 use bellpepper_core::{
   self, boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError,
@@ -125,6 +125,7 @@ where
     self.visit_i64_xor(cs.namespace(|| "i64.xor"), &mut switches)?;
     self.visit_i64_clz(cs.namespace(|| "i64.clz"), &mut switches)?;
     self.visit_i64_ctz(cs.namespace(|| "i64.ctz"), &mut switches)?;
+    self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
 
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
     self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
@@ -1417,6 +1418,70 @@ impl WASMTransitionCircuit {
       &last_addr, // pre_sp - 1
       &Z,
       &self.WS[1],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.lt_u, i64.lt_s, i64.ge_u, i64.ge_s
+  fn visit_i64_lt_ge_s<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64LtS }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let (lt, ge, lt_s, ge_s) = lt_ge_s(
+      cs.namespace(|| "lt_ge_s"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
+
+    let Z = Self::alloc_num(
+      &mut cs,
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64LtU => Ok(lt.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64LtS => Ok(lt_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64GeU => Ok(ge.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64GeS => Ok(ge_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
+      },
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
       switch,
     )?;
 

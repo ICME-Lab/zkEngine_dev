@@ -463,7 +463,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 48;
+    pub const MAX_J: u64 = 49;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
@@ -604,14 +604,10 @@ impl Instruction {
 
             // i64
             // comparisons
-            | Self::I64LtS
-            | Self::I64LtU
             | Self::I64GtS
             | Self::I64GtU
             | Self::I64LeS
             | Self::I64LeU
-            | Self::I64GeS
-            | Self::I64GeU
 
             // I32
             // comparisons
@@ -671,6 +667,10 @@ impl Instruction {
             Self::CallZeroWrite => 45,
             Self::I64Eq | Self::I32Eq => 46,
             Self::I64Ne | Self::I32Ne => 47,
+            Self::I64LtS
+            | Self::I64LtU
+            | Self::I64GeS
+            | Self::I64GeU => 48,
 
             Self::CallInternal(..) | Self::CallIndirect(..) | Self::Call(..) => 0, // TODO: all 0 J_indexes
             Self::Drop => 0,

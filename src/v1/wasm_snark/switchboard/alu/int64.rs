@@ -130,6 +130,150 @@ where
   Ok(c)
 }
 
+/// Computes unsigned and signed lt and ge
+pub fn lt_ge_s<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: u64,
+  b_bits: u64,
+  switch: F,
+) -> Result<
+  (
+    AllocatedNum<F>,
+    AllocatedNum<F>,
+    AllocatedNum<F>,
+    AllocatedNum<F>,
+  ),
+  SynthesisError,
+>
+// Returns (lt, ge, slt, sge)
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let one = SwitchBoardCircuit::alloc_num(&mut cs, || "one", || Ok(F::ONE), switch)?;
+  let range_const = F::from_u128(1_u128 << 64);
+  let (c, of) = a_bits.overflowing_sub(b_bits);
+  let c = SwitchBoardCircuit::alloc_num(&mut cs, || "c", || Ok(F::from(c)), switch)?;
+  let lt = of;
+  let lt_flag = SwitchBoardCircuit::alloc_num(&mut cs, || "lt", || Ok(F::from(lt as u64)), switch)?;
+
+  cs.enforce(
+    || "a - b + range*lt = c",
+    |lc| lc + a.get_variable() - b.get_variable() + (range_const, lt_flag.get_variable()),
+    |lc| lc + CS::one(),
+    |lc| lc + c.get_variable(),
+  );
+
+  // GE flag
+  let ge_flag = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "ge_num",
+    || {
+      if a_bits >= b_bits {
+        Ok(F::ONE)
+      } else {
+        Ok(F::ZERO)
+      }
+    },
+    switch,
+  )?;
+
+  // a<b + a>=b = 1
+  cs.enforce(
+    || "a<b + a>=b = 1",
+    |lc| lc + lt_flag.get_variable() + ge_flag.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + one.get_variable(),
+  );
+
+  // signed lt and gte flags
+  let slt_flag = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "slt",
+    || {
+      if (a_bits as i64) < (b_bits as i64) {
+        Ok(F::ONE)
+      } else {
+        Ok(F::ZERO)
+      }
+    },
+    switch,
+  )?;
+
+  let sge_flag = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "sge",
+    || {
+      if (a_bits as i64) >= (b_bits as i64) {
+        Ok(F::ONE)
+      } else {
+        Ok(F::ZERO)
+      }
+    },
+    switch,
+  )?;
+
+  // sge = !slt
+  cs.enforce(
+    || "sgt = !slt",
+    |lc| lc + CS::one() - slt_flag.get_variable(),
+    |lc| lc + one.get_variable(),
+    |lc| lc + sge_flag.get_variable(),
+  );
+
+  // invert < if a and b differ in sign
+  // different signs (ds)
+  let a_sign_bit = a_bits >> 63;
+  let a_sign = SwitchBoardCircuit::alloc_bit(&mut cs, || "a_sign", Some(a_sign_bit == 1), switch)?;
+  let b_sign_bit = b_bits >> 63;
+  let b_sign = SwitchBoardCircuit::alloc_bit(&mut cs, || "b_sign", Some(b_sign_bit == 1), switch)?;
+
+  let ds = (a_sign_bit ^ b_sign_bit) != 0;
+
+  let ds_flag = SwitchBoardCircuit::alloc_bit(&mut cs, || "ds", Some(ds), switch)?;
+
+  // compute XOR of a and b sign bits
+  let as_bs_bit = a_sign_bit * b_sign_bit;
+  let as_bs = SwitchBoardCircuit::alloc_bit(&mut cs, || "as_bs", Some(as_bs_bit == 1), switch)?;
+
+  // a_31 + b_31 - 2 a_31 b_31 = ds  (XOR)
+  cs.enforce(
+    || "X_31 + Y_31 - 2 X_31 Y_31 = ds",
+    |lc| lc + a_sign.get_variable() + b_sign.get_variable() - (F::from(2u64), as_bs.get_variable()),
+    |lc| lc + CS::one(),
+    |lc| lc + ds_flag.get_variable(),
+  );
+
+  // slt = ds (1 - lt) + (1 - ds) lt
+  let sltl = SwitchBoardCircuit::alloc_bit(&mut cs, || "sltl", Some(ds & !lt), switch)?;
+  cs.enforce(
+    || "sltl = ds (1 - lt)",
+    |lc| lc + ds_flag.get_variable(),
+    |lc| lc + CS::one() - lt_flag.get_variable(),
+    |lc| lc + sltl.get_variable(),
+  );
+
+  let sltr = SwitchBoardCircuit::alloc_bit(&mut cs, || "sltr", Some(!ds & lt), switch)?;
+  cs.enforce(
+    || "sltr = (1 - ds) lt",
+    |lc| lc + CS::one() - ds_flag.get_variable(),
+    |lc| lc + lt_flag.get_variable(),
+    |lc| lc + sltr.get_variable(),
+  );
+
+  // slt = sltl + sltr
+  cs.enforce(
+    || "slt = sltl + sltr",
+    |lc| lc + sltl.get_variable() + sltr.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + slt_flag.get_variable(),
+  );
+
+  Ok((lt_flag, ge_flag, slt_flag, sge_flag))
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -380,6 +524,77 @@ mod tests {
       );
 
       assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_lt_and_ge() {
+    let instr = [
+      wasmi::Instruction::I64LtU,
+      wasmi::Instruction::I64GeU,
+      wasmi::Instruction::I64LtS,
+      wasmi::Instruction::I64GeS,
+    ];
+    let mut rng = StdRng::from_seed([102u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let b = UntypedValue::from(rng.gen::<i64>());
+
+      for instr in instr.iter() {
+        let expected = match instr {
+          wasmi::Instruction::I64LtU => a.i64_lt_u(b),
+          wasmi::Instruction::I64GeU => a.i64_ge_u(b),
+          wasmi::Instruction::I64LtS => a.i64_lt_s(b),
+          wasmi::Instruction::I64GeS => a.i64_ge_s(b),
+          _ => panic!("Invalid instruction"),
+        };
+
+        let mut cs = TestConstraintSystem::<F>::new();
+        let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+        let alloc_expected = SwitchBoardCircuit::alloc_num(
+          &mut cs,
+          || "expected",
+          || Ok(F::from(expected.to_bits())),
+          switch,
+        )
+        .unwrap();
+
+        let alloc_a =
+          SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+            .unwrap();
+        let alloc_b =
+          SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+            .unwrap();
+
+        let (lt, ge, slt, sge) = super::lt_ge_s(
+          cs.namespace(|| "lt_and_ge"),
+          &alloc_a,
+          &alloc_b,
+          a.to_bits(),
+          b.to_bits(),
+          switch,
+        )
+        .unwrap();
+
+        let res = match instr {
+          wasmi::Instruction::I64LtU => lt,
+          wasmi::Instruction::I64GeU => ge,
+          wasmi::Instruction::I64LtS => slt,
+          wasmi::Instruction::I64GeS => sge,
+          _ => panic!("Invalid instruction"),
+        };
+
+        cs.enforce(
+          || "expected ==  res",
+          |lc| lc + alloc_expected.get_variable(),
+          |lc| lc + one_var,
+          |lc| lc + res.get_variable(),
+        );
+        assert!(cs.is_satisfied());
+      }
     }
   }
 }
