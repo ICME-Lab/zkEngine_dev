@@ -27,13 +27,12 @@ where
 
   // note, this is "advice"
   let o = SwitchBoardCircuit::alloc_num(&mut cs, || "o", || Ok(o), switch)?;
-  let range = SwitchBoardCircuit::alloc_num(&mut cs, || "O", || Ok(range), switch)?;
 
   // check o * (o + range) == 0
   cs.enforce(
     || "check o * (o + range) == 0",
+    |lc| lc + (range, CS::one()) + o.get_variable(),
     |lc| lc + o.get_variable(),
-    |lc| lc + o.get_variable() + range.get_variable(),
     |lc| lc,
   );
 
