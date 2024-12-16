@@ -761,6 +761,7 @@ where
 }
 
 /// Gadget to perform bitwise shl operation.
+#[tracing::instrument(skip_all, name = "shl_bits_64")]
 pub fn shl_bits_64<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   bits: &[Boolean],
@@ -799,7 +800,36 @@ where
   u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
 }
 
-/// Perform a bitwise shift right operation on the `Int64`
+/// Perform a bitwise shift right operation on the unsigned 64 bit integer
+pub fn shr_u_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  by: usize,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  // get the sign bit
+  let fill_bit = &Boolean::Is(AllocatedBit::alloc(
+    cs.namespace(|| "fill bit"),
+    Some(false),
+  )?);
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .skip(by & 0x3F)
+    .chain(Some(fill_bit).into_iter().cycle())
+    .take(64)
+    .cloned()
+    .collect();
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Perform a bitwise shift right operation on a signed 64 bit integer
 pub fn shr_s_64<F, CS>(
   mut cs: CS,
   a: &AllocatedNum<F>,
@@ -818,6 +848,52 @@ where
     .iter()
     .skip(by & 0x3F)
     .chain(Some(sign_bit).into_iter().cycle())
+    .take(64)
+    .cloned()
+    .collect();
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Perform a bitwise rotr operation on a 64 bit integer
+pub fn rotr_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  by: usize,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .skip(by & 0x3F)
+    .chain(a_bits.iter())
+    .take(64)
+    .cloned()
+    .collect();
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Perform a bitwise rotl operation on a 64 bit integer
+pub fn rotl_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  by: usize,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .skip(64 - (by & 0x3F))
+    .chain(a_bits.iter())
     .take(64)
     .cloned()
     .collect();
@@ -1394,7 +1470,7 @@ mod tests {
 
     let switch = F::one();
 
-    for _ in 0..1000 {
+    for _ in 0..1_000 {
       let a = UntypedValue::from(rng.gen::<i64>());
 
       for instr in instr.iter() {
@@ -1440,6 +1516,205 @@ mod tests {
         );
         assert!(cs.is_satisfied());
       }
+    }
+  }
+
+  #[test]
+  fn test_shl() {
+    tracing_texray::init();
+
+    let mut rng = StdRng::from_seed([105u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let by = UntypedValue::from(rng.gen::<u32>());
+
+      let expected = a.i64_shl(by);
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+      let alloc_expected = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected",
+        || Ok(F::from(expected.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let c = tracing_texray::examine(tracing::info_span!("shl")).in_scope(|| {
+        super::shl_64(cs.namespace(|| "shl"), &alloc_a, by.to_bits() as usize).unwrap()
+      });
+
+      cs.enforce(
+        || "expected ==  c",
+        |lc| lc + alloc_expected.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + c.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_shr_s() {
+    let mut rng = StdRng::from_seed([106u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let by = UntypedValue::from(rng.gen::<u32>());
+
+      let expected = a.i64_shr_s(by);
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+      let alloc_expected = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected",
+        || Ok(F::from(expected.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let c = super::shr_s_64(cs.namespace(|| "shr_s"), &alloc_a, by.to_bits() as usize).unwrap();
+
+      cs.enforce(
+        || "expected ==  c",
+        |lc| lc + alloc_expected.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + c.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_shr_u() {
+    let mut rng = StdRng::from_seed([106u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let by = UntypedValue::from(rng.gen::<u32>());
+
+      let expected = a.i64_shr_u(by);
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+      let alloc_expected = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected",
+        || Ok(F::from(expected.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let c = super::shr_u_64(cs.namespace(|| "shr_s"), &alloc_a, by.to_bits() as usize).unwrap();
+
+      cs.enforce(
+        || "expected ==  c",
+        |lc| lc + alloc_expected.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + c.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_rotr() {
+    let mut rng = StdRng::from_seed([107u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let by = UntypedValue::from(rng.gen::<u32>());
+
+      let expected = a.i64_rotr(by);
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+      let alloc_expected = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected",
+        || Ok(F::from(expected.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let c = super::rotr_64(cs.namespace(|| "rotr"), &alloc_a, by.to_bits() as usize).unwrap();
+
+      cs.enforce(
+        || "expected ==  c",
+        |lc| lc + alloc_expected.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + c.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_rotl() {
+    let mut rng = StdRng::from_seed([108u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let by = UntypedValue::from(rng.gen::<u32>());
+
+      let expected = a.i64_rotl(by);
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+      let alloc_expected = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected",
+        || Ok(F::from(expected.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let c = super::rotl_64(cs.namespace(|| "rotl"), &alloc_a, by.to_bits() as usize).unwrap();
+
+      cs.enforce(
+        || "expected ==  c",
+        |lc| lc + alloc_expected.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + c.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
     }
   }
 }
