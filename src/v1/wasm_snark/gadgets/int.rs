@@ -2,9 +2,9 @@ use bellpepper::gadgets::Assignment;
 use bellpepper_core::{
   boolean::{AllocatedBit, Boolean},
   num::AllocatedNum,
-  ConstraintSystem, LinearCombination, SynthesisError, Variable,
+  ConstraintSystem, SynthesisError,
 };
-use ff::{PrimeField, PrimeFieldBits};
+use ff::PrimeField;
 
 pub fn add<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,

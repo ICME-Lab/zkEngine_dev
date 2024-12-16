@@ -494,6 +494,82 @@ where
   Ok((quotient, rem))
 }
 
+/// Gadget for zkWASM unsigned div and rem
+///
+/// # Note
+///
+/// * rhs will never zero due to wasmi validation
+/// * operation result will not overflow due to wasmi validation
+pub fn div_rem_u_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: u64,
+  b_bits: u64,
+  switch: F,
+) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let untyped_a = UntypedValue::from(a_bits);
+  let untyped_b = UntypedValue::from(b_bits);
+
+  let untyped_quotient = untyped_a
+    .i64_div_u(untyped_b)
+    .unwrap_or(UntypedValue::from(0));
+  let untyped_b_star_quotient = untyped_b.i64_mul(untyped_quotient);
+
+  let untyped_rem = untyped_a
+    .i64_rem_u(untyped_b)
+    .unwrap_or(UntypedValue::from(0));
+
+  let quotient = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "quotient",
+    || Ok(F::from(untyped_quotient.to_bits())),
+    switch,
+  )?;
+
+  let rem = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "rem",
+    || Ok(F::from(untyped_rem.to_bits())),
+    switch,
+  )?;
+
+  /*
+   * a = b * quotient + rem
+   */
+
+  let b_star_quotient = mul64(
+    cs.namespace(|| "b_star_quotient"),
+    b,
+    &quotient,
+    b_bits,
+    untyped_quotient.to_bits(),
+    switch,
+  )?;
+
+  let b_star_plus_rem = add64(
+    cs.namespace(|| "b_star_plus_rem"),
+    &b_star_quotient,
+    &rem,
+    untyped_b_star_quotient.to_bits(),
+    untyped_rem.to_bits(),
+    switch,
+  )?;
+
+  cs.enforce(
+    || "a = b * quotient + rem",
+    |lc| lc + b_star_plus_rem.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + a.get_variable(),
+  );
+
+  Ok((quotient, rem))
+}
+
 /// Computes the unary ops for 64 bit integers
 ///
 /// i64.popcnt, i64.clz, i64.ctz
@@ -691,12 +767,11 @@ where
   Ok(num)
 }
 
-/// Perform bitwise AND on two nums
-pub fn and<F, CS>(
+pub fn bitops_64<F, CS>(
   mut cs: CS,
   a: &AllocatedNum<F>,
   b: &AllocatedNum<F>,
-) -> Result<AllocatedNum<F>, SynthesisError>
+) -> Result<(AllocatedNum<F>, AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
 where
   F: PrimeField + PrimeFieldBits,
   CS: ConstraintSystem<F>,
@@ -704,60 +779,34 @@ where
   let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
   let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
 
-  let res_bits: Vec<Boolean> = a_bits
+  let and_bits: Vec<Boolean> = a_bits
     .iter()
     .zip(b_bits.iter())
     .enumerate()
     .map(|(i, (a, b))| Boolean::and(cs.namespace(|| format!("and of bit {}", i)), a, b))
     .collect::<Result<_, _>>()?;
 
-  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
-}
+  let and = u64_le_bits_to_num(cs.namespace(|| "pack and bits"), &and_bits)?;
 
-/// Perform bitwise XOR on two nums
-pub fn xor<F, CS>(
-  mut cs: CS,
-  a: &AllocatedNum<F>,
-  b: &AllocatedNum<F>,
-) -> Result<AllocatedNum<F>, SynthesisError>
-where
-  F: PrimeField + PrimeFieldBits,
-  CS: ConstraintSystem<F>,
-{
-  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
-  let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
-
-  let res_bits: Vec<Boolean> = a_bits
+  let xor_bits: Vec<Boolean> = a_bits
     .iter()
     .zip(b_bits.iter())
     .enumerate()
-    .map(|(i, (a, b))| Boolean::xor(cs.namespace(|| format!("and of bit {}", i)), a, b))
+    .map(|(i, (a, b))| Boolean::xor(cs.namespace(|| format!("xor of bit {}", i)), a, b))
     .collect::<Result<_, _>>()?;
 
-  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
-}
+  let xor = u64_le_bits_to_num(cs.namespace(|| "pack xor bits"), &xor_bits)?;
 
-/// Perform bitwise OR on two nums
-pub fn or<F, CS>(
-  mut cs: CS,
-  a: &AllocatedNum<F>,
-  b: &AllocatedNum<F>,
-) -> Result<AllocatedNum<F>, SynthesisError>
-where
-  F: PrimeField + PrimeFieldBits,
-  CS: ConstraintSystem<F>,
-{
-  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
-  let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
-
-  let res_bits: Vec<Boolean> = a_bits
+  let or_bits: Vec<Boolean> = a_bits
     .iter()
     .zip(b_bits.iter())
     .enumerate()
-    .map(|(i, (a, b))| Boolean::or(cs.namespace(|| format!("and of bit {}", i)), a, b))
+    .map(|(i, (a, b))| Boolean::or(cs.namespace(|| format!("or of bit {}", i)), a, b))
     .collect::<Result<_, _>>()?;
 
-  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+  let or = u64_le_bits_to_num(cs.namespace(|| "pack or bits"), &or_bits)?;
+
+  Ok((and, xor, or))
 }
 
 /// Gadget to perform bitwise shl operation.
@@ -904,14 +953,18 @@ where
 #[cfg(test)]
 mod tests {
 
+  use crate::{
+    utils::logging::init_logger,
+    v1::{
+      utils::macros::{start_timer, stop_timer},
+      wasm_snark::switchboard::{alu::int64::sub64, WASMTransitionCircuit as SwitchBoardCircuit},
+    },
+  };
   use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
   use nova::{provider::Bn256EngineIPA, traits::Engine};
   use rand::{rngs::StdRng, Rng, SeedableRng};
+  use std::time::Instant;
   use wasmi::core::UntypedValue;
-
-  use crate::v1::wasm_snark::switchboard::{
-    alu::int64::sub64, WASMTransitionCircuit as SwitchBoardCircuit,
-  };
 
   use super::{add64, mul64};
 
@@ -1026,6 +1079,141 @@ mod tests {
           .unwrap();
 
       let (quotient, rem) = super::div_rem_s_64(
+        cs.namespace(|| "div_rem_s"),
+        &alloc_a,
+        &alloc_b,
+        a.to_bits(),
+        b.to_bits(),
+        switch,
+      )
+      .unwrap();
+
+      cs.enforce(
+        || "expected_quotient ==  quotient",
+        |lc| lc + alloc_expected_quotient.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + quotient.get_variable(),
+      );
+
+      cs.enforce(
+        || "expected_rem ==  rem",
+        |lc| lc + alloc_expected_rem.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + rem.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_div_rem_u() {
+    let mut rng = StdRng::from_seed([90u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let b = UntypedValue::from(rng.gen::<i64>());
+      let expected_quotient = a.i64_div_u(b);
+      let expected_rem = a.i64_rem_u(b);
+
+      if expected_quotient.is_err() {
+        continue;
+      }
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+
+      let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_quotient",
+        || Ok(F::from(expected_quotient.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_rem",
+        || Ok(F::from(expected_rem.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let alloc_b =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+          .unwrap();
+
+      let (quotient, rem) = super::div_rem_u_64(
+        cs.namespace(|| "div_rem_u"),
+        &alloc_a,
+        &alloc_b,
+        a.to_bits(),
+        b.to_bits(),
+        switch,
+      )
+      .unwrap();
+
+      cs.enforce(
+        || "expected_quotient ==  quotient",
+        |lc| lc + alloc_expected_quotient.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + quotient.get_variable(),
+      );
+
+      cs.enforce(
+        || "expected_rem ==  rem",
+        |lc| lc + alloc_expected_rem.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + rem.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(0);
+      let b = UntypedValue::from(0);
+      let expected_quotient = a.i64_div_u(b);
+      let expected_rem = a.i64_rem_u(b);
+
+      if expected_quotient.is_err() {
+        continue;
+      }
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+
+      let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_quotient",
+        || Ok(F::from(expected_quotient.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_rem",
+        || Ok(F::from(expected_rem.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+
+      let alloc_b =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+          .unwrap();
+
+      let (quotient, rem) = super::div_rem_u_64(
         cs.namespace(|| "div_rem_s"),
         &alloc_a,
         &alloc_b,
@@ -1710,6 +1898,82 @@ mod tests {
         |lc| lc + alloc_expected.get_variable(),
         |lc| lc + one_var,
         |lc| lc + c.get_variable(),
+      );
+
+      assert!(cs.is_satisfied());
+    }
+  }
+
+  #[test]
+  fn test_bitops() {
+    init_logger();
+    let mut rng = StdRng::from_seed([112u8; 32]);
+    let switch = F::one();
+
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+      let b = UntypedValue::from(rng.gen::<i64>());
+
+      let expected_and = a.i64_and(b);
+      let expected_or = a.i64_or(b);
+      let expected_xor = a.i64_xor(b);
+
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+
+      let alloc_expected_and = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_and",
+        || Ok(F::from(expected_and.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_expected_or = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_or",
+        || Ok(F::from(expected_or.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_expected_xor = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_xor",
+        || Ok(F::from(expected_xor.to_bits())),
+        switch,
+      )
+      .unwrap();
+
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
+      let alloc_b =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+          .unwrap();
+
+      let (and, xor, or) = tracing_texray::examine(tracing::info_span!("bitops"))
+        .in_scope(|| super::bitops_64(cs.namespace(|| "bitops"), &alloc_a, &alloc_b).unwrap());
+
+      cs.enforce(
+        || "expected_and ==  and",
+        |lc| lc + alloc_expected_and.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + and.get_variable(),
+      );
+
+      cs.enforce(
+        || "expected_or ==  or",
+        |lc| lc + alloc_expected_or.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + or.get_variable(),
+      );
+
+      cs.enforce(
+        || "expected_xor ==  xor",
+        |lc| lc + alloc_expected_xor.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + xor.get_variable(),
       );
 
       assert!(cs.is_satisfied());

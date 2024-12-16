@@ -478,7 +478,7 @@ impl Instruction {
             Self::LocalGet(..) => 2,
             Self::I64Add => 3,
             Self::I64Mul => 4,
-            Self::I64And => 5,
+            Self::I64And | Self::I64Xor | Self::I64Or => 5,
             Self::BrIfEqz(..) => 6,
             Self::LocalSet(..) => 7,
             Self::Br(..) => 8,
@@ -513,8 +513,7 @@ impl Instruction {
             | Self::I64Load32U(..) => 12,
 
             Self::LocalTee(..) => 13,
-            Self::I64Xor => 14,
-            Self::I64Or => 15,
+
             Self::I64Clz => 19,
             Self::I64Ctz => 19,
             Self::I64Popcnt => 19,
@@ -640,10 +639,11 @@ impl Instruction {
 
             Self::I64Rotl => 25,
             Self::I64Rotr => 26,
-            Self::I64DivS => 27,
-            Self::I64DivU => 28,
-            Self::I64RemS => 29,
-            Self::I64RemU => 30,
+            
+            Self::I64DivS |Self::I64RemS  => 27,
+            Self::I64DivU | Self::I64RemU => 28,
+
+
 
             Self::I64Eqz | Self::I32Eqz => 31,
             Self::Select => 32,
