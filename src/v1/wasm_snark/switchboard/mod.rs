@@ -10,6 +10,7 @@ use alu::{
   eq, eqz,
   int64::{
     add64, bitops_64, div_rem_s_64, div_rem_u_64, le_gt_s, lt_ge_s, mul64, shl_64, shr_s_64, sub64,
+    unary_ops_64,
   },
 };
 use bellpepper_core::{
@@ -119,6 +120,7 @@ where
     self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switches)?;
 
     self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switches)?;
+    self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switches)?;
 
     self.visit_i64_shl(cs.namespace(|| "i64.shl"), &mut switches)?;
     self.visit_i64_shr_u(cs.namespace(|| "i64.shr_u"), &mut switches)?;
@@ -1013,7 +1015,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.and
+  /// i64.and, i64.xor, i64.or
   fn visit_i64_bitops<CS, F>(
     &self,
     mut cs: CS,
@@ -1060,6 +1062,57 @@ impl WASMTransitionCircuit {
     Self::write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.popcnt, i64.clz, i64.ctz
+  fn visit_i64_unary_ops<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Popcnt }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+
+    let (popcnt, clz, ctz) = unary_ops_64(cs.namespace(|| "unary_ops_64"), &Y, self.vm.Y, switch)?;
+
+    let Z = Self::alloc_num(
+      &mut cs,
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64Popcnt => Ok(
+          popcnt
+            .get_value()
+            .ok_or(SynthesisError::AssignmentMissing)?,
+        ),
+        Instr::I64Clz => Ok(clz.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64Ctz => Ok(ctz.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
+      },
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &last_addr, // pre_sp - 1
       &Z,
       &self.WS[2],
       switch,

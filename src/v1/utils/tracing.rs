@@ -75,6 +75,7 @@ mod test {
       wasmi::Instruction::I64DivS,
       wasmi::Instruction::I64DivU,
       wasmi::Instruction::I64And,
+      wasmi::Instruction::I64Popcnt,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
