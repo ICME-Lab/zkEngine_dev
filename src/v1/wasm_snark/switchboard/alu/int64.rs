@@ -1521,13 +1521,11 @@ mod tests {
 
   #[test]
   fn test_shl() {
-    tracing_texray::init();
-
     let mut rng = StdRng::from_seed([105u8; 32]);
 
     let switch = F::one();
 
-    for _ in 0..1 {
+    for _ in 0..1000 {
       let a = UntypedValue::from(rng.gen::<i64>());
       let by = UntypedValue::from(rng.gen::<u32>());
 
