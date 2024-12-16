@@ -302,3 +302,32 @@ fn test_energy_consumption() {
 
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
+
+#[test]
+fn test_toy_rsa() {
+  init_logger();
+  let step_size = StepSize::new(1000).set_memory_step_size(50_000);
+
+  let p_candidate = "1009"; // A candidate prime number p.
+  let q_candidate = "1013"; // A candidate prime number q.
+  let e = "17"; // A public exponent e.
+  let message = "65"; // A message to encrypt.
+  let use_crt = "1"; // A flag to use the Chinese Remainder Theorem (CRT) optimization.
+
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/use_cases/toy_rsa.wasm"))
+    .unwrap()
+    .func_args(vec![
+      p_candidate.to_string(),
+      q_candidate.to_string(),
+      e.to_string(),
+      message.to_string(),
+      use_crt.to_string(),
+    ])
+    .invoke("main")
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}

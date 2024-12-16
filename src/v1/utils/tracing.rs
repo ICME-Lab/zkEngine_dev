@@ -72,6 +72,9 @@ mod test {
       wasmi::Instruction::I64Ne,
       wasmi::Instruction::I64LtU,
       wasmi::Instruction::I64GtU,
+      wasmi::Instruction::I64DivS,
+      wasmi::Instruction::I64DivU,
+      wasmi::Instruction::I64And,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
@@ -125,6 +128,32 @@ mod test {
         total_consumed.to_string(),
         device_count.to_string(),
         baseline_price.to_string(),
+      ])
+      .invoke("main")
+      .build();
+
+    let wasm_ctx = WASMCtx::new(wasm_args);
+
+    test_count_with(&wasm_ctx);
+  }
+
+  #[test]
+  fn test_count_toy_rsa() {
+    let p_candidate = "1009"; // A candidate prime number p.
+    let q_candidate = "1013"; // A candidate prime number q.
+    let e = "17"; // A public exponent e.
+    let message = "65"; // A message to encrypt.
+    let use_crt = "1"; // A flag to use the Chinese Remainder Theorem (CRT) optimization.
+
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/use_cases/toy_rsa.wasm"))
+      .unwrap()
+      .func_args(vec![
+        p_candidate.to_string(),
+        q_candidate.to_string(),
+        e.to_string(),
+        message.to_string(),
+        use_crt.to_string(),
       ])
       .invoke("main")
       .build();
