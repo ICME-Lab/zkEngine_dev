@@ -680,7 +680,7 @@ pub(crate) fn add_to_lc<F: PrimeField, CS: ConstraintSystem<F>>(
 #[tracing::instrument(skip_all, name = "to_u64_le_bits")]
 fn to_u64_le_bits<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Vec<Boolean>, SynthesisError>
 where
-  F: PrimeField + PrimeFieldBits,
+  F: PrimeField,
   CS: ConstraintSystem<F>,
 {
   let mut a_u64 = a.get_value().and_then(|a| to_u64(a)).unwrap_or(0);
@@ -720,7 +720,7 @@ fn u64_le_bits_to_num<F, CS>(
   bits: &[Boolean],
 ) -> Result<AllocatedNum<F>, SynthesisError>
 where
-  F: PrimeField + PrimeFieldBits,
+  F: PrimeField,
   CS: ConstraintSystem<F>,
 {
   assert_eq!(bits.len(), 64);
@@ -856,7 +856,7 @@ pub fn shr_u_64<F, CS>(
   by: usize,
 ) -> Result<AllocatedNum<F>, SynthesisError>
 where
-  F: PrimeField + PrimeFieldBits,
+  F: PrimeField,
   CS: ConstraintSystem<F>,
 {
   let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
@@ -885,7 +885,7 @@ pub fn shr_s_64<F, CS>(
   by: usize,
 ) -> Result<AllocatedNum<F>, SynthesisError>
 where
-  F: PrimeField + PrimeFieldBits,
+  F: PrimeField,
   CS: ConstraintSystem<F>,
 {
   let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
@@ -911,7 +911,7 @@ pub fn rotr_64<F, CS>(
   by: usize,
 ) -> Result<AllocatedNum<F>, SynthesisError>
 where
-  F: PrimeField + PrimeFieldBits,
+  F: PrimeField,
   CS: ConstraintSystem<F>,
 {
   let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
@@ -934,7 +934,7 @@ pub fn rotl_64<F, CS>(
   by: usize,
 ) -> Result<AllocatedNum<F>, SynthesisError>
 where
-  F: PrimeField + PrimeFieldBits,
+  F: PrimeField,
   CS: ConstraintSystem<F>,
 {
   let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
@@ -955,15 +955,11 @@ mod tests {
 
   use crate::{
     utils::logging::init_logger,
-    v1::{
-      utils::macros::{start_timer, stop_timer},
-      wasm_snark::switchboard::{alu::int64::sub64, WASMTransitionCircuit as SwitchBoardCircuit},
-    },
+    v1::wasm_snark::switchboard::{alu::int64::sub64, WASMTransitionCircuit as SwitchBoardCircuit},
   };
   use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
   use nova::{provider::Bn256EngineIPA, traits::Engine};
   use rand::{rngs::StdRng, Rng, SeedableRng};
-  use std::time::Instant;
   use wasmi::core::UntypedValue;
 
   use super::{add64, mul64};

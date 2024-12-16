@@ -9,8 +9,8 @@ use super::{
 use alu::{
   eq, eqz,
   int64::{
-    add64, bitops_64, div_rem_s_64, div_rem_u_64, le_gt_s, lt_ge_s, mul64, shl_64, shr_s_64, sub64,
-    unary_ops_64,
+    add64, bitops_64, div_rem_s_64, div_rem_u_64, le_gt_s, lt_ge_s, mul64, rotl_64, rotr_64,
+    shl_64, shr_s_64, shr_u_64, sub64, unary_ops_64,
   },
 };
 use bellpepper_core::{
@@ -1703,7 +1703,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
     let Y_addr = Self::alloc_num(
       &mut cs,
@@ -1712,9 +1712,9 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
+    let Z = shr_u_64(cs.namespace(|| "shr_u_64"), &X, self.vm.Y as usize)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
@@ -1747,7 +1747,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
     let Y_addr = Self::alloc_num(
       &mut cs,
@@ -1756,9 +1756,9 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
+    let Z = rotl_64(cs.namespace(|| "rotl_64"), &X, self.vm.Y as usize)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
@@ -1791,7 +1791,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
     let Y_addr = Self::alloc_num(
       &mut cs,
@@ -1800,9 +1800,9 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    let _Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
+    let Z = rotr_64(cs.namespace(|| "rotr_64"), &X, self.vm.Y as usize)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
