@@ -515,9 +515,9 @@ impl Instruction {
             Self::LocalTee(..) => 13,
             Self::I64Xor => 14,
             Self::I64Or => 15,
-            Self::I64Clz => 16,
-            Self::I64Ctz => 17,
-            Self::I64Popcnt => 18,
+            Self::I64Clz => 19,
+            Self::I64Ctz => 19,
+            Self::I64Popcnt => 19,
 
             // visit_unary
             Self::F32Abs
@@ -634,8 +634,10 @@ impl Instruction {
 
             Self::I64Sub => 21,
             Self::I64Shl => 22,
+            
             Self::I64ShrS => 23,
             Self::I64ShrU => 24,
+
             Self::I64Rotl => 25,
             Self::I64Rotr => 26,
             Self::I64DivS => 27,

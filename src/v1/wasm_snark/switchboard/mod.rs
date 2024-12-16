@@ -1,6 +1,6 @@
 use super::{
   gadgets::{
-    int::{add, and, eqz_bit, or, popcount, shl_64, shr_s_64, sub, xor},
+    int::{add, eqz_bit, sub},
     utils::{alloc_one, conditionally_select},
   },
   mcc::multiset_ops::avt_tuple_to_scalar_vec,
@@ -8,7 +8,7 @@ use super::{
 };
 use alu::{
   eq, eqz,
-  int64::{add64, le_gt_s, lt_ge_s, mul64, sub64},
+  int64::{add64, and, le_gt_s, lt_ge_s, mul64, or, shl_64, shr_s_64, sub64, xor},
 };
 use bellpepper_core::{
   self, boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError,
@@ -127,10 +127,6 @@ where
     self.visit_i64_shr_s(cs.namespace(|| "i64.shr_s"), &mut switches)?;
     self.visit_i64_rotl(cs.namespace(|| "i64.rotl"), &mut switches)?;
     self.visit_i64_rotr(cs.namespace(|| "i64.rotr"), &mut switches)?;
-
-    self.visit_i64_clz(cs.namespace(|| "i64.clz"), &mut switches)?;
-    self.visit_i64_ctz(cs.namespace(|| "i64.ctz"), &mut switches)?;
-    self.visit_popcount(cs.namespace(|| "popcount"), &mut switches)?;
 
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
     self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
@@ -1365,76 +1361,6 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.clz
-  fn visit_i64_clz<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField + PrimeFieldBits,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::I64Clz }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let _Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
-
-    let Z = Self::alloc_num(&mut cs, || "Z=clz(Y)", || Ok(F::from(self.vm.Z)), switch)?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &last_addr, // pre_sp - 1
-      &Z,
-      &self.WS[1],
-      switch,
-    )?;
-
-    Ok(())
-  }
-
-  /// i64.ctz
-  fn visit_i64_ctz<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField + PrimeFieldBits,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::I64Ctz }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let _Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
-
-    let Z = Self::alloc_num(&mut cs, || "Z=ctz(Y)", || Ok(F::from(self.vm.Z)), switch)?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &last_addr, // pre_sp - 1
-      &Z,
-      &self.WS[1],
-      switch,
-    )?;
-
-    Ok(())
-  }
-
   /// i64.lt_u, i64.lt_s, i64.ge_u, i64.ge_s
   fn visit_i64_lt_ge_s<CS, F>(
     &self,
@@ -1639,7 +1565,6 @@ impl WASMTransitionCircuit {
     Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
     let Z = shr_s_64(cs.namespace(|| "shr_s_64"), &X, self.vm.Y as usize)?;
-    // let Z = Self::alloc_num(&mut cs, || "unary_op(Y)", || Ok(F::from(self.vm.Z)), switch)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
@@ -1983,43 +1908,6 @@ impl WASMTransitionCircuit {
     let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
 
     let Z = eqz(cs.namespace(|| "eqz"), &Y, switch)?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &last_addr, // pre_sp - 1
-      &Z,
-      &self.WS[1],
-      switch,
-    )?;
-
-    Ok(())
-  }
-
-  /// Popcount
-  fn visit_popcount<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField + PrimeFieldBits,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::I64Popcnt }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
-
-    let Z = Self::alloc_num(&mut cs, || "Z=popcnt(Y)", || Ok(F::from(self.vm.Z)), switch)?;
-
-    popcount(cs.namespace(|| "popcnt"), &Y, &Z)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),

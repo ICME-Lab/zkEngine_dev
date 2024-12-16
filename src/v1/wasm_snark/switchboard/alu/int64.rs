@@ -1,6 +1,11 @@
 use crate::v1::wasm_snark::switchboard::WASMTransitionCircuit as SwitchBoardCircuit;
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
-use ff::PrimeField;
+use bellpepper::gadgets::Assignment;
+use bellpepper_core::{
+  boolean::{AllocatedBit, Boolean},
+  num::AllocatedNum,
+  ConstraintSystem, LinearCombination, SynthesisError, Variable,
+};
+use ff::{PrimeField, PrimeFieldBits};
 use wasmi::core::UntypedValue;
 
 pub fn add64<F, CS>(
@@ -487,6 +492,309 @@ where
   );
 
   Ok((quotient, rem))
+}
+
+/// Computes the unary ops for 64 bit integers
+///
+/// i64.popcnt, i64.clz, i64.ctz
+pub fn unary_ops_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  a_bits: u64,
+  switch: F,
+) -> Result<(AllocatedNum<F>, AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let untyped_a = UntypedValue::from(a_bits);
+  let untyped_popcnt = untyped_a.i64_popcnt();
+  let untyped_clz = untyped_a.i64_clz();
+  let untyped_ctz = untyped_a.i64_ctz();
+
+  let popcnt = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "popcnt",
+    || Ok(F::from(untyped_popcnt.to_bits())),
+    switch,
+  )?;
+
+  let clz = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "clz",
+    || Ok(F::from(untyped_clz.to_bits())),
+    switch,
+  )?;
+
+  let ctz = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "ctz",
+    || Ok(F::from(untyped_ctz.to_bits())),
+    switch,
+  )?;
+
+  popcount(cs.namespace(|| "popcount"), a, &popcnt)?;
+
+  Ok((popcnt, clz, ctz))
+}
+
+/// popcount
+pub fn popcount<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  res: &AllocatedNum<F>,
+) -> Result<(), SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  popcount_equal(
+    cs.namespace(|| "pop_count_equal"),
+    &a_bits,
+    res.get_variable(),
+  );
+
+  Ok(())
+}
+
+/// Adds a constraint to CS, enforcing that the addition of the allocated numbers in vector `v`
+/// is equal to the value of the variable, `sum`.
+pub(crate) fn popcount_equal<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  v: &[Boolean],
+  sum: Variable,
+) {
+  let popcount = popcount_lc::<F, CS>(v);
+
+  // popcount * 1 = sum
+  cs.enforce(
+    || "popcount",
+    |_| popcount,
+    |lc| lc + CS::one(),
+    |lc| lc + sum,
+  );
+}
+
+/// Creates a linear combination representing the popcount (sum of one bits) of `v`.
+pub(crate) fn popcount_lc<F: PrimeField, CS: ConstraintSystem<F>>(
+  v: &[Boolean],
+) -> LinearCombination<F> {
+  v.iter().fold(LinearCombination::<F>::zero(), |acc, bit| {
+    add_to_lc::<F, CS>(bit, acc, F::ONE)
+  })
+}
+
+pub(crate) fn add_to_lc<F: PrimeField, CS: ConstraintSystem<F>>(
+  b: &Boolean,
+  lc: LinearCombination<F>,
+  scalar: F,
+) -> LinearCombination<F> {
+  match b {
+    Boolean::Constant(c) => lc + (if *c { scalar } else { F::ZERO }, CS::one()),
+    Boolean::Is(ref v) => lc + (scalar, v.get_variable()),
+    Boolean::Not(ref v) => lc + (scalar, CS::one()) - (scalar, v.get_variable()),
+  }
+}
+
+fn to_u64_le_bits<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Vec<Boolean>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let res = a
+    .to_bits_le(cs.namespace(|| "to_bits_le"))?
+    .into_iter()
+    .take(64)
+    .collect();
+  Ok(res)
+}
+
+fn u64_le_bits_to_num<F, CS>(
+  mut cs: CS,
+  bits: &[Boolean],
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  assert_eq!(bits.len(), 64);
+
+  let mut value = Some(0u64);
+  for b in bits.iter().rev() {
+    if let Some(v) = value.as_mut() {
+      *v <<= 1;
+    }
+
+    match *b {
+      Boolean::Constant(b) => {
+        if b {
+          if let Some(v) = value.as_mut() {
+            *v |= 1;
+          }
+        }
+      }
+      Boolean::Is(ref b) => match b.get_value() {
+        Some(true) => {
+          if let Some(v) = value.as_mut() {
+            *v |= 1;
+          }
+        }
+        Some(false) => {}
+        None => value = None,
+      },
+      Boolean::Not(ref b) => match b.get_value() {
+        Some(false) => {
+          if let Some(v) = value.as_mut() {
+            *v |= 1;
+          }
+        }
+        Some(true) => {}
+        None => value = None,
+      },
+    }
+  }
+
+  let num = AllocatedNum::alloc(cs.namespace(|| "alloc num"), || {
+    Ok(F::from(value.unwrap_or(0)))
+  })?;
+
+  Ok(num)
+}
+
+/// Perform bitwise AND on two nums
+pub fn and<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+  let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .zip(b_bits.iter())
+    .enumerate()
+    .map(|(i, (a, b))| Boolean::and(cs.namespace(|| format!("and of bit {}", i)), a, b))
+    .collect::<Result<_, _>>()?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Perform bitwise XOR on two nums
+pub fn xor<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+  let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .zip(b_bits.iter())
+    .enumerate()
+    .map(|(i, (a, b))| Boolean::xor(cs.namespace(|| format!("and of bit {}", i)), a, b))
+    .collect::<Result<_, _>>()?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Perform bitwise OR on two nums
+pub fn or<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+  let b_bits = to_u64_le_bits(cs.namespace(|| "b_bits"), b)?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .zip(b_bits.iter())
+    .enumerate()
+    .map(|(i, (a, b))| Boolean::or(cs.namespace(|| format!("and of bit {}", i)), a, b))
+    .collect::<Result<_, _>>()?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Gadget to perform bitwise shl operation.
+pub fn shl_bits_64<F: PrimeField, CS: ConstraintSystem<F>>(
+  mut cs: CS,
+  bits: &[Boolean],
+  shift: usize,
+) -> Result<Vec<Boolean>, SynthesisError> {
+  let fill = Boolean::Is(AllocatedBit::alloc(
+    cs.namespace(|| "fill bit"),
+    Some(false),
+  )?);
+
+  let res_bits: Vec<Boolean> = Some(&fill)
+    .into_iter()
+    .cycle()
+    .take(shift & 0x3F)
+    .chain(bits.iter())
+    .take(64)
+    .cloned()
+    .collect();
+
+  Ok(res_bits)
+}
+
+/// zkWASM shift left gadget for 64 bit integers
+pub fn shl_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  by: usize,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+  let res_bits = shl_bits_64(cs.namespace(|| "shl bits"), &a_bits, by)?;
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
+}
+
+/// Perform a bitwise shift right operation on the `Int64`
+pub fn shr_s_64<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  by: usize,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField + PrimeFieldBits,
+  CS: ConstraintSystem<F>,
+{
+  let a_bits = to_u64_le_bits(cs.namespace(|| "a_bits"), a)?;
+
+  // get the sign bit
+  let sign_bit = *a_bits.last().get()?;
+
+  let res_bits: Vec<Boolean> = a_bits
+    .iter()
+    .skip(by & 0x3F)
+    .chain(Some(sign_bit).into_iter().cycle())
+    .take(64)
+    .cloned()
+    .collect();
+
+  u64_le_bits_to_num(cs.namespace(|| "pack bits"), &res_bits)
 }
 
 #[cfg(test)]
@@ -1032,6 +1340,63 @@ mod tests {
           wasmi::Instruction::I64LeU => le,
           wasmi::Instruction::I64GtS => sgt,
           wasmi::Instruction::I64LeS => sle,
+          _ => panic!("Invalid instruction"),
+        };
+
+        cs.enforce(
+          || "expected ==  res",
+          |lc| lc + alloc_expected.get_variable(),
+          |lc| lc + one_var,
+          |lc| lc + res.get_variable(),
+        );
+        assert!(cs.is_satisfied());
+      }
+    }
+  }
+
+  #[test]
+  fn test_unary_ops() {
+    let instr = [
+      wasmi::Instruction::I64Popcnt,
+      wasmi::Instruction::I64Ctz,
+      wasmi::Instruction::I64Clz,
+    ];
+
+    let mut rng = StdRng::from_seed([104u8; 32]);
+
+    let switch = F::one();
+
+    for _ in 0..1000 {
+      let a = UntypedValue::from(rng.gen::<i64>());
+
+      for instr in instr.iter() {
+        let expected = match instr {
+          wasmi::Instruction::I64Popcnt => a.i64_popcnt(),
+          wasmi::Instruction::I64Ctz => a.i64_ctz(),
+          wasmi::Instruction::I64Clz => a.i64_clz(),
+          _ => panic!("Invalid instruction"),
+        };
+
+        let mut cs = TestConstraintSystem::<F>::new();
+        let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+        let alloc_expected = SwitchBoardCircuit::alloc_num(
+          &mut cs,
+          || "expected",
+          || Ok(F::from(expected.to_bits())),
+          switch,
+        )
+        .unwrap();
+
+        let alloc_a =
+          SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+            .unwrap();
+
+        let (popcnt, clz, ctz) =
+          super::unary_ops_64(cs.namespace(|| "unary_ops"), &alloc_a, a.to_bits(), switch).unwrap();
+        let res = match instr {
+          wasmi::Instruction::I64Popcnt => popcnt,
+          wasmi::Instruction::I64Ctz => ctz,
+          wasmi::Instruction::I64Clz => clz,
           _ => panic!("Invalid instruction"),
         };
 
