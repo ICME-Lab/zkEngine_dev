@@ -118,23 +118,15 @@ where
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
     self.visit_i64_div_rem_u(cs.namespace(|| "visit_i64_div_rem_u"), &mut switches)?;
     self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switches)?;
-
     self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switches)?;
     self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switches)?;
-
-    self.visit_shift_rotate_64(cs.namespace(|| "visit_shift_rotate_64"), &mut switches)?;
-
-    // self.visit_i64_shl(cs.namespace(|| "i64.shl"), &mut switches)?;
-    // self.visit_i64_shr_u(cs.namespace(|| "i64.shr_u"), &mut switches)?;
-    // self.visit_i64_shr_s(cs.namespace(|| "i64.shr_s"), &mut switches)?;
-    // self.visit_i64_rotl(cs.namespace(|| "i64.rotl"), &mut switches)?;
-    // self.visit_i64_rotr(cs.namespace(|| "i64.rotr"), &mut switches)?;
+    self.visit_i64_shift_rotate(cs.namespace(|| "visit_i64_shift_rotate"), &mut switches)?;
+    self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
+    self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
 
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
     self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
     self.visit_ne(cs.namespace(|| "visit_ne"), &mut switches)?;
-    self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
-    self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
 
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
@@ -1598,7 +1590,7 @@ impl WASMTransitionCircuit {
   }
 
   /// i64.shl, i64.shr_u, i64.shr_s, i64.rotr, i64.rotl
-  fn visit_shift_rotate_64<CS, F>(
+  fn visit_i64_shift_rotate<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
