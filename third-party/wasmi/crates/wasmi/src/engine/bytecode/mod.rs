@@ -631,16 +631,10 @@ impl Instruction {
 
             Self::I64Sub => 21,
 
-            Self::I64Shl => 22,
-            Self::I64ShrS => 23,
-            Self::I64ShrU => 24,
-            Self::I64Rotl => 25,
-            Self::I64Rotr => 26,
+            Self::I64Shl | Self::I64ShrU | Self::I64ShrS | Self::I64Rotl | Self::I64Rotr => 22,
 
             Self::I64DivS |Self::I64RemS  => 27,
             Self::I64DivU | Self::I64RemU => 28,
-
-
 
             Self::I64Eqz | Self::I32Eqz => 31,
             Self::Select => 32,
