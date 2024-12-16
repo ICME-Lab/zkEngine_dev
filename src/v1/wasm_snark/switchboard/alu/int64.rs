@@ -539,6 +539,7 @@ where
 }
 
 /// popcount
+#[tracing::instrument(skip_all, name = "popcount")]
 pub fn popcount<F, CS>(
   mut cs: CS,
   a: &AllocatedNum<F>,
@@ -561,6 +562,7 @@ where
 
 /// Adds a constraint to CS, enforcing that the addition of the allocated numbers in vector `v`
 /// is equal to the value of the variable, `sum`.
+#[tracing::instrument(skip_all, name = "popcount_equal")]
 pub(crate) fn popcount_equal<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   v: &[Boolean],
@@ -578,6 +580,7 @@ pub(crate) fn popcount_equal<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 /// Creates a linear combination representing the popcount (sum of one bits) of `v`.
+#[tracing::instrument(skip_all, name = "popcount_lc")]
 pub(crate) fn popcount_lc<F: PrimeField, CS: ConstraintSystem<F>>(
   v: &[Boolean],
 ) -> LinearCombination<F> {
@@ -598,19 +601,44 @@ pub(crate) fn add_to_lc<F: PrimeField, CS: ConstraintSystem<F>>(
   }
 }
 
+#[tracing::instrument(skip_all, name = "to_u64_le_bits")]
 fn to_u64_le_bits<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Vec<Boolean>, SynthesisError>
 where
   F: PrimeField + PrimeFieldBits,
   CS: ConstraintSystem<F>,
 {
-  let res = a
-    .to_bits_le(cs.namespace(|| "to_bits_le"))?
-    .into_iter()
-    .take(64)
-    .collect();
-  Ok(res)
+  let mut a_u64 = a.get_value().and_then(|a| to_u64(a)).unwrap_or(0);
+
+  let mut bits: Vec<Boolean> = Vec::with_capacity(64);
+  for i in 0..64 {
+    let b = a_u64 & 1;
+    let b_bool = Boolean::Is(AllocatedBit::alloc(
+      cs.namespace(|| format!("b.{i}")),
+      Some(b == 1),
+    )?);
+    bits.push(b_bool);
+
+    a_u64 /= 2;
+  }
+  Ok(bits)
 }
 
+/// Attempts to convert the field element to a u64
+fn to_u64<F>(a: F) -> Option<u64>
+where
+  F: PrimeField,
+{
+  for x in &a.to_repr().as_ref()[8..] {
+    if *x != 0 {
+      return None;
+    }
+  }
+  let mut byte_array = [0u8; 8];
+  byte_array.copy_from_slice(&a.to_repr().as_ref()[0..8]);
+  Some(u64::from_le_bytes(byte_array))
+}
+
+#[tracing::instrument(skip_all, name = "u64_le_bits_to_num")]
 fn u64_le_bits_to_num<F, CS>(
   mut cs: CS,
   bits: &[Boolean],
@@ -1391,8 +1419,12 @@ mod tests {
           SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
             .unwrap();
 
-        let (popcnt, clz, ctz) =
-          super::unary_ops_64(cs.namespace(|| "unary_ops"), &alloc_a, a.to_bits(), switch).unwrap();
+        let (popcnt, clz, ctz) = tracing_texray::examine(tracing::info_span!("cs popcount"))
+          .in_scope(|| {
+            super::unary_ops_64(cs.namespace(|| "unary_ops"), &alloc_a, a.to_bits(), switch)
+              .unwrap()
+          });
+
         let res = match instr {
           wasmi::Instruction::I64Popcnt => popcnt,
           wasmi::Instruction::I64Ctz => ctz,
