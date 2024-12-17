@@ -201,6 +201,81 @@ mod test {
   }
 
   #[test]
+  fn test_game_logic() {
+    //  Adequate energy and focus, moderate forging
+    let player_energy = "5000";
+    let player_focus = "300";
+    let base_materials = "2000";
+    let rarity_factor = "100"; // medium rarity
+
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/use_cases/game_logic.wasm"))
+      .unwrap()
+      .func_args(vec![
+        player_energy.to_string(),
+        player_focus.to_string(),
+        base_materials.to_string(),
+        rarity_factor.to_string(),
+      ])
+      .invoke("main")
+      .build();
+
+    let wasm_ctx = WASMCtx::new(wasm_args);
+
+    test_count_with(&wasm_ctx);
+  }
+
+  #[test]
+  fn test_data_provenance() {
+    // Valid environment, bits 0 and 2 set (binary 0b101 = 5 in decimal)
+    let product_id = "12345";
+    let environment_flag = "5"; // binary 0101
+    let quality_score = "999999";
+    let certification_bitmask = "255";
+
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/use_cases/data_provenance.wasm"))
+      .unwrap()
+      .func_args(vec![
+        product_id.to_string(),
+        environment_flag.to_string(),
+        quality_score.to_string(),
+        certification_bitmask.to_string(),
+      ])
+      .invoke("main")
+      .build();
+
+    let wasm_ctx = WASMCtx::new(wasm_args);
+
+    test_count_with(&wasm_ctx);
+  }
+
+  #[test]
+  fn test_regulatory_compliance() {
+    //  Likely valid compliance flags (0b1011), moderate emissions
+    let measured_emissions = "500000";
+    let carbon_credits = "250000";
+    let compliance_flags = "11"; // decimal 11 is binary 0b1011
+    let regulatory_rate = "100"; // e.g. 1% in basis points, or some other interpretation
+
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/use_cases/regulatory_compliance.wasm"))
+      .unwrap()
+      .func_args(vec![
+        measured_emissions.to_string(),
+        carbon_credits.to_string(),
+        compliance_flags.to_string(),
+        regulatory_rate.to_string(),
+      ])
+      .invoke("main")
+      .build();
+
+    let wasm_ctx = WASMCtx::new(wasm_args);
+
+    test_count_with(&wasm_ctx);
+  }
+
+  #[test]
   fn test_count_integer_hash() {
     let wasm_args = WASMArgsBuilder::default()
       .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
