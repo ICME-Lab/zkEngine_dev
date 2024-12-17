@@ -276,6 +276,30 @@ mod test {
   }
 
   #[test]
+  fn test_smart_contract_audit() {
+    let coverage_flags = "2147483647"; // Example with all bits set (full coverage)
+    let total_gas_used = "150000"; // Example total gas usage
+    let function_count = "5"; // Example number of functions in the contract
+    let required_coverage_mask = "127"; // Example required coverage mask (7 bits set)
+
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/use_cases/smart_contract_audit.wasm"))
+      .unwrap()
+      .func_args(vec![
+        coverage_flags.to_string(),
+        total_gas_used.to_string(),
+        function_count.to_string(),
+        required_coverage_mask.to_string(),
+      ])
+      .invoke("main")
+      .build();
+
+    let wasm_ctx = WASMCtx::new(wasm_args);
+
+    test_count_with(&wasm_ctx);
+  }
+
+  #[test]
   fn test_count_integer_hash() {
     let wasm_args = WASMArgsBuilder::default()
       .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
