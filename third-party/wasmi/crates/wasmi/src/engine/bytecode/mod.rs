@@ -398,9 +398,9 @@ pub enum Instruction {
 
 impl std::hash::Hash for Instruction {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-      self.index_j().hash(state);
+        self.index_j().hash(state);
     }
-  }
+}
 
 impl Instruction {
     /// Creates an [`Instruction::Const32`] from the given `i32` constant value.
@@ -489,7 +489,7 @@ impl Instruction {
             Self::I32Store(..)
             | Self::I32Store8(..)
             | Self::I32Store16(..)
-            | Self::F32Store(..) 
+            | Self::F32Store(..)
             | Self::F64Store(..)
             | Self::I64Store(..)
             | Self::I64Store8(..)
@@ -502,7 +502,7 @@ impl Instruction {
             | Self::I32Load8S(..)
             | Self::I32Load16U(..)
             | Self::I32Load16S(..)
-            | Self::F32Load(..)  
+            | Self::F32Load(..)
             | Self::F64Load(..)
             | Self::I64Load(..)
             | Self::I64Load8S(..)
@@ -514,7 +514,12 @@ impl Instruction {
 
             Self::LocalTee(..) => 13,
 
-            Self::I64Popcnt | Self::I64Clz|Self::I64Ctz => 14,
+            Self::I64Popcnt | Self::I64Clz | Self::I64Ctz => 14,
+
+            Self::I32Add => 15,
+            Self::I32Mul => 16,
+            Self::I32And | Self::I32Xor | Self::I32Or => 17,
+            Self::I32Sub => 18,
 
             // visit_unary
             Self::F32Abs
@@ -564,12 +569,7 @@ impl Instruction {
             | Self::I64TruncSatF32S
             | Self::I64TruncSatF32U
             | Self::I64TruncSatF64S
-            | Self::I64TruncSatF64U
-            // i32
-            | Self::I32Clz
-            | Self::I32Ctz
-            | Self::I32Popcnt
-             => 19,
+            | Self::I64TruncSatF64U => 19,
 
             // visit_binary
             Self::F32Eq
@@ -597,46 +597,28 @@ impl Instruction {
             | Self::F64Div
             | Self::F64Min
             | Self::F64Max
-            | Self::F64Copysign
-
-            // I32
-            // comparisons
-            | Self::I32LtS
-            | Self::I32LtU
-            | Self::I32GtS
-            | Self::I32GtU
-            | Self::I32LeS
-            | Self::I32LeU
-            | Self::I32GeS
-            | Self::I32GeU
-
-            // i32
-            // binary
-            | Self::I32Add
-            | Self::I32Sub
-            | Self::I32Mul
-            | Self::I32DivS
-            | Self::I32DivU
-            | Self::I32RemS
-            | Self::I32RemU
-            | Self::I32And
-            | Self::I32Or
-            | Self::I32Xor
-            | Self::I32Shl
-            | Self::I32ShrS
-            | Self::I32ShrU
-            | Self::I32Rotl
-            | Self::I32Rotr
-             => 20,
+            | Self::F64Copysign => 20,
 
             Self::I64Sub => 21,
 
             Self::I64Shl | Self::I64ShrU | Self::I64ShrS | Self::I64Rotl | Self::I64Rotr => 22,
 
-            Self::I64DivS |Self::I64RemS  => 27,
+            Self::I32DivS | Self::I32RemS => 23,
+            Self::I32DivU | Self::I32RemU => 24,
+
+            Self::I32LtS | Self::I32LtU | Self::I32GeS | Self::I32GeU => 25,
+
+            Self::I32GtS | Self::I32GtU | Self::I32LeS | Self::I32LeU => 26,
+
+            Self::I64DivS | Self::I64RemS => 27,
             Self::I64DivU | Self::I64RemU => 28,
 
+            Self::I32Popcnt | Self::I32Clz | Self::I32Ctz => 29,
+
+            Self::I32Shl | Self::I32ShrU | Self::I32ShrS | Self::I32Rotl | Self::I32Rotr => 30,
+
             Self::I64Eqz | Self::I32Eqz => 31,
+
             Self::Select => 32,
             Self::GlobalGet(..) => 33,
             Self::GlobalSet(..) => 34,
@@ -651,17 +633,13 @@ impl Instruction {
             Self::HostCallStep => 43,
             Self::HostCallStackStep => 44,
             Self::CallZeroWrite => 45,
+
             Self::I64Eq | Self::I32Eq => 46,
             Self::I64Ne | Self::I32Ne => 47,
-            Self::I64LtS
-            | Self::I64LtU
-            | Self::I64GeS
-            | Self::I64GeU => 48,
 
-             Self::I64GtS
-            | Self::I64GtU
-            | Self::I64LeS
-            | Self::I64LeU => 49,
+            Self::I64LtS | Self::I64LtU | Self::I64GeS | Self::I64GeU => 48,
+
+            Self::I64GtS | Self::I64GtU | Self::I64LeS | Self::I64LeU => 49,
 
             Self::CallInternal(..) | Self::CallIndirect(..) | Self::Call(..) => 0, // TODO: all 0 J_indexes
             Self::Drop => 0,

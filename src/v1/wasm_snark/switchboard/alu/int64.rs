@@ -920,6 +920,7 @@ where
 #[cfg(test)]
 mod tests {
 
+  use super::{add64, mul64};
   use crate::{
     utils::logging::init_logger,
     v1::wasm_snark::switchboard::{alu::int64::sub64, WASMTransitionCircuit as SwitchBoardCircuit},
@@ -928,8 +929,6 @@ mod tests {
   use nova::{provider::Bn256EngineIPA, traits::Engine};
   use rand::{rngs::StdRng, Rng, SeedableRng};
   use wasmi::core::UntypedValue;
-
-  use super::{add64, mul64};
 
   type E = Bn256EngineIPA;
   type F = <E as Engine>::Scalar;

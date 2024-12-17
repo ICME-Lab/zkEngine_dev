@@ -1,10 +1,8 @@
-use wasmi::WitnessVM;
-
 use crate::v1::{
   error::ZKWASMError,
   wasm_ctx::{ExecutionTrace, ZKWASMCtx},
 };
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 /// Get inner value of [`Rc<RefCell<T>>`]
 ///
@@ -30,32 +28,31 @@ pub fn split_vector<T>(mut vec: Vec<T>, split_index: usize) -> (Vec<T>, Vec<T>) 
   (vec, second_part)
 }
 
-/// Count how many time an opcode gets used. Uses the J index of the opcode
-pub fn count_opcodes(vms: &[WitnessVM]) -> HashMap<u64, usize> {
-  let capacity = wasmi::Instruction::MAX_J + 1;
-
-  let mut opcodes_count = HashMap::with_capacity(capacity as usize);
-
-  for c in 0..capacity {
-    opcodes_count.insert(c, 0);
-  }
-
-  for vm in vms {
-    let instr_J = vm.instr.index_j();
-    let count = opcodes_count.entry(instr_J).or_insert(0);
-    *count += 1;
-  }
-
-  opcodes_count
-}
-
 #[cfg(test)]
 mod test {
-  use crate::v1::{
-    utils::tracing::count_opcodes,
-    wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
-  };
-  use std::path::PathBuf;
+  use wasmi::WitnessVM;
+
+  use crate::v1::wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx};
+  use std::{collections::HashMap, path::PathBuf};
+
+  /// Count how many time an opcode gets used. Uses the J index of the opcode
+  fn count_opcodes(vms: &[WitnessVM]) -> HashMap<u64, usize> {
+    let capacity = wasmi::Instruction::MAX_J + 1;
+
+    let mut opcodes_count = HashMap::with_capacity(capacity as usize);
+
+    for c in 0..capacity {
+      opcodes_count.insert(c, 0);
+    }
+
+    for vm in vms {
+      let instr_J = vm.instr.index_j();
+      let count = opcodes_count.entry(instr_J).or_insert(0);
+      *count += 1;
+    }
+
+    opcodes_count
+  }
 
   fn test_count_with(program: &impl ZKWASMCtx) {
     let (vms, _, _) = program.execution_trace().unwrap();
@@ -64,6 +61,7 @@ mod test {
     let opcodes_count = count_opcodes(&vms);
 
     let instrs_to_count = [
+      // i64
       wasmi::Instruction::I64Add,
       wasmi::Instruction::I64Mul,
       wasmi::Instruction::I64Sub,
@@ -77,10 +75,20 @@ mod test {
       wasmi::Instruction::I64And,
       wasmi::Instruction::I64Popcnt,
       wasmi::Instruction::I64Shl,
-      wasmi::Instruction::I64ShrS,
-      wasmi::Instruction::I64ShrU,
-      wasmi::Instruction::I64Rotr,
-      wasmi::Instruction::I64Rotl,
+      // i32
+      wasmi::Instruction::I32Add,
+      wasmi::Instruction::I32Mul,
+      wasmi::Instruction::I32Sub,
+      wasmi::Instruction::I32Eqz,
+      wasmi::Instruction::I32Eq,
+      wasmi::Instruction::I32Ne,
+      wasmi::Instruction::I32LtU,
+      wasmi::Instruction::I32GtU,
+      wasmi::Instruction::I32DivS,
+      wasmi::Instruction::I32DivU,
+      wasmi::Instruction::I32And,
+      wasmi::Instruction::I32Popcnt,
+      wasmi::Instruction::I32Shl,
     ];
 
     for instr_to_count in instrs_to_count.iter() {
