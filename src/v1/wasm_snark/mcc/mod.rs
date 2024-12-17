@@ -259,3 +259,54 @@ impl ScanCircuit {
     }
   }
 }
+
+#[derive(Clone, Debug)]
+/// BatchedWasmTransitionCircuit
+pub struct BatchedOpsCircuit {
+  circuits: Vec<OpsCircuit>,
+}
+
+impl<F> StepCircuit<F> for BatchedOpsCircuit
+where
+  F: PrimeField,
+{
+  fn arity(&self) -> usize {
+    5
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    z: &[AllocatedNum<F>],
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    let mut z = z.to_vec();
+
+    for circuit in self.circuits.iter() {
+      z = circuit.synthesize(cs, &z)?;
+    }
+
+    Ok(z)
+  }
+
+  fn non_deterministic_advice(&self) -> Vec<F> {
+    self
+      .circuits
+      .iter()
+      .flat_map(|circuit| circuit.non_deterministic_advice())
+      .collect()
+  }
+}
+
+impl BatchedOpsCircuit {
+  /// Create an empty instance of [`BatchedOpsCircuit`]
+  pub fn empty(step_size: usize) -> Self {
+    Self {
+      circuits: vec![OpsCircuit::default(); step_size],
+    }
+  }
+
+  /// Create a new instance of [`BatchedOpsCircuit`]
+  pub fn new(circuits: Vec<OpsCircuit>) -> Self {
+    Self { circuits }
+  }
+}

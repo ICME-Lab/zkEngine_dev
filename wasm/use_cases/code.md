@@ -1,0 +1,1 @@
+The Rust code that is compiled into these WASM modules is located in this [repository](https://github.com/Forpee/example_wasms).

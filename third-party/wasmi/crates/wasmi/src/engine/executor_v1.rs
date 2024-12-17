@@ -226,28 +226,32 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             let mut vm = if self.tracer.is_some() {
                 let mut vm = WitnessVM::default();
                 if let Some(tracer) = self.tracer.clone() {
-                // run this fn to get the usize value of [`ValueStackPtr`]
-                self.sync_stack_ptr();
-                let mut tracer = tracer.borrow_mut();
+                    // run this fn to get the usize value of [`ValueStackPtr`]
+                    self.sync_stack_ptr();
+                    let mut tracer = tracer.borrow_mut();
 
-                if matches!(tracer.last(), Some(Instr::HostCallStackStep)) {
-                    tracer.execution_trace.extend(self.trace_host_call());
-                }
-
-                // Capture/Trace the necessary pre-execution values
-                 vm = self.execute_instr_pre(self.value_stack.stack_ptr, self.pc());
-
-                // handle tracing edge cases
-                match *instr {
-                    Instr::MemoryCopy => {
-                            tracer.execution_trace.extend(self.trace_memory_copy(vm.clone()));
-                    },
-                    Instr::BrAdjust(..) => {
-                            let drop_keep = self.fetch_drop_keep(1);
-                            tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                    if matches!(tracer.last(), Some(Instr::HostCallStackStep)) {
+                        tracer.execution_trace.extend(self.trace_host_call());
                     }
-                    _ => {}
-                }
+
+                    // Capture/Trace the necessary pre-execution values
+                    vm = self.execute_instr_pre(self.value_stack.stack_ptr, self.pc());
+
+                    // handle tracing edge cases
+                    match *instr {
+                        Instr::MemoryCopy => {
+                            tracer
+                                .execution_trace
+                                .extend(self.trace_memory_copy(vm.clone()));
+                        }
+                        Instr::BrAdjust(..) => {
+                            let drop_keep = self.fetch_drop_keep(1);
+                            tracer
+                                .execution_trace
+                                .extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                        }
+                        _ => {}
+                    }
                 }
 
                 vm
@@ -263,13 +267,19 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         tracer.set_max_sp(vm.pre_sp);
                         match *instr {
                             Instr::CallInternal(compiled_func) => {
-                                tracer.execution_trace.extend(self.trace_call_internal(vm.clone(), compiled_func));
+                                tracer
+                                    .execution_trace
+                                    .extend(self.trace_call_internal(vm.clone(), compiled_func));
                             }
                             Instr::Return(drop_keep) => {
-                                tracer.execution_trace.extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                                tracer
+                                    .execution_trace
+                                    .extend(self.trace_drop_keep(vm.clone(), drop_keep));
                             }
                             Instr::MemoryFill => {
-                                tracer.execution_trace.extend(self.trace_memory_fill(vm.clone()));
+                                tracer
+                                    .execution_trace
+                                    .extend(self.trace_memory_fill(vm.clone()));
                             }
                             Instr::MemoryGrow => {
                                 let last = self.sp.last().to_bits() as i32;
@@ -694,7 +704,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 let header = self.code_map.header(wasm_func.func_body());
                 if let Some(tracer) = self.tracer.clone() {
                     let mut tracer = tracer.borrow_mut();
-                    tracer.execution_trace.extend(self.trace_call(header.len_locals(), self.value_stack.stack_ptr));
+                    tracer
+                        .execution_trace
+                        .extend(self.trace_call(header.len_locals(), self.value_stack.stack_ptr));
                 };
                 self.value_stack.prepare_wasm_call(header)?;
                 self.sp = self.value_stack.stack_ptr();
@@ -1755,16 +1767,14 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
-            Instr::Return(..) => {
-            }
+            Instr::Return(..) => {}
             Instr::CallInternal(..) => {}
             Instr::Drop => {}
-
 
             Instr::I32Store(offset)
             | Instr::I32Store8(offset)
             | Instr::I32Store16(offset)
-            | Instr::F32Store(offset) 
+            | Instr::F32Store(offset)
             | Instr::F64Store(offset)
             | Instr::I64Store(offset)
             | Instr::I64Store8(offset)
@@ -1785,7 +1795,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I32Load8S(offset)
             | Instr::I32Load16U(offset)
             | Instr::I32Load16S(offset)
-            | Instr::F32Load(offset)  
+            | Instr::F32Load(offset)
             | Instr::F64Load(offset)
             | Instr::I64Load(offset)
             | Instr::I64Load8S(offset)
@@ -1856,7 +1866,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64TruncSatF32S
             | Instr::I64TruncSatF32U
             | Instr::I64TruncSatF64S
-            | Instr::I64TruncSatF64U 
+            | Instr::I64TruncSatF64U
             | Instr::I32Clz
             | Instr::I32Ctz
             | Instr::I32Popcnt => {
@@ -1890,7 +1900,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::F64Div
             | Instr::F64Min
             | Instr::F64Max
-            | Instr::F64Copysign 
+            | Instr::F64Copysign
             | Instr::I64Eq
             | Instr::I64Ne
             | Instr::I64LtS
@@ -1925,9 +1935,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I32ShrS
             | Instr::I32ShrU
             | Instr::I32Rotl
-            | Instr::I32Rotr
-            
-            => {
+            | Instr::I32Rotr => {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
@@ -1942,8 +1950,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::GlobalSet(idx) => {
                 let value = self.sp.last().to_bits();
-                    vm.I = idx.to_u32() as u64;
-                    vm.Y = value;
+                vm.I = idx.to_u32() as u64;
+                vm.Y = value;
             }
             Instr::BrTable(..) => {}
             Instr::BrAdjust(..) => {}
@@ -1963,8 +1971,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Y = value;
                 vm.X = offset;
             }
-            Instr::Call(..) => {
-            }
+            Instr::Call(..) => {}
             Instr::CallIndirect(..) => {}
             Instr::MemorySize => {}
             Instr::MemoryGrow => {
@@ -1973,7 +1980,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             _ => {
                 println!("Instruction not supported: {:?}", instruction);
                 unimplemented!();
-            },
+            }
         }
 
         vm
@@ -2017,7 +2024,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::I32Store(..)
             | Instr::I32Store8(..)
             | Instr::I32Store16(..)
-            | Instr::F32Store(..) 
+            | Instr::F32Store(..)
             | Instr::F64Store(..)
             | Instr::I64Store(..)
             | Instr::I64Store8(..)
@@ -2036,10 +2043,15 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     let mut buf = [0u8; 8];
                     let memory = self.cache.default_memory(self.ctx);
                     let memref = self.ctx.resolve_memory(&memory);
-                    memref
+
+                    if memref
                         .read((effective_address / 8 + 1) * 8, &mut buf)
-                        .unwrap();
-                    u64::from_le_bytes(buf)
+                        .is_ok()
+                    {
+                        u64::from_le_bytes(buf)
+                    } else {
+                        0
+                    }
                 };
 
                 vm.P = updated_block_value1;
@@ -2051,7 +2063,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I32Load8S(..)
             | Instr::I32Load16U(..)
             | Instr::I32Load16S(..)
-            | Instr::F32Load(..)  
+            | Instr::F32Load(..)
             | Instr::F64Load(..)
             | Instr::I64Load(..)
             | Instr::I64Load8S(..)
@@ -2073,10 +2085,15 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     let mut buf = [0u8; 8];
                     let memory = self.cache.default_memory(self.ctx);
                     let memref = self.ctx.resolve_memory(&memory);
-                    memref
+
+                    if memref
                         .read((effective_address / 8 + 1) * 8, &mut buf)
-                        .unwrap();
-                    u64::from_le_bytes(buf)
+                        .is_ok()
+                    {
+                        u64::from_le_bytes(buf)
+                    } else {
+                        0
+                    }
                 };
 
                 vm.Z = self.sp.last().to_bits();
@@ -2088,7 +2105,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Z = self.sp.nth_back(1).to_bits();
             }
 
-            // visit_unary
             Instr::F32Abs
             | Instr::F32Neg
             | Instr::F32Ceil
@@ -2136,14 +2152,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64TruncSatF32S
             | Instr::I64TruncSatF32U
             | Instr::I64TruncSatF64S
-            | Instr::I64TruncSatF64U  
+            | Instr::I64TruncSatF64U
             | Instr::I32Clz
             | Instr::I32Ctz
             | Instr::I32Popcnt => {
                 vm.Z = self.sp.last().to_bits();
             }
 
-            // visit_binary
             Instr::F32Eq
             | Instr::F32Ne
             | Instr::F32Lt
@@ -2169,9 +2184,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::F64Div
             | Instr::F64Min
             | Instr::F64Max
-            | Instr::F64Copysign 
-            // i64
-            // comparisons
+            | Instr::F64Copysign
             | Instr::I64Eq
             | Instr::I64Ne
             | Instr::I64LtS
@@ -2182,9 +2195,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64LeU
             | Instr::I64GeS
             | Instr::I64GeU
-
-            // I32
-            // comparisons
             | Instr::I32Eq
             | Instr::I32Ne
             | Instr::I32LtS
@@ -2195,9 +2205,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I32LeU
             | Instr::I32GeS
             | Instr::I32GeU
-
-            // i32
-            // binary
             | Instr::I32Add
             | Instr::I32Sub
             | Instr::I32Mul
@@ -2301,7 +2308,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     }
 
     /// Special method to handle CallInternal
-    fn trace_call_internal(&self, mut init_vm: WitnessVM, compiled_func: CompiledFunc) -> Vec<WitnessVM> {
+    fn trace_call_internal(
+        &self,
+        mut init_vm: WitnessVM,
+        compiled_func: CompiledFunc,
+    ) -> Vec<WitnessVM> {
         use Instruction as Instr;
 
         let len = self.code_map.header(compiled_func).len_locals();
@@ -2315,7 +2326,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
             vms.push(vm);
-        };
+        }
 
         vms
     }
@@ -2333,8 +2344,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
             vms.push(vm);
-        };
-        
+        }
+
         vms
     }
 
