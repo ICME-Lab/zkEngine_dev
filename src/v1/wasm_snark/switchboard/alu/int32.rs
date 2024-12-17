@@ -566,9 +566,9 @@ where
   Ok((quotient, rem))
 }
 
-/// Computes the unary ops for 64 bit integers
+/// Computes the unary ops for 32 bit integers
 ///
-/// i64.popcnt, i64.clz, i64.ctz
+/// i32.popcnt, i32.clz, i32.ctz
 pub fn unary_ops_32<F, CS>(
   mut cs: CS,
   a: &AllocatedNum<F>,
@@ -1490,7 +1490,7 @@ mod tests {
     let switch = F::one();
 
     for _ in 0..1_000 {
-      let a = UntypedValue::from(rng.gen::<i32>());
+      let a = UntypedValue::from(rng.gen::<i64>());
 
       for instr in instr.iter() {
         let expected = match instr {

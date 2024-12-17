@@ -516,11 +516,6 @@ impl Instruction {
 
             Self::I64Popcnt | Self::I64Clz | Self::I64Ctz => 14,
 
-            Self::I32Add => 15,
-            Self::I32Mul => 16,
-            Self::I32And | Self::I32Xor | Self::I32Or => 17,
-            Self::I32Sub => 18,
-
             // visit_unary
             Self::F32Abs
             | Self::F32Neg
@@ -603,19 +598,25 @@ impl Instruction {
 
             Self::I64Shl | Self::I64ShrU | Self::I64ShrS | Self::I64Rotl | Self::I64Rotr => 22,
 
-            Self::I32DivS | Self::I32RemS => 23,
-            Self::I32DivU | Self::I32RemU => 24,
+            // i32
+            Self::I32Add => 15,
+            Self::I32Mul => 16,
+            Self::I32Sub => 17,
 
-            Self::I32LtS | Self::I32LtU | Self::I32GeS | Self::I32GeU => 25,
+            Self::I32DivS | Self::I32RemS => 18,
+            Self::I32DivU | Self::I32RemU => 23,
 
-            Self::I32GtS | Self::I32GtU | Self::I32LeS | Self::I32LeU => 26,
+            Self::I32And | Self::I32Xor | Self::I32Or => 24,
+            Self::I32Popcnt | Self::I32Clz | Self::I32Ctz => 25,
 
-            Self::I64DivS | Self::I64RemS => 27,
-            Self::I64DivU | Self::I64RemU => 28,
-
-            Self::I32Popcnt | Self::I32Clz | Self::I32Ctz => 29,
+            Self::I32LtS | Self::I32LtU | Self::I32GeS | Self::I32GeU => 26,
+            Self::I32GtS | Self::I32GtU | Self::I32LeS | Self::I32LeU => 29,
 
             Self::I32Shl | Self::I32ShrU | Self::I32ShrS | Self::I32Rotl | Self::I32Rotr => 30,
+
+            // done
+            Self::I64DivS | Self::I64RemS => 27,
+            Self::I64DivU | Self::I64RemU => 28,
 
             Self::I64Eqz | Self::I32Eqz => 31,
 
@@ -638,7 +639,6 @@ impl Instruction {
             Self::I64Ne | Self::I32Ne => 47,
 
             Self::I64LtS | Self::I64LtU | Self::I64GeS | Self::I64GeU => 48,
-
             Self::I64GtS | Self::I64GtU | Self::I64LeS | Self::I64LeU => 49,
 
             Self::CallInternal(..) | Self::CallIndirect(..) | Self::Call(..) => 0, // TODO: all 0 J_indexes

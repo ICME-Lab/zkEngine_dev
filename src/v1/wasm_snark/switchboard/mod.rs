@@ -1123,7 +1123,7 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &last_addr, // pre_sp - 1
       &Z,
-      &self.WS[2],
+      &self.WS[1],
       switch,
     )?;
 
@@ -1706,7 +1706,7 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &last_addr, // pre_sp - 1
       &Z,
-      &self.WS[2],
+      &self.WS[1],
       switch,
     )?;
 
