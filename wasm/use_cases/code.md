@@ -1,1 +1,1 @@
-Rust code that gets compiled to these WASM modules is in this [`example_wasms` repo](https://github.com/Forpee/example_wasms)
+The Rust code that is compiled into these WASM modules is located in this [repository](https://github.com/Forpee/example_wasms).
