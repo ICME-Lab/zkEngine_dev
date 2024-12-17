@@ -61,13 +61,14 @@ mod test {
     let opcodes_count = count_opcodes(&vms);
 
     let instrs_to_count = [
+      // i64 and i32
+      wasmi::Instruction::I64Eqz,
+      wasmi::Instruction::I64Eq,
+      wasmi::Instruction::I64Ne,
       // i64
       wasmi::Instruction::I64Add,
       wasmi::Instruction::I64Mul,
       wasmi::Instruction::I64Sub,
-      wasmi::Instruction::I64Eqz,
-      wasmi::Instruction::I64Eq,
-      wasmi::Instruction::I64Ne,
       wasmi::Instruction::I64LtU,
       wasmi::Instruction::I64GtU,
       wasmi::Instruction::I64DivS,
@@ -79,9 +80,6 @@ mod test {
       wasmi::Instruction::I32Add,
       wasmi::Instruction::I32Mul,
       wasmi::Instruction::I32Sub,
-      wasmi::Instruction::I32Eqz,
-      wasmi::Instruction::I32Eq,
-      wasmi::Instruction::I32Ne,
       wasmi::Instruction::I32LtU,
       wasmi::Instruction::I32GtU,
       wasmi::Instruction::I32DivS,
@@ -168,6 +166,31 @@ mod test {
         e.to_string(),
         message.to_string(),
         use_crt.to_string(),
+      ])
+      .invoke("main")
+      .build();
+
+    let wasm_ctx = WASMCtx::new(wasm_args);
+
+    test_count_with(&wasm_ctx);
+  }
+
+  #[test]
+  fn test_financial_protocol() {
+    //  Moderately healthy loan, moderate staking, moderate interest
+    let collateral_amount = "2000";
+    let borrowed_amount = "1000";
+    let stake_ratio = "50";
+    let annual_interest_bps = "600"; // 6% annual interest
+
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/use_cases/financial_protocol.wasm"))
+      .unwrap()
+      .func_args(vec![
+        collateral_amount.to_string(),
+        borrowed_amount.to_string(),
+        stake_ratio.to_string(),
+        annual_interest_bps.to_string(),
       ])
       .invoke("main")
       .build();

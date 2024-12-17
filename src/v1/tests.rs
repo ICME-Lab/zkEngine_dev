@@ -331,3 +331,30 @@ fn test_toy_rsa() {
 
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
+
+#[test]
+fn test_financial_protocol() {
+  init_logger();
+  let step_size = StepSize::new(1000).set_memory_step_size(50_000);
+  //  Moderately healthy loan, moderate staking, moderate interest
+  let collateral_amount = "2000";
+  let borrowed_amount = "1000";
+  let stake_ratio = "50";
+  let annual_interest_bps = "600"; // 6% annual interest
+
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/use_cases/financial_protocol.wasm"))
+    .unwrap()
+    .func_args(vec![
+      collateral_amount.to_string(),
+      borrowed_amount.to_string(),
+      stake_ratio.to_string(),
+      annual_interest_bps.to_string(),
+    ])
+    .invoke("main")
+    .build();
+
+  let wasm_ctx = WASMCtx::new(wasm_args);
+
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}
