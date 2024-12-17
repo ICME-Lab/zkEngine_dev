@@ -416,155 +416,155 @@ where
   Ok((le_flag, gt_flag, sle_flag, sgt_flag))
 }
 
-// /// Gadget for zkWASM signed div and rem
-// ///
-// /// # Note
-// ///
-// /// * rhs will never zero due to wasmi validation
-// /// * operation result will not overflow due to wasmi validation
-// pub fn div_rem_s_64<F, CS>(
-//   mut cs: CS,
-//   a: &AllocatedNum<F>,
-//   b: &AllocatedNum<F>,
-//   a_bits: u64,
-//   b_bits: u64,
-//   switch: F,
-// ) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
-// where
-//   F: PrimeField,
-//   CS: ConstraintSystem<F>,
-// {
-//   let untyped_a = UntypedValue::from(a_bits);
-//   let untyped_b = UntypedValue::from(b_bits);
+/// Gadget for zkWASM signed div and rem
+///
+/// # Note
+///
+/// * rhs will never zero due to wasmi validation
+/// * operation result will not overflow due to wasmi validation
+pub fn div_rem_s_32<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: u32,
+  b_bits: u32,
+  switch: F,
+) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let untyped_a = UntypedValue::from(a_bits);
+  let untyped_b = UntypedValue::from(b_bits);
 
-//   let untyped_quotient = untyped_a
-//     .i64_div_s(untyped_b)
-//     .unwrap_or(UntypedValue::from(0));
-//   let untyped_b_star_quotient = untyped_b.i64_mul(untyped_quotient);
+  let untyped_quotient = untyped_a
+    .i32_div_s(untyped_b)
+    .unwrap_or(UntypedValue::from(0));
+  let untyped_b_star_quotient = untyped_b.i32_mul(untyped_quotient);
 
-//   let untyped_rem = untyped_a
-//     .i64_rem_s(untyped_b)
-//     .unwrap_or(UntypedValue::from(0));
+  let untyped_rem = untyped_a
+    .i32_rem_s(untyped_b)
+    .unwrap_or(UntypedValue::from(0));
 
-//   let quotient = SwitchBoardCircuit::alloc_num(
-//     &mut cs,
-//     || "quotient",
-//     || Ok(F::from(untyped_quotient.to_bits())),
-//     switch,
-//   )?;
+  let quotient = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "quotient",
+    || Ok(F::from(untyped_quotient.to_bits())),
+    switch,
+  )?;
 
-//   let rem = SwitchBoardCircuit::alloc_num(
-//     &mut cs,
-//     || "rem",
-//     || Ok(F::from(untyped_rem.to_bits())),
-//     switch,
-//   )?;
+  let rem = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "rem",
+    || Ok(F::from(untyped_rem.to_bits())),
+    switch,
+  )?;
 
-//   /*
-//    * a = b * quotient + rem
-//    */
-//   let b_star_quotient = mul64(
-//     cs.namespace(|| "b_star_quotient"),
-//     b,
-//     &quotient,
-//     b_bits,
-//     untyped_quotient.to_bits(),
-//     switch,
-//   )?;
+  /*
+   * a = b * quotient + rem
+   */
+  let b_star_quotient = mul32(
+    cs.namespace(|| "b_star_quotient"),
+    b,
+    &quotient,
+    b_bits,
+    untyped_quotient.to_bits() as u32,
+    switch,
+  )?;
 
-//   let b_star_plus_rem = add64(
-//     cs.namespace(|| "b_star_plus_rem"),
-//     &b_star_quotient,
-//     &rem,
-//     untyped_b_star_quotient.to_bits(),
-//     untyped_rem.to_bits(),
-//     switch,
-//   )?;
+  let b_star_plus_rem = add32(
+    cs.namespace(|| "b_star_plus_rem"),
+    &b_star_quotient,
+    &rem,
+    untyped_b_star_quotient.to_bits() as u32,
+    untyped_rem.to_bits() as u32,
+    switch,
+  )?;
 
-//   cs.enforce(
-//     || "a = b * quotient + rem",
-//     |lc| lc + b_star_plus_rem.get_variable(),
-//     |lc| lc + CS::one(),
-//     |lc| lc + a.get_variable(),
-//   );
+  cs.enforce(
+    || "a = b * quotient + rem",
+    |lc| lc + b_star_plus_rem.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + a.get_variable(),
+  );
 
-//   Ok((quotient, rem))
-// }
+  Ok((quotient, rem))
+}
 
-// /// Gadget for zkWASM unsigned div and rem
-// ///
-// /// # Note
-// ///
-// /// * rhs will never zero due to wasmi validation
-// /// * operation result will not overflow due to wasmi validation
-// pub fn div_rem_u_64<F, CS>(
-//   mut cs: CS,
-//   a: &AllocatedNum<F>,
-//   b: &AllocatedNum<F>,
-//   a_bits: u64,
-//   b_bits: u64,
-//   switch: F,
-// ) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
-// where
-//   F: PrimeField,
-//   CS: ConstraintSystem<F>,
-// {
-//   let untyped_a = UntypedValue::from(a_bits);
-//   let untyped_b = UntypedValue::from(b_bits);
+/// Gadget for zkWASM unsigned div and rem
+///
+/// # Note
+///
+/// * rhs will never zero due to wasmi validation
+/// * operation result will not overflow due to wasmi validation
+pub fn div_rem_u_32<F, CS>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: u32,
+  b_bits: u32,
+  switch: F,
+) -> Result<(AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let untyped_a = UntypedValue::from(a_bits);
+  let untyped_b = UntypedValue::from(b_bits);
 
-//   let untyped_quotient = untyped_a
-//     .i64_div_u(untyped_b)
-//     .unwrap_or(UntypedValue::from(0));
-//   let untyped_b_star_quotient = untyped_b.i64_mul(untyped_quotient);
+  let untyped_quotient = untyped_a
+    .i32_div_u(untyped_b)
+    .unwrap_or(UntypedValue::from(0));
+  let untyped_b_star_quotient = untyped_b.i32_mul(untyped_quotient);
 
-//   let untyped_rem = untyped_a
-//     .i64_rem_u(untyped_b)
-//     .unwrap_or(UntypedValue::from(0));
+  let untyped_rem = untyped_a
+    .i32_rem_u(untyped_b)
+    .unwrap_or(UntypedValue::from(0));
 
-//   let quotient = SwitchBoardCircuit::alloc_num(
-//     &mut cs,
-//     || "quotient",
-//     || Ok(F::from(untyped_quotient.to_bits())),
-//     switch,
-//   )?;
+  let quotient = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "quotient",
+    || Ok(F::from(untyped_quotient.to_bits())),
+    switch,
+  )?;
 
-//   let rem = SwitchBoardCircuit::alloc_num(
-//     &mut cs,
-//     || "rem",
-//     || Ok(F::from(untyped_rem.to_bits())),
-//     switch,
-//   )?;
+  let rem = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "rem",
+    || Ok(F::from(untyped_rem.to_bits())),
+    switch,
+  )?;
 
-//   /*
-//    * a = b * quotient + rem
-//    */
-//   let b_star_quotient = mul64(
-//     cs.namespace(|| "b_star_quotient"),
-//     b,
-//     &quotient,
-//     b_bits,
-//     untyped_quotient.to_bits(),
-//     switch,
-//   )?;
+  /*
+   * a = b * quotient + rem
+   */
+  let b_star_quotient = mul32(
+    cs.namespace(|| "b_star_quotient"),
+    b,
+    &quotient,
+    b_bits,
+    untyped_quotient.to_bits() as u32,
+    switch,
+  )?;
 
-//   let b_star_plus_rem = add64(
-//     cs.namespace(|| "b_star_plus_rem"),
-//     &b_star_quotient,
-//     &rem,
-//     untyped_b_star_quotient.to_bits(),
-//     untyped_rem.to_bits(),
-//     switch,
-//   )?;
+  let b_star_plus_rem = add32(
+    cs.namespace(|| "b_star_plus_rem"),
+    &b_star_quotient,
+    &rem,
+    untyped_b_star_quotient.to_bits() as u32,
+    untyped_rem.to_bits() as u32,
+    switch,
+  )?;
 
-//   cs.enforce(
-//     || "a = b * quotient + rem",
-//     |lc| lc + b_star_plus_rem.get_variable(),
-//     |lc| lc + CS::one(),
-//     |lc| lc + a.get_variable(),
-//   );
+  cs.enforce(
+    || "a = b * quotient + rem",
+    |lc| lc + b_star_plus_rem.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + a.get_variable(),
+  );
 
-//   Ok((quotient, rem))
-// }
+  Ok((quotient, rem))
+}
 
 /// Computes the unary ops for 64 bit integers
 ///
@@ -930,304 +930,174 @@ mod tests {
   type E = Bn256EngineIPA;
   type F = <E as Engine>::Scalar;
 
-  // #[test]
-  // fn test_div_rem_s() {
-  //   let mut rng = StdRng::from_seed([98u8; 32]);
+  #[test]
+  fn test_div_rem_s() {
+    let mut rng = StdRng::from_seed([98u8; 32]);
 
-  //   let switch = F::one();
+    let switch = F::one();
 
-  //   for _ in 0..1_000 {
-  //     let a = UntypedValue::from(rng.gen::<i64>());
-  //     let b = UntypedValue::from(rng.gen::<i64>());
-  //     let expected_quotient = a.i64_div_s(b);
-  //     let expected_rem = a.i64_rem_s(b);
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i32>());
+      let b = UntypedValue::from(rng.gen::<i32>());
+      let expected_quotient = a.i32_div_s(b);
+      let expected_rem = a.i32_rem_s(b);
 
-  //     if expected_quotient.is_err() {
-  //       continue;
-  //     }
+      if expected_quotient.is_err() {
+        continue;
+      }
 
-  //     let mut cs = TestConstraintSystem::<F>::new();
-  //     let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
 
-  //     let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
-  //       &mut cs,
-  //       || "expected_quotient",
-  //       || Ok(F::from(expected_quotient.unwrap().to_bits())),
-  //       switch,
-  //     )
-  //     .unwrap();
+      let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_quotient",
+        || Ok(F::from(expected_quotient.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
 
-  //     let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
-  //       &mut cs,
-  //       || "expected_rem",
-  //       || Ok(F::from(expected_rem.unwrap().to_bits())),
-  //       switch,
-  //     )
-  //     .unwrap();
+      let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_rem",
+        || Ok(F::from(expected_rem.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
 
-  //     let alloc_a =
-  //       SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
-  //         .unwrap();
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
 
-  //     let alloc_b =
-  //       SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
-  //         .unwrap();
+      let alloc_b =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+          .unwrap();
 
-  //     let (quotient, rem) = super::div_rem_s_64(
-  //       cs.namespace(|| "div_rem_s"),
-  //       &alloc_a,
-  //       &alloc_b,
-  //       a.to_bits(),
-  //       b.to_bits(),
-  //       switch,
-  //     )
-  //     .unwrap();
+      let (quotient, rem) = super::div_rem_s_32(
+        cs.namespace(|| "div_rem_s"),
+        &alloc_a,
+        &alloc_b,
+        a.to_bits() as u32,
+        b.to_bits() as u32,
+        switch,
+      )
+      .unwrap();
 
-  //     cs.enforce(
-  //       || "expected_quotient ==  quotient",
-  //       |lc| lc + alloc_expected_quotient.get_variable(),
-  //       |lc| lc + one_var,
-  //       |lc| lc + quotient.get_variable(),
-  //     );
+      cs.enforce(
+        || "expected_quotient ==  quotient",
+        |lc| lc + alloc_expected_quotient.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + quotient.get_variable(),
+      );
 
-  //     cs.enforce(
-  //       || "expected_rem ==  rem",
-  //       |lc| lc + alloc_expected_rem.get_variable(),
-  //       |lc| lc + one_var,
-  //       |lc| lc + rem.get_variable(),
-  //     );
+      cs.enforce(
+        || "expected_rem ==  rem",
+        |lc| lc + alloc_expected_rem.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + rem.get_variable(),
+      );
 
-  //     assert!(cs.is_satisfied());
-  //   }
+      assert!(cs.is_satisfied());
+    }
+  }
 
-  //   for _ in 0..1_000 {
-  //     let a = UntypedValue::from(0);
-  //     let b = UntypedValue::from(0);
-  //     let expected_quotient = a.i64_div_s(b);
-  //     let expected_rem = a.i64_rem_s(b);
+  #[test]
+  fn test_div_rem_u() {
+    let mut rng = StdRng::from_seed([90u8; 32]);
 
-  //     if expected_quotient.is_err() {
-  //       continue;
-  //     }
+    let switch = F::one();
 
-  //     let mut cs = TestConstraintSystem::<F>::new();
-  //     let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+    for _ in 0..1_000 {
+      let a = UntypedValue::from(rng.gen::<i32>());
+      let b = UntypedValue::from(rng.gen::<i32>());
+      let expected_quotient = a.i32_div_u(b);
+      let expected_rem = a.i32_rem_u(b);
 
-  //     let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
-  //       &mut cs,
-  //       || "expected_quotient",
-  //       || Ok(F::from(expected_quotient.unwrap().to_bits())),
-  //       switch,
-  //     )
-  //     .unwrap();
+      if expected_quotient.is_err() {
+        continue;
+      }
 
-  //     let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
-  //       &mut cs,
-  //       || "expected_rem",
-  //       || Ok(F::from(expected_rem.unwrap().to_bits())),
-  //       switch,
-  //     )
-  //     .unwrap();
+      let mut cs = TestConstraintSystem::<F>::new();
+      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
 
-  //     let alloc_a =
-  //       SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
-  //         .unwrap();
+      let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_quotient",
+        || Ok(F::from(expected_quotient.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
 
-  //     let alloc_b =
-  //       SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
-  //         .unwrap();
+      let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
+        &mut cs,
+        || "expected_rem",
+        || Ok(F::from(expected_rem.unwrap().to_bits())),
+        switch,
+      )
+      .unwrap();
 
-  //     let (quotient, rem) = super::div_rem_s_64(
-  //       cs.namespace(|| "div_rem_s"),
-  //       &alloc_a,
-  //       &alloc_b,
-  //       a.to_bits(),
-  //       b.to_bits(),
-  //       switch,
-  //     )
-  //     .unwrap();
+      let alloc_a =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
+          .unwrap();
 
-  //     cs.enforce(
-  //       || "expected_quotient ==  quotient",
-  //       |lc| lc + alloc_expected_quotient.get_variable(),
-  //       |lc| lc + one_var,
-  //       |lc| lc + quotient.get_variable(),
-  //     );
+      let alloc_b =
+        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
+          .unwrap();
 
-  //     cs.enforce(
-  //       || "expected_rem ==  rem",
-  //       |lc| lc + alloc_expected_rem.get_variable(),
-  //       |lc| lc + one_var,
-  //       |lc| lc + rem.get_variable(),
-  //     );
+      let (quotient, rem) = super::div_rem_u_32(
+        cs.namespace(|| "div_rem_u"),
+        &alloc_a,
+        &alloc_b,
+        a.to_bits() as u32,
+        b.to_bits() as u32,
+        switch,
+      )
+      .unwrap();
 
-  //     assert!(cs.is_satisfied());
-  //   }
-  // }
+      cs.enforce(
+        || "expected_quotient ==  quotient",
+        |lc| lc + alloc_expected_quotient.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + quotient.get_variable(),
+      );
 
-  // #[test]
-  // fn test_div_rem_u() {
-  //   let mut rng = StdRng::from_seed([90u8; 32]);
+      cs.enforce(
+        || "expected_rem ==  rem",
+        |lc| lc + alloc_expected_rem.get_variable(),
+        |lc| lc + one_var,
+        |lc| lc + rem.get_variable(),
+      );
 
-  //   let switch = F::one();
+      assert!(cs.is_satisfied());
+    }
+  }
 
-  //   for _ in 0..1_000 {
-  //     let a = UntypedValue::from(rng.gen::<i64>());
-  //     let b = UntypedValue::from(rng.gen::<i64>());
-  //     let expected_quotient = a.i64_div_u(b);
-  //     let expected_rem = a.i64_rem_u(b);
+  #[test]
+  fn test_div_rem_s_edge_case() {
+    let switch = F::one();
+    let a = UntypedValue::from(0);
+    let b = UntypedValue::from(0);
 
-  //     if expected_quotient.is_err() {
-  //       continue;
-  //     }
+    let mut cs = TestConstraintSystem::<F>::new();
 
-  //     let mut cs = TestConstraintSystem::<F>::new();
-  //     let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
+    let alloc_a =
+      SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch).unwrap();
 
-  //     let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
-  //       &mut cs,
-  //       || "expected_quotient",
-  //       || Ok(F::from(expected_quotient.unwrap().to_bits())),
-  //       switch,
-  //     )
-  //     .unwrap();
+    let alloc_b =
+      SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch).unwrap();
 
-  //     let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
-  //       &mut cs,
-  //       || "expected_rem",
-  //       || Ok(F::from(expected_rem.unwrap().to_bits())),
-  //       switch,
-  //     )
-  //     .unwrap();
+    let _ = super::div_rem_s_32(
+      cs.namespace(|| "div_rem_s"),
+      &alloc_a,
+      &alloc_b,
+      a.to_bits() as u32,
+      b.to_bits() as u32,
+      switch,
+    )
+    .unwrap();
 
-  //     let alloc_a =
-  //       SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
-  //         .unwrap();
-
-  //     let alloc_b =
-  //       SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
-  //         .unwrap();
-
-  //     let (quotient, rem) = super::div_rem_u_64(
-  //       cs.namespace(|| "div_rem_u"),
-  //       &alloc_a,
-  //       &alloc_b,
-  //       a.to_bits(),
-  //       b.to_bits(),
-  //       switch,
-  //     )
-  //     .unwrap();
-
-  //     cs.enforce(
-  //       || "expected_quotient ==  quotient",
-  //       |lc| lc + alloc_expected_quotient.get_variable(),
-  //       |lc| lc + one_var,
-  //       |lc| lc + quotient.get_variable(),
-  //     );
-
-  //     cs.enforce(
-  //       || "expected_rem ==  rem",
-  //       |lc| lc + alloc_expected_rem.get_variable(),
-  //       |lc| lc + one_var,
-  //       |lc| lc + rem.get_variable(),
-  //     );
-
-  //     assert!(cs.is_satisfied());
-  //   }
-
-  //   for _ in 0..1_000 {
-  //     let a = UntypedValue::from(0);
-  //     let b = UntypedValue::from(0);
-  //     let expected_quotient = a.i64_div_u(b);
-  //     let expected_rem = a.i64_rem_u(b);
-
-  //     if expected_quotient.is_err() {
-  //       continue;
-  //     }
-
-  //     let mut cs = TestConstraintSystem::<F>::new();
-  //     let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
-
-  //     let alloc_expected_quotient = SwitchBoardCircuit::alloc_num(
-  //       &mut cs,
-  //       || "expected_quotient",
-  //       || Ok(F::from(expected_quotient.unwrap().to_bits())),
-  //       switch,
-  //     )
-  //     .unwrap();
-
-  //     let alloc_expected_rem = SwitchBoardCircuit::alloc_num(
-  //       &mut cs,
-  //       || "expected_rem",
-  //       || Ok(F::from(expected_rem.unwrap().to_bits())),
-  //       switch,
-  //     )
-  //     .unwrap();
-
-  //     let alloc_a =
-  //       SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
-  //         .unwrap();
-
-  //     let alloc_b =
-  //       SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
-  //         .unwrap();
-
-  //     let (quotient, rem) = super::div_rem_u_64(
-  //       cs.namespace(|| "div_rem_s"),
-  //       &alloc_a,
-  //       &alloc_b,
-  //       a.to_bits(),
-  //       b.to_bits(),
-  //       switch,
-  //     )
-  //     .unwrap();
-
-  //     cs.enforce(
-  //       || "expected_quotient ==  quotient",
-  //       |lc| lc + alloc_expected_quotient.get_variable(),
-  //       |lc| lc + one_var,
-  //       |lc| lc + quotient.get_variable(),
-  //     );
-
-  //     cs.enforce(
-  //       || "expected_rem ==  rem",
-  //       |lc| lc + alloc_expected_rem.get_variable(),
-  //       |lc| lc + one_var,
-  //       |lc| lc + rem.get_variable(),
-  //     );
-
-  //     assert!(cs.is_satisfied());
-  //   }
-  // }
-
-  // #[test]
-  // fn test_div_rem_s_edge_case() {
-  //   let switch = F::one();
-  //   let a = UntypedValue::from(0);
-  //   let b = UntypedValue::from(0);
-
-  //   let mut cs = TestConstraintSystem::<F>::new();
-
-  //   let alloc_a =
-  //     SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())),
-  // switch).unwrap();
-
-  //   let alloc_b =
-  //     SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())),
-  // switch).unwrap();
-
-  //   let _ = super::div_rem_s_64(
-  //     cs.namespace(|| "div_rem_s"),
-  //     &alloc_a,
-  //     &alloc_b,
-  //     a.to_bits(),
-  //     b.to_bits(),
-  //     switch,
-  //   )
-  //   .unwrap();
-
-  //   assert!(cs.is_satisfied());
-  // }
+    assert!(cs.is_satisfied());
+  }
 
   #[test]
   fn test_add32() {
