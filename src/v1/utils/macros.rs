@@ -1,3 +1,5 @@
+//! Macros for logging and timing
+
 // Macro to start the timer
 macro_rules! start_timer {
   ($msg:expr) => {{
