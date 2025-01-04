@@ -1,6 +1,6 @@
 use super::{
   gadgets::{
-    int::{add, eqz_bit, sub},
+    int::{add, eqz_bit},
     utils::{alloc_one, conditionally_select},
   },
   mcc::multiset_ops::avt_tuple_to_scalar_vec,
@@ -326,7 +326,9 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Unreacable
+  /// Unreacable instruction
+  ///
+  /// Basically a no-op instruction.
   fn visit_unreachable<CS, F>(
     &self,
     mut cs: CS,
@@ -354,13 +356,13 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::local_get(0).unwrap() }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
+    // Read value from local depth
     let local_depth = Self::alloc_num(
       &mut cs,
       || "local depth",
       || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
       switch,
     )?;
-
     let read_val = Self::read(
       cs.namespace(|| "read at local_depth"),
       &local_depth,
@@ -368,13 +370,13 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
+    // write that value to the top of the stack
     let pre_sp = Self::alloc_num(
       &mut cs,
       || "pre_sp",
       || Ok(F::from(self.vm.pre_sp as u64)),
       switch,
     )?;
-
     Self::write(
       cs.namespace(|| "push local on stack"),
       &pre_sp,
@@ -399,20 +401,24 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::local_set(0).unwrap() }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
+    // pop value from stack
     let last_addr = Self::alloc_num(
       &mut cs,
       || "last addr",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
-
     let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
-    let depth = Self::alloc_num(&mut cs, || "depth addr", || Ok(F::from(self.vm.I)), switch)?;
 
-    let depth_addr = sub(cs.namespace(|| "last - depth"), &last_addr, &depth)?;
-
+    // write value to local depth
+    let depth_addr = Self::alloc_num(
+      &mut cs,
+      || "depth addr",
+      || Ok(F::from(self.vm.pre_sp as u64 - 1 - self.vm.I)),
+      switch,
+    )?;
     Self::write(
-      cs.namespace(|| "set local"),
+      cs.namespace(|| "set local write"),
       &depth_addr,
       &Y,
       &self.WS[1],
@@ -435,27 +441,24 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::local_tee(0).unwrap() }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let pre_sp = Self::alloc_num(
-      &mut cs,
-      || "pre_sp",
-      || Ok(F::from((self.vm.pre_sp) as u64)),
-      switch,
-    )?;
-
+    // read last value from stack (doesn't pop)
     let last_addr = Self::alloc_num(
       &mut cs,
       || "last addr",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
-
     let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
-    let depth = Self::alloc_num(&mut cs, || "depth addr", || Ok(F::from(self.vm.I)), switch)?;
 
-    let depth_addr = sub(cs.namespace(|| "pre_sp - depth"), &pre_sp, &depth)?;
-
+    // write value to local depth
+    let depth_addr = Self::alloc_num(
+      &mut cs,
+      || "depth addr",
+      || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
+      switch,
+    )?;
     Self::write(
-      cs.namespace(|| "tee local"),
+      cs.namespace(|| "tee local write"),
       &depth_addr,
       &Y,
       &self.WS[1],
