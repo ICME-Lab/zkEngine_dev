@@ -29,59 +29,8 @@ use wasmi::{
 };
 
 mod alu;
-
-#[derive(Clone, Debug)]
-/// BatchedWasmTransitionCircuit
-pub struct BatchedWasmTransitionCircuit {
-  circuits: Vec<WASMTransitionCircuit>,
-}
-
-impl<F> StepCircuit<F> for BatchedWasmTransitionCircuit
-where
-  F: PrimeField + PrimeFieldBits,
-{
-  fn arity(&self) -> usize {
-    1
-  }
-
-  fn synthesize<CS: ConstraintSystem<F>>(
-    &self,
-    cs: &mut CS,
-    z: &[AllocatedNum<F>],
-  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    let mut z = z.to_vec();
-
-    for circuit in self.circuits.iter() {
-      z = circuit.synthesize(cs, &z)?;
-    }
-
-    Ok(z)
-  }
-
-  fn non_deterministic_advice(&self) -> Vec<F> {
-    self
-      .circuits
-      .iter()
-      .flat_map(|circuit| circuit.non_deterministic_advice())
-      .collect()
-  }
-}
-
-impl BatchedWasmTransitionCircuit {
-  /// Create an empty instance of [`BatchedWasmTransitionCircuit`]
-  pub fn empty(step_size: usize) -> Self {
-    Self {
-      circuits: vec![WASMTransitionCircuit::default(); step_size],
-    }
-  }
-
-  /// Create a new instance of [`BatchedWasmTransitionCircuit`]
-  pub fn new(circuits: Vec<WASMTransitionCircuit>) -> Self {
-    Self { circuits }
-  }
-}
-
-/// Switchboard circuit representing a step in a WASM module's computation
+/// Switchboard circuit representing a step (WASM execution is a series of opcodes executed in
+/// steps) in a WASM program execution.
 #[derive(Clone, Debug)]
 pub struct WASMTransitionCircuit {
   vm: WitnessVM,
@@ -106,35 +55,48 @@ where
     /*
      * **** Switchboard circuit ****
      */
+
+    // This stores the switch variables for each instruction. The switch variables are needed to
+    // turn sub-circuits on or off.
     let mut switches = Vec::new();
+
+    // unreachable, i.e. nop
     self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
 
+    // local.get, local.set, local.tee
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
     self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
 
+    // branch opcodes
     self.visit_br(cs.namespace(|| "br"), &mut switches)?;
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
     self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switches)?;
     self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
 
+    // return opcodes
     self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
     self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
 
+    // call related opcodes
     self
       .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
     self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
     self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
 
+    // select opcode
     self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
 
+    // global opcodes
     self.visit_global_get(cs.namespace(|| "global.get"), &mut switches)?;
     self.visit_global_set(cs.namespace(|| "global.set"), &mut switches)?;
 
+    // store and load opcodes
     self.visit_store(cs.namespace(|| "store"), &mut switches)?;
     self.visit_load(cs.namespace(|| "load"), &mut switches)?;
 
+    // specific linear memory opcodes
     self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
     self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
     self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switches)?;
@@ -142,8 +104,10 @@ where
     self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
     self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
 
+    // const opcodes
     self.visit_const(cs.namespace(|| "const"), &mut switches)?;
 
+    // i32 opcodes
     self.visit_i32_add(cs.namespace(|| "i32.add"), &mut switches)?;
     self.visit_i32_sub(cs.namespace(|| "i32.sub"), &mut switches)?;
     self.visit_i32_mul(cs.namespace(|| "i32.mul"), &mut switches)?;
@@ -155,6 +119,7 @@ where
     self.visit_i32_lt_ge_s(cs.namespace(|| "visit_i32_lt_ge_s"), &mut switches)?;
     self.visit_i32_le_gt_s(cs.namespace(|| "visit_i32_le_gt_s"), &mut switches)?;
 
+    // i64 opcodes
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
     self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
@@ -166,10 +131,12 @@ where
     self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
     self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
 
+    // eq, eqz, ne for i32 and i64
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
     self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
     self.visit_ne(cs.namespace(|| "visit_ne"), &mut switches)?;
 
+    // unary and binary ops
     self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
     self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
 
@@ -2472,5 +2439,56 @@ impl Default for WASMTransitionCircuit {
       WS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
       stack_len: 0,
     }
+  }
+}
+
+#[derive(Clone, Debug)]
+/// Circuit that batches zkVM steps into one step.
+pub struct BatchedWasmTransitionCircuit {
+  circuits: Vec<WASMTransitionCircuit>,
+}
+
+impl<F> StepCircuit<F> for BatchedWasmTransitionCircuit
+where
+  F: PrimeField + PrimeFieldBits,
+{
+  fn arity(&self) -> usize {
+    1
+  }
+
+  fn synthesize<CS: ConstraintSystem<F>>(
+    &self,
+    cs: &mut CS,
+    z: &[AllocatedNum<F>],
+  ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
+    let mut z = z.to_vec();
+
+    for circuit in self.circuits.iter() {
+      z = circuit.synthesize(cs, &z)?;
+    }
+
+    Ok(z)
+  }
+
+  fn non_deterministic_advice(&self) -> Vec<F> {
+    self
+      .circuits
+      .iter()
+      .flat_map(|circuit| circuit.non_deterministic_advice())
+      .collect()
+  }
+}
+
+impl BatchedWasmTransitionCircuit {
+  /// Create an empty instance of [`BatchedWasmTransitionCircuit`]
+  pub fn empty(step_size: usize) -> Self {
+    Self {
+      circuits: vec![WASMTransitionCircuit::default(); step_size],
+    }
+  }
+
+  /// Create a new instance of [`BatchedWasmTransitionCircuit`]
+  pub fn new(circuits: Vec<WASMTransitionCircuit>) -> Self {
+    Self { circuits }
   }
 }
