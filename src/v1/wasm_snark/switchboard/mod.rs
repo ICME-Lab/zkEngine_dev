@@ -29,6 +29,7 @@ use wasmi::{
 };
 
 mod alu;
+
 /// The circuit representing a step in the execution of a WASM program. Each step in WASM execution
 /// corresponds to an opcode (from the WASM ISA) that gets executed.
 ///
@@ -178,9 +179,9 @@ where
       .iter()
       .zip_eq(self.WS.iter())
       .flat_map(|(rs, ws)| {
-        let rs_vec = avt_tuple_to_scalar_vec::<F>(*rs);
-        let ws_vec = avt_tuple_to_scalar_vec::<F>(*ws);
-        rs_vec.into_iter().chain(ws_vec)
+        avt_tuple_to_scalar_vec::<F>(*rs)
+          .into_iter()
+          .chain(avt_tuple_to_scalar_vec::<F>(*ws))
       })
       .collect()
   }
