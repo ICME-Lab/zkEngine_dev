@@ -188,7 +188,7 @@ where
 }
 
 impl WASMTransitionCircuit {
-  /// Allocate if switch is on or off depending on the instruction
+  /// Allocate a switch. Depending on the instruction it could be on or off.
   fn switch<CS, F>(
     &self,
     cs: &mut CS,
@@ -199,10 +199,15 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
+    // Check if instruction is on or off
     let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
+
+    // Push the allocated switch to the switches vector to be used in the switch constraints
     switches.push(AllocatedNum::alloc(cs.namespace(|| "switch"), || {
       Ok(switch)
     })?);
+
+    // return the switch as a constant
     Ok(switch)
   }
 
