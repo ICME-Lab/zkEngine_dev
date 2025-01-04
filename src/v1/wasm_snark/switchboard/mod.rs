@@ -144,7 +144,7 @@ where
     self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
 
     /*
-     *  Switch constraints
+     *  ***************** Switch constraints *****************
      */
 
     // 1. Single switch constraint:
