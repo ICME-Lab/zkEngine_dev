@@ -109,24 +109,40 @@ where
     let mut switches = Vec::new();
     self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
 
-    self.visit_const(cs.namespace(|| "const"), &mut switches)?;
-
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
     self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
     self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
+
+    self.visit_br(cs.namespace(|| "br"), &mut switches)?;
+    self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
+    self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
+    self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switches)?;
+    self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
+
+    self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
+    self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
+
+    self
+      .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
+    self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
+    self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
+
+    self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
+
     self.visit_global_get(cs.namespace(|| "global.get"), &mut switches)?;
     self.visit_global_set(cs.namespace(|| "global.set"), &mut switches)?;
 
-    self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
-    self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
-    self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
-    self.visit_i64_div_rem_u(cs.namespace(|| "visit_i64_div_rem_u"), &mut switches)?;
-    self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switches)?;
-    self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switches)?;
-    self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switches)?;
-    self.visit_i64_shift_rotate(cs.namespace(|| "visit_i64_shift_rotate"), &mut switches)?;
-    self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
-    self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
+    self.visit_store(cs.namespace(|| "store"), &mut switches)?;
+    self.visit_load(cs.namespace(|| "load"), &mut switches)?;
+
+    self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
+    self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
+    self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switches)?;
+    self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switches)?;
+    self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
+    self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
+
+    self.visit_const(cs.namespace(|| "const"), &mut switches)?;
 
     self.visit_i32_add(cs.namespace(|| "i32.add"), &mut switches)?;
     self.visit_i32_sub(cs.namespace(|| "i32.sub"), &mut switches)?;
@@ -139,38 +155,23 @@ where
     self.visit_i32_lt_ge_s(cs.namespace(|| "visit_i32_lt_ge_s"), &mut switches)?;
     self.visit_i32_le_gt_s(cs.namespace(|| "visit_i32_le_gt_s"), &mut switches)?;
 
+    self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
+    self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
+    self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
+    self.visit_i64_div_rem_u(cs.namespace(|| "visit_i64_div_rem_u"), &mut switches)?;
+    self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switches)?;
+    self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switches)?;
+    self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switches)?;
+    self.visit_i64_shift_rotate(cs.namespace(|| "visit_i64_shift_rotate"), &mut switches)?;
+    self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
+    self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
+
     self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
     self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
     self.visit_ne(cs.namespace(|| "visit_ne"), &mut switches)?;
 
-    self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
-    self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
-    self.visit_br(cs.namespace(|| "Instr::Br"), &mut switches)?;
-    self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
-    self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switches)?;
-
-    self.visit_store(cs.namespace(|| "store"), &mut switches)?;
-    self.visit_load(cs.namespace(|| "load"), &mut switches)?;
-
-    self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
-
-    self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
-    self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
-    self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switches)?;
-    self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switches)?;
-    self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
-    self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
-
-    self
-      .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
-    self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
-    self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
-
     self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
     self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
-
-    self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
-    self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
 
     /*
      *  Switch constraints
@@ -370,249 +371,6 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// memory.size
-  fn visit_call_internal_step<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::CallZeroWrite }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// memory.copy
-  fn visit_memory_copy<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::MemoryCopy }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// memory.size
-  fn visit_memory_size<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::MemorySize }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// memory.size
-  fn visit_memory_grow<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::MemoryGrow }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// memory.copy step
-  fn visit_memory_copy_step<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::MemoryCopyStep }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// memory.fill
-  fn visit_memory_fill<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::MemoryFill }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// memory.fill step
-  fn visit_memory_fill_step<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::MemoryFillStep }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// host call stack step
-  fn visit_host_call_stack_step<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::HostCallStackStep }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// host call step
-  fn visit_host_call_step<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::HostCallStep }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// global.get
-  fn visit_global_get<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::GlobalGet(BCGlobalIdx::from(0)) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// BrTable
-  fn visit_br_table<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::BrTable(BranchTableTargets::try_from(0).unwrap()) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// BrTable
-  fn visit_br_adjust<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::BrAdjust(BranchOffset::uninit()) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// global.set
-  fn visit_global_set<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::GlobalSet(BCGlobalIdx::from(0)) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// Select
-  fn visit_select<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::Select }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// Push a const onto the stack
-  fn visit_const<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::I64Const32(0) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let pre_sp = Self::alloc_num(
-      &mut cs,
-      || "pre_sp",
-      || Ok(F::from(self.vm.pre_sp as u64)),
-      switch,
-    )?;
-
-    let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch)?;
-
-    Self::write(
-      cs.namespace(|| "push I on stack"),
-      &pre_sp,
-      &I,
-      &self.WS[0],
-      switch,
-    )?;
-
-    Ok(())
-  }
-
   /// local.get
   fn visit_local_get<CS, F>(
     &self,
@@ -639,8 +397,6 @@ impl WASMTransitionCircuit {
       &self.RS[0],
       switch,
     )?;
-
-    // let read_val = Self::alloc_num(&mut cs, || "read_val", || Ok(F::from(self.vm.P)), switch)?;
 
     let pre_sp = Self::alloc_num(
       &mut cs,
@@ -739,8 +495,8 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.sub
-  fn visit_i64_sub<CS, F>(
+  /// Instr::Br
+  fn visit_br<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -749,49 +505,25 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64Sub }.index_j();
+    let J: u64 = { Instr::Br(BranchOffset::uninit()) }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let X_addr = Self::alloc_num(
+    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
+
+    let branch_offset = Self::alloc_num(
       &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      || "branch_offset",
+      || Ok(F::from(self.vm.I)),
       switch,
     )?;
 
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
-
-    let Y_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
-
-    let Z = sub64(
-      cs.namespace(|| "X - Y"),
-      &X,
-      &Y,
-      self.vm.X,
-      self.vm.Y,
-      switch,
-    )?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
-      &self.WS[2],
-      switch,
-    )?;
+    let _branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
 
     Ok(())
   }
 
-  /// i64.add
-  fn visit_i64_add<CS, F>(
+  /// Instr::BrIfEqz
+  fn visit_br_if_eqz<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -800,49 +532,49 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64Add }.index_j();
+    let J: u64 = { Instr::BrIfEqz(BranchOffset::uninit()) }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let X_addr = Self::alloc_num(
+    let one = alloc_one(cs.namespace(|| "one"));
+
+    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
+    let next_pc = add(cs.namespace(|| "pc + 1"), &pc, &one)?;
+
+    let branch_offset = Self::alloc_num(
       &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      || "branch_offset",
+      || Ok(F::from(self.vm.I)),
       switch,
     )?;
 
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
 
-    let Y_addr = Self::alloc_num(
+    // addr of last value on stack
+    let last = Self::alloc_num(
       &mut cs,
-      || "pre_sp - 1",
+      || "last",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
 
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
+    let condition_eqz = eqz_bit(cs.namespace(|| "condition == 0"), &condition)?;
 
-    let Z = add64(
-      cs.namespace(|| "X + Y"),
-      &X,
-      &Y,
-      self.vm.X,
-      self.vm.Y,
-      switch,
-    )?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
-      &self.WS[2],
-      switch,
-    )?;
+    // if condtion == 0 then new_pc = branch_pc else new_pc = next_pc
+    //
+    // In other words if condition_eqz is true then new_pc = branch_pc else new_pc = next_pc
+    let _new_pc = conditionally_select(
+      cs.namespace(|| "new_pc"),
+      &branch_pc,
+      &next_pc,
+      &condition_eqz,
+    )?; // TODO: constrain pc
 
     Ok(())
   }
 
-  /// i64.mul
-  fn visit_i64_mul<CS, F>(
+  /// Instr::BrIfNez
+  fn visit_br_if_nez<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -851,49 +583,49 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64Mul }.index_j();
+    let J: u64 = { Instr::BrIfNez(BranchOffset::uninit()) }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let X_addr = Self::alloc_num(
+    let one = alloc_one(cs.namespace(|| "one"));
+
+    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
+    let next_pc = add(cs.namespace(|| "pc + 1"), &pc, &one)?;
+
+    let branch_offset = Self::alloc_num(
       &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      || "branch_offset",
+      || Ok(F::from(self.vm.I)),
       switch,
     )?;
 
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
 
-    let Y_addr = Self::alloc_num(
+    // addr of last value on stack
+    let last = Self::alloc_num(
       &mut cs,
-      || "pre_sp - 1",
+      || "last",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
 
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
+    let condition_eqz = eqz_bit(cs.namespace(|| "condition == 0"), &condition)?;
 
-    let Z = mul64(
-      cs.namespace(|| "X * Y"),
-      &X,
-      &Y,
-      self.vm.X,
-      self.vm.Y,
-      switch,
-    )?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
-      &self.WS[2],
-      switch,
-    )?;
+    // if condtion == 0 then new_pc = next_pc  else  new_pc = branch_pc
+    //
+    // In other words if condition_eqz is true then new_pc = next_pc else new_pc = branch_pc
+    let _new_pc = conditionally_select(
+      cs.namespace(|| "new_pc"),
+      &next_pc,
+      &branch_pc,
+      &condition_eqz,
+    )?; // TODO: constrain pc
 
     Ok(())
   }
 
-  /// i64.div_u, i64.rem_u
-  fn visit_i64_div_rem_u<CS, F>(
+  /// BrTable
+  fn visit_br_adjust<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -902,227 +634,69 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64DivU }.index_j();
+    let J: u64 = { Instr::BrAdjust(BranchOffset::uninit()) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// BrTable
+  fn visit_br_table<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::BrTable(BranchTableTargets::try_from(0).unwrap()) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// drop_keep
+  fn drop_keep<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::DropKeep }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let X_addr = Self::alloc_num(
+    let drop = self.vm.I;
+    let keep = self.vm.P;
+    let pre_sp_u64 = self.vm.pre_sp as u64;
+
+    let read_addr = Self::alloc_num(
       &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      || "read_addr",
+      || {
+        let read_addr_u64 = pre_sp_u64 - keep;
+        Ok(F::from(read_addr_u64))
+      },
       switch,
     )?;
 
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let read_val = Self::read(cs.namespace(|| "read val"), &read_addr, &self.RS[0], switch)?;
 
-    let Y_addr = Self::alloc_num(
+    let write_addr = Self::alloc_num(
       &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
-
-    let (quotient, rem) = div_rem_u_64(
-      cs.namespace(|| "div_rem_u_64"),
-      &X,
-      &Y,
-      self.vm.X,
-      self.vm.Y,
-      switch,
-    )?;
-
-    let Z = Self::alloc_num(
-      &mut cs,
-      || "Z",
-      || match self.vm.instr {
-        Instr::I64DivU => Ok(
-          quotient
-            .get_value()
-            .ok_or(SynthesisError::AssignmentMissing)?,
-        ),
-        Instr::I64RemU => Ok(rem.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        _ => Ok(F::ZERO),
+      || "write addr",
+      || {
+        let write_addr_u64 = pre_sp_u64 - drop - keep;
+        Ok(F::from(write_addr_u64))
       },
       switch,
     )?;
 
     Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
-      &self.WS[2],
-      switch,
-    )?;
-
-    Ok(())
-  }
-
-  /// i64.div_s, i64.rem_s
-  fn visit_i64_div_rem_s<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::I64DivS }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let X_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
-      switch,
-    )?;
-
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
-
-    let Y_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
-
-    let (quotient, rem) = div_rem_s_64(
-      cs.namespace(|| "div_rem_s_64"),
-      &X,
-      &Y,
-      self.vm.X,
-      self.vm.Y,
-      switch,
-    )?;
-
-    let Z = Self::alloc_num(
-      &mut cs,
-      || "Z",
-      || match self.vm.instr {
-        Instr::I64DivS => Ok(
-          quotient
-            .get_value()
-            .ok_or(SynthesisError::AssignmentMissing)?,
-        ),
-        Instr::I64RemS => Ok(rem.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        _ => Ok(F::ZERO),
-      },
-      switch,
-    )?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
-      &self.WS[2],
-      switch,
-    )?;
-
-    Ok(())
-  }
-
-  /// i64.and, i64.xor, i64.or
-  fn visit_i64_bitops<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField + PrimeFieldBits,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::I64And }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let X_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
-      switch,
-    )?;
-
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
-
-    let Y_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
-
-    let (and, xor, or) = bitops_64(cs.namespace(|| "bitops_64"), &X, &Y)?;
-    let Z = Self::alloc_num(
-      &mut cs,
-      || "Z",
-      || match self.vm.instr {
-        Instr::I64And => Ok(and.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64Xor => Ok(xor.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64Or => Ok(or.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        _ => Ok(F::ZERO),
-      },
-      switch,
-    )?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
-      &self.WS[2],
-      switch,
-    )?;
-
-    Ok(())
-  }
-
-  /// i64.popcnt, i64.clz, i64.ctz
-  fn visit_i64_unary_ops<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField + PrimeFieldBits,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::I64Popcnt }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
-
-    let (popcnt, clz, ctz) = unary_ops_64(cs.namespace(|| "unary_ops_64"), &Y, self.vm.Y, switch)?;
-
-    let Z = Self::alloc_num(
-      &mut cs,
-      || "Z",
-      || match self.vm.instr {
-        Instr::I64Popcnt => Ok(
-          popcnt
-            .get_value()
-            .ok_or(SynthesisError::AssignmentMissing)?,
-        ),
-        Instr::I64Clz => Ok(clz.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64Ctz => Ok(ctz.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        _ => Ok(F::ZERO),
-      },
-      switch,
-    )?;
-
-    Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &last_addr, // pre_sp - 1
-      &Z,
+      cs.namespace(|| "drop keep write"),
+      &write_addr,
+      &read_val,
       &self.WS[1],
       switch,
     )?;
@@ -1130,193 +704,385 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.lt_u, i64.lt_s, i64.ge_u, i64.ge_s
-  fn visit_i64_lt_ge_s<CS, F>(
+  /// Return instruction
+  fn visit_ret<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
   ) -> Result<(), SynthesisError>
   where
-    F: PrimeField + PrimeFieldBits,
+    F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64LtS }.index_j();
+    let J: u64 = { Instr::Return(DropKeep::new(0, 0).unwrap()) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// host call stack step
+  fn visit_host_call_stack_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::HostCallStackStep }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// host call step
+  fn visit_host_call_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::HostCallStep }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// visit_call_internal_step
+  fn visit_call_internal_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::CallZeroWrite }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// Select
+  fn visit_select<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::Select }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// global.get
+  fn visit_global_get<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::GlobalGet(BCGlobalIdx::from(0)) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// global.set
+  fn visit_global_set<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::GlobalSet(BCGlobalIdx::from(0)) }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// Store instruction
+  fn visit_store<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Store(AddressOffset::from(0)) }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let X_addr = Self::alloc_num(
+    // Stack ops
+    let raw_last = Self::alloc_num(
       &mut cs,
       || "pre_sp - 2",
       || Ok(F::from((self.vm.pre_sp - 2) as u64)),
       switch,
     )?;
 
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+    let _ = Self::read(cs.namespace(|| "raw_addr"), &raw_last, &self.RS[0], switch)?;
 
-    let Y_addr = Self::alloc_num(
+    let val_addr = Self::alloc_num(
       &mut cs,
       || "pre_sp - 1",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
 
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    let _ = Self::read(cs.namespace(|| "val"), &val_addr, &self.RS[1], switch)?;
 
-    let (lt, ge, lt_s, ge_s) = lt_ge_s(
-      cs.namespace(|| "lt_ge_s"),
-      &X,
-      &Y,
-      self.vm.X,
-      self.vm.Y,
-      switch,
-    )?;
+    // linear mem ops
+    let effective_addr = self.vm.I;
 
-    let Z = Self::alloc_num(
+    let write_addr_1 = Self::alloc_num(
       &mut cs,
-      || "Z",
-      || match self.vm.instr {
-        Instr::I64LtU => Ok(lt.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64GeU => Ok(ge.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64LtS => Ok(lt_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64GeS => Ok(ge_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        _ => Ok(F::ZERO),
+      || "write_addr_1",
+      || {
+        let write_addr_1 = effective_addr / 8 + self.stack_len as u64;
+        Ok(F::from(write_addr_1))
       },
       switch,
     )?;
 
+    let write_addr_2 = Self::alloc_num(
+      &mut cs,
+      || "write_addr_2",
+      || {
+        let write_addr_2 = effective_addr / 8 + 1 + self.stack_len as u64;
+        Ok(F::from(write_addr_2))
+      },
+      switch,
+    )?;
+
+    let write_val_1 =
+      Self::alloc_num(&mut cs, || "write_val_1", || Ok(F::from(self.vm.P)), switch)?;
+    let write_val_2 =
+      Self::alloc_num(&mut cs, || "write_val_2", || Ok(F::from(self.vm.Q)), switch)?;
+
     Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
+      cs.namespace(|| "store 1"),
+      &write_addr_1,
+      &write_val_1,
       &self.WS[2],
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "store 2"),
+      &write_addr_2,
+      &write_val_2,
+      &self.WS[3],
       switch,
     )?;
 
     Ok(())
   }
 
-  /// i64.le_u, i64.gt_s, i64.le_u, i64.gt_s
-  fn visit_i64_le_gt_s<CS, F>(
+  /// Store instruction
+  fn visit_load<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
   ) -> Result<(), SynthesisError>
   where
-    F: PrimeField + PrimeFieldBits,
+    F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64LeS }.index_j();
+    let J: u64 = { Instr::I64Load(AddressOffset::from(0)) }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let X_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
-      switch,
-    )?;
-
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
-
-    let Y_addr = Self::alloc_num(
+    // Stack ops
+    let last = Self::alloc_num(
       &mut cs,
       || "pre_sp - 1",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
 
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    let _ = Self::read(cs.namespace(|| "val"), &last, &self.RS[0], switch)?;
 
-    let (le, gt, le_s, gt_s) = le_gt_s(
-      cs.namespace(|| "le_gt_s"),
-      &X,
-      &Y,
-      self.vm.X,
-      self.vm.Y,
-      switch,
-    )?;
+    // linear mem ops
+    let effective_addr = self.vm.I;
 
-    let Z = Self::alloc_num(
+    let read_addr_1 = Self::alloc_num(
       &mut cs,
-      || "Z",
-      || match self.vm.instr {
-        Instr::I64LeU => Ok(le.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64GtU => Ok(gt.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64LeS => Ok(le_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64GtS => Ok(gt_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        _ => Ok(F::ZERO),
+      || "read_addr_1",
+      || {
+        let read_addr_1 = effective_addr / 8 + self.stack_len as u64;
+        Ok(F::from(read_addr_1))
       },
       switch,
     )?;
 
+    let read_addr_2 = Self::alloc_num(
+      &mut cs,
+      || "read_addr_2",
+      || {
+        let read_addr_2 = effective_addr / 8 + 1 + self.stack_len as u64;
+        Ok(F::from(read_addr_2))
+      },
+      switch,
+    )?;
+
+    let _ = Self::read(
+      cs.namespace(|| "block_val_1"),
+      &read_addr_1,
+      &self.RS[1],
+      switch,
+    )?;
+    let _ = Self::read(
+      cs.namespace(|| "block_val_1"),
+      &read_addr_2,
+      &self.RS[2],
+      switch,
+    )?;
+
+    let stack_write_val =
+      Self::alloc_num(&mut cs, || "stack write", || Ok(F::from(self.vm.Z)), switch)?;
+
     Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
-      &self.WS[2],
+      cs.namespace(|| "store 1"),
+      &last,
+      &stack_write_val,
+      &self.WS[3],
       switch,
     )?;
 
     Ok(())
   }
 
-  /// i64.shl, i64.shr_u, i64.shr_s, i64.rotr, i64.rotl
-  fn visit_i64_shift_rotate<CS, F>(
+  /// memory.copy
+  fn visit_memory_copy<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
   ) -> Result<(), SynthesisError>
   where
-    F: PrimeField + PrimeFieldBits,
+    F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64Shl }.index_j();
+    let J: u64 = { Instr::MemoryCopy }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.size
+  fn visit_memory_size<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemorySize }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.size
+  fn visit_memory_grow<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryGrow }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.fill
+  fn visit_memory_fill<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryFill }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.fill step
+  fn visit_memory_fill_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryFillStep }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// memory.copy step
+  fn visit_memory_copy_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryCopyStep }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
+  /// Push a const onto the stack
+  fn visit_const<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Const32(0) }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let X_addr = Self::alloc_num(
+    let pre_sp = Self::alloc_num(
       &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      || "pre_sp",
+      || Ok(F::from(self.vm.pre_sp as u64)),
       switch,
     )?;
 
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
-
-    let Y_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
-
-    let (shl, shr_u, shr_s, rotr, rotl) =
-      shift_rotate_64(cs.namespace(|| "shift_rotate_64"), &X, self.vm.Y as usize)?;
-
-    let Z = Self::alloc_num(
-      &mut cs,
-      || "Z",
-      || match self.vm.instr {
-        Instr::I64Shl => Ok(shl.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64ShrU => Ok(shr_u.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64ShrS => Ok(shr_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64Rotr => Ok(rotr.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        Instr::I64Rotl => Ok(rotl.get_value().ok_or(SynthesisError::AssignmentMissing)?),
-        _ => Ok(F::ZERO),
-      },
-      switch,
-    )?;
+    let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch)?;
 
     Self::write(
-      cs.namespace(|| "push Z on stack"),
-      &X_addr, // pre_sp - 2
-      &Z,
-      &self.WS[2],
+      cs.namespace(|| "push I on stack"),
+      &pre_sp,
+      &I,
+      &self.WS[0],
       switch,
     )?;
 
     Ok(())
   }
-
   /// i32.sub
   fn visit_i32_sub<CS, F>(
     &self,
@@ -1900,8 +1666,8 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Instr::BrIfEqz
-  fn visit_br_if_eqz<CS, F>(
+  /// i64.sub
+  fn visit_i64_sub<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -1910,49 +1676,49 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::BrIfEqz(BranchOffset::uninit()) }.index_j();
+    let J: u64 = { Instr::I64Sub }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let one = alloc_one(cs.namespace(|| "one"));
-
-    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
-    let next_pc = add(cs.namespace(|| "pc + 1"), &pc, &one)?;
-
-    let branch_offset = Self::alloc_num(
+    let X_addr = Self::alloc_num(
       &mut cs,
-      || "branch_offset",
-      || Ok(F::from(self.vm.I)),
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
       switch,
     )?;
 
-    let branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
-    // addr of last value on stack
-    let last = Self::alloc_num(
+    let Y_addr = Self::alloc_num(
       &mut cs,
-      || "last",
+      || "pre_sp - 1",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
 
-    let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
-    let condition_eqz = eqz_bit(cs.namespace(|| "condition == 0"), &condition)?;
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    // if condtion == 0 then new_pc = branch_pc else new_pc = next_pc
-    //
-    // In other words if condition_eqz is true then new_pc = branch_pc else new_pc = next_pc
-    let _new_pc = conditionally_select(
-      cs.namespace(|| "new_pc"),
-      &branch_pc,
-      &next_pc,
-      &condition_eqz,
-    )?; // TODO: constrain pc
+    let Z = sub64(
+      cs.namespace(|| "X - Y"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
 
     Ok(())
   }
 
-  /// Instr::BrIfNez
-  fn visit_br_if_nez<CS, F>(
+  /// i64.add
+  fn visit_i64_add<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -1961,49 +1727,49 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::BrIfNez(BranchOffset::uninit()) }.index_j();
+    let J: u64 = { Instr::I64Add }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let one = alloc_one(cs.namespace(|| "one"));
-
-    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
-    let next_pc = add(cs.namespace(|| "pc + 1"), &pc, &one)?;
-
-    let branch_offset = Self::alloc_num(
+    let X_addr = Self::alloc_num(
       &mut cs,
-      || "branch_offset",
-      || Ok(F::from(self.vm.I)),
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
       switch,
     )?;
 
-    let branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
-    // addr of last value on stack
-    let last = Self::alloc_num(
+    let Y_addr = Self::alloc_num(
       &mut cs,
-      || "last",
+      || "pre_sp - 1",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
 
-    let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
-    let condition_eqz = eqz_bit(cs.namespace(|| "condition == 0"), &condition)?;
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    // if condtion == 0 then new_pc = next_pc  else  new_pc = branch_pc
-    //
-    // In other words if condition_eqz is true then new_pc = next_pc else new_pc = branch_pc
-    let _new_pc = conditionally_select(
-      cs.namespace(|| "new_pc"),
-      &next_pc,
-      &branch_pc,
-      &condition_eqz,
-    )?; // TODO: constrain pc
+    let Z = add64(
+      cs.namespace(|| "X + Y"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
 
     Ok(())
   }
 
-  /// Instr::Br
-  fn visit_br<CS, F>(
+  /// i64.mul
+  fn visit_i64_mul<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -2012,25 +1778,49 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::Br(BranchOffset::uninit()) }.index_j();
+    let J: u64 = { Instr::I64Mul }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
-
-    let branch_offset = Self::alloc_num(
+    let X_addr = Self::alloc_num(
       &mut cs,
-      || "branch_offset",
-      || Ok(F::from(self.vm.I)),
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
       switch,
     )?;
 
-    let _branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let Z = mul64(
+      cs.namespace(|| "X * Y"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
 
     Ok(())
   }
 
-  /// drop_keep
-  fn drop_keep<CS, F>(
+  /// i64.div_u, i64.rem_u
+  fn visit_i64_div_rem_u<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
@@ -2039,39 +1829,227 @@ impl WASMTransitionCircuit {
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::DropKeep }.index_j();
+    let J: u64 = { Instr::I64DivU }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    let drop = self.vm.I;
-    let keep = self.vm.P;
-    let pre_sp_u64 = self.vm.pre_sp as u64;
-
-    let read_addr = Self::alloc_num(
+    let X_addr = Self::alloc_num(
       &mut cs,
-      || "read_addr",
-      || {
-        let read_addr_u64 = pre_sp_u64 - keep;
-        Ok(F::from(read_addr_u64))
-      },
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
       switch,
     )?;
 
-    let read_val = Self::read(cs.namespace(|| "read val"), &read_addr, &self.RS[0], switch)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
-    let write_addr = Self::alloc_num(
+    let Y_addr = Self::alloc_num(
       &mut cs,
-      || "write addr",
-      || {
-        let write_addr_u64 = pre_sp_u64 - drop - keep;
-        Ok(F::from(write_addr_u64))
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let (quotient, rem) = div_rem_u_64(
+      cs.namespace(|| "div_rem_u_64"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
+
+    let Z = Self::alloc_num(
+      &mut cs,
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64DivU => Ok(
+          quotient
+            .get_value()
+            .ok_or(SynthesisError::AssignmentMissing)?,
+        ),
+        Instr::I64RemU => Ok(rem.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
       },
       switch,
     )?;
 
     Self::write(
-      cs.namespace(|| "drop keep write"),
-      &write_addr,
-      &read_val,
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.div_s, i64.rem_s
+  fn visit_i64_div_rem_s<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64DivS }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let (quotient, rem) = div_rem_s_64(
+      cs.namespace(|| "div_rem_s_64"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
+
+    let Z = Self::alloc_num(
+      &mut cs,
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64DivS => Ok(
+          quotient
+            .get_value()
+            .ok_or(SynthesisError::AssignmentMissing)?,
+        ),
+        Instr::I64RemS => Ok(rem.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
+      },
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.and, i64.xor, i64.or
+  fn visit_i64_bitops<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64And }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let (and, xor, or) = bitops_64(cs.namespace(|| "bitops_64"), &X, &Y)?;
+    let Z = Self::alloc_num(
+      &mut cs,
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64And => Ok(and.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64Xor => Ok(xor.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64Or => Ok(or.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
+      },
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.popcnt, i64.clz, i64.ctz
+  fn visit_i64_unary_ops<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Popcnt }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+
+    let (popcnt, clz, ctz) = unary_ops_64(cs.namespace(|| "unary_ops_64"), &Y, self.vm.Y, switch)?;
+
+    let Z = Self::alloc_num(
+      &mut cs,
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64Popcnt => Ok(
+          popcnt
+            .get_value()
+            .ok_or(SynthesisError::AssignmentMissing)?,
+        ),
+        Instr::I64Clz => Ok(clz.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64Ctz => Ok(ctz.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
+      },
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &last_addr, // pre_sp - 1
+      &Z,
       &self.WS[1],
       switch,
     )?;
@@ -2079,167 +2057,187 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Return instruction
-  fn visit_ret<CS, F>(
+  /// i64.lt_u, i64.lt_s, i64.ge_u, i64.ge_s
+  fn visit_i64_lt_ge_s<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
   ) -> Result<(), SynthesisError>
   where
-    F: PrimeField,
+    F: PrimeField + PrimeFieldBits,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::Return(DropKeep::new(0, 0).unwrap()) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// Store instruction
-  fn visit_store<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::I64Store(AddressOffset::from(0)) }.index_j();
+    let J: u64 = { Instr::I64LtS }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    // Stack ops
-    let raw_last = Self::alloc_num(
+    let X_addr = Self::alloc_num(
       &mut cs,
       || "pre_sp - 2",
       || Ok(F::from((self.vm.pre_sp - 2) as u64)),
       switch,
     )?;
 
-    let _ = Self::read(cs.namespace(|| "raw_addr"), &raw_last, &self.RS[0], switch)?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
 
-    let val_addr = Self::alloc_num(
+    let Y_addr = Self::alloc_num(
       &mut cs,
       || "pre_sp - 1",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
 
-    let _ = Self::read(cs.namespace(|| "val"), &val_addr, &self.RS[1], switch)?;
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    // linear mem ops
-    let effective_addr = self.vm.I;
-
-    let write_addr_1 = Self::alloc_num(
-      &mut cs,
-      || "write_addr_1",
-      || {
-        let write_addr_1 = effective_addr / 8 + self.stack_len as u64;
-        Ok(F::from(write_addr_1))
-      },
+    let (lt, ge, lt_s, ge_s) = lt_ge_s(
+      cs.namespace(|| "lt_ge_s"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
       switch,
     )?;
 
-    let write_addr_2 = Self::alloc_num(
+    let Z = Self::alloc_num(
       &mut cs,
-      || "write_addr_2",
-      || {
-        let write_addr_2 = effective_addr / 8 + 1 + self.stack_len as u64;
-        Ok(F::from(write_addr_2))
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64LtU => Ok(lt.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64GeU => Ok(ge.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64LtS => Ok(lt_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64GeS => Ok(ge_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
       },
       switch,
     )?;
-
-    let write_val_1 =
-      Self::alloc_num(&mut cs, || "write_val_1", || Ok(F::from(self.vm.P)), switch)?;
-    let write_val_2 =
-      Self::alloc_num(&mut cs, || "write_val_2", || Ok(F::from(self.vm.Q)), switch)?;
 
     Self::write(
-      cs.namespace(|| "store 1"),
-      &write_addr_1,
-      &write_val_1,
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
       &self.WS[2],
-      switch,
-    )?;
-
-    Self::write(
-      cs.namespace(|| "store 2"),
-      &write_addr_2,
-      &write_val_2,
-      &self.WS[3],
       switch,
     )?;
 
     Ok(())
   }
 
-  /// Store instruction
-  fn visit_load<CS, F>(
+  /// i64.le_u, i64.gt_s, i64.le_u, i64.gt_s
+  fn visit_i64_le_gt_s<CS, F>(
     &self,
     mut cs: CS,
     switches: &mut Vec<AllocatedNum<F>>,
   ) -> Result<(), SynthesisError>
   where
-    F: PrimeField,
+    F: PrimeField + PrimeFieldBits,
     CS: ConstraintSystem<F>,
   {
-    let J: u64 = { Instr::I64Load(AddressOffset::from(0)) }.index_j();
+    let J: u64 = { Instr::I64LeS }.index_j();
     let switch = self.switch(&mut cs, J, switches)?;
 
-    // Stack ops
-    let last = Self::alloc_num(
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
       &mut cs,
       || "pre_sp - 1",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
 
-    let _ = Self::read(cs.namespace(|| "val"), &last, &self.RS[0], switch)?;
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
 
-    // linear mem ops
-    let effective_addr = self.vm.I;
+    let (le, gt, le_s, gt_s) = le_gt_s(
+      cs.namespace(|| "le_gt_s"),
+      &X,
+      &Y,
+      self.vm.X,
+      self.vm.Y,
+      switch,
+    )?;
 
-    let read_addr_1 = Self::alloc_num(
+    let Z = Self::alloc_num(
       &mut cs,
-      || "read_addr_1",
-      || {
-        let read_addr_1 = effective_addr / 8 + self.stack_len as u64;
-        Ok(F::from(read_addr_1))
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64LeU => Ok(le.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64GtU => Ok(gt.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64LeS => Ok(le_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64GtS => Ok(gt_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
       },
       switch,
     )?;
-
-    let read_addr_2 = Self::alloc_num(
-      &mut cs,
-      || "read_addr_2",
-      || {
-        let read_addr_2 = effective_addr / 8 + 1 + self.stack_len as u64;
-        Ok(F::from(read_addr_2))
-      },
-      switch,
-    )?;
-
-    let _ = Self::read(
-      cs.namespace(|| "block_val_1"),
-      &read_addr_1,
-      &self.RS[1],
-      switch,
-    )?;
-    let _ = Self::read(
-      cs.namespace(|| "block_val_1"),
-      &read_addr_2,
-      &self.RS[2],
-      switch,
-    )?;
-
-    let stack_write_val =
-      Self::alloc_num(&mut cs, || "stack write", || Ok(F::from(self.vm.Z)), switch)?;
 
     Self::write(
-      cs.namespace(|| "store 1"),
-      &last,
-      &stack_write_val,
-      &self.WS[3],
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
+      switch,
+    )?;
+
+    Ok(())
+  }
+
+  /// i64.shl, i64.shr_u, i64.shr_s, i64.rotr, i64.rotl
+  fn visit_i64_shift_rotate<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField + PrimeFieldBits,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::I64Shl }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 2",
+      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
+      switch,
+    )?;
+
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "pre_sp - 1",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+
+    Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    let (shl, shr_u, shr_s, rotr, rotl) =
+      shift_rotate_64(cs.namespace(|| "shift_rotate_64"), &X, self.vm.Y as usize)?;
+
+    let Z = Self::alloc_num(
+      &mut cs,
+      || "Z",
+      || match self.vm.instr {
+        Instr::I64Shl => Ok(shl.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64ShrU => Ok(shr_u.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64ShrS => Ok(shr_s.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64Rotr => Ok(rotr.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        Instr::I64Rotl => Ok(rotl.get_value().ok_or(SynthesisError::AssignmentMissing)?),
+        _ => Ok(F::ZERO),
+      },
+      switch,
+    )?;
+
+    Self::write(
+      cs.namespace(|| "push Z on stack"),
+      &X_addr, // pre_sp - 2
+      &Z,
+      &self.WS[2],
       switch,
     )?;
 
