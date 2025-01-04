@@ -29,8 +29,11 @@ use wasmi::{
 };
 
 mod alu;
-/// Switchboard circuit representing a step (WASM execution is a series of opcodes executed in
-/// steps) in a WASM program execution.
+/// The circuit representing a step in the execution of a WASM program. Each step in WASM execution
+/// corresponds to an opcode (from the WASM ISA) that gets executed.
+///
+/// This circuit performs checks on the VM state, ensuring it is valid and that it correctly
+/// transitions from the previous VM state, hence the name [`WASMTransitionCircuit`].
 #[derive(Clone, Debug)]
 pub struct WASMTransitionCircuit {
   vm: WitnessVM,
@@ -53,7 +56,7 @@ where
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
     /*
-     * **** Switchboard circuit ****
+     * ***************** Switchboard Circuit *****************
      */
 
     // This stores the switch variables for each instruction. The switch variables are needed to
@@ -2430,6 +2433,7 @@ impl WASMTransitionCircuit {
     }
   }
 }
+
 impl Default for WASMTransitionCircuit {
   fn default() -> Self {
     Self {
