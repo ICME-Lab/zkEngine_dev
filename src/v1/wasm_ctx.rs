@@ -10,7 +10,8 @@ use std::{cell::RefCell, path::PathBuf, rc::Rc};
 use wasmi::{Tracer, WitnessVM};
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
-/// Builder for [`WASMCtx`]. Defines the WASM execution context that will be used for proving
+/// Builder for [`WASMArgs`]. Constructs the arguments needed to construct a WASM execution context
+/// that will be used for proving.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WASMArgsBuilder {
   program: Vec<u8>,
@@ -46,13 +47,13 @@ impl WASMArgsBuilder {
     self
   }
 
-  /// Set the end slice
+  /// Set the `start` and `end` values to slice the execution trace
   pub fn trace_slice(mut self, trace_slice_vals: TraceSliceValues) -> Self {
     self.trace_slice_vals = Some(trace_slice_vals);
     self
   }
 
-  /// Build the WASM context
+  /// Build the [`WASMArgs`] from the builder
   pub fn build(self) -> WASMArgs {
     WASMArgs {
       program: self.program,
@@ -63,7 +64,7 @@ impl WASMArgsBuilder {
   }
 }
 
-/// WASM execution context: contains the WASM program and its [`WASMCtxMetaData`]
+/// Arguments needed to construct a WASM execution context that will be used for proving.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WASMArgs {
   pub(in crate::v1) program: Vec<u8>,
@@ -189,6 +190,7 @@ pub trait ZKWASMCtx {
       .instantiate_with_trace(&mut store, &module, tracer.clone())?
       .start(&mut store)?;
 
+    // Get the WASM module function we are going to invoke.
     let func = instance
       .get_func(&store, &self.args().invoke)
       .ok_or_else(|| {
@@ -197,7 +199,7 @@ pub trait ZKWASMCtx {
         ))
       })?;
 
-    // Prepare i/o
+    // Prepare i/o for the function call.
     let ty = func.ty(&store);
     let func_args = decode_func_args(&ty, &self.args().func_args)?;
     let mut func_results = prepare_func_results(&ty);
@@ -206,25 +208,28 @@ pub trait ZKWASMCtx {
     func.call_with_trace(&mut store, &func_args, &mut func_results, tracer.clone())?;
     tracing::debug!("wasm func res: {:#?}", func_results);
 
+    // Extract the execution trace produced from WASM execution.
+    //
+    // [`unwrap_rc_refcell`] is safe to use here since this parent function ensures that the [`Rc`]
+    // is the sole owner of the execution trace.
     let tracer = unwrap_rc_refcell(tracer);
 
-    /*
-     * Get MCC values:
-     */
+    // Get the MCC values used to construct the initial memory state of the zkWASM.
     let IS_stack_len = tracer.IS_stack_len();
     let IS_mem_len = tracer.IS_mem_len();
-    let max_sp = tracer.max_sp();
-    tracing::debug!("max_sp: {}", max_sp);
-    tracing::debug!("stack len: {}", IS_stack_len);
     let IS = tracer.IS();
-    tracing::debug!("IS_mem.len: {}", IS_mem_len);
 
+    // Take ownership of the execution trace of type [`Vec<WitnessVM>`] because the zkWASM needs
+    // this type to execute.
     let execution_trace = tracer.into_execution_trace();
-    tracing::debug!(
-      "Non padded execution trace len: {:?}",
-      execution_trace.len()
-    );
 
+    // If only proving a portion of the execution trace (a shard) calculate the end value to slice
+    // execution trace and use it to slice the execution trace.
+    //
+    // # Note:
+    //
+    // We do not use the `start` value to slice the execution trace because we need the execution
+    // trace from opcode 0 to opcode `start` to construct the initial memory state of the shard.
     let end_slice = {
       let end_slice_val = self
         .args()
@@ -233,7 +238,6 @@ pub trait ZKWASMCtx {
         .unwrap_or(execution_trace.len());
       std::cmp::min(end_slice_val, execution_trace.len())
     };
-
     let execution_trace = execution_trace[..end_slice].to_vec();
 
     Ok((
@@ -245,7 +249,7 @@ pub trait ZKWASMCtx {
 }
 
 #[derive(Debug, Clone)]
-/// Wasm execution context
+/// A type used to construct a WASM execution context used for proving.
 pub struct WASMCtx {
   args: WASMArgs,
 }
@@ -310,7 +314,11 @@ pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
   Box::new(StdRng::from_seed([0; 32]))
 }
 
-/// Memory sizes for the initial state
+/// # Initial Set (IS) Memory Sizes.
+///
+/// i.e. Memory sizes for the initial state.
+/// We need to know the sizes of the stack and linear
+/// memory of the WASM module to initialize the initial memory state of the zkVM.
 pub struct ISMemSizes {
   IS_stack_len: usize,
   IS_mem_len: usize,
