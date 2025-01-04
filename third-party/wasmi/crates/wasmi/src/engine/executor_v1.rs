@@ -2238,24 +2238,44 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         }
     }
 
-    /// Special tracing method to handle drop keeps
+    /// Special tracing method to handle drop keeps.
+    ///
+    /// # Note
+    ///
+    /// - Each VM state holds one read of the keep value and one write to the new address for the keep value.
+    ///
+    /// - We don't need to trace the dropped values because they will be overwritten or shadowed due to how the stack pointer works.
+    /// The stack doesn't actually pop values but instead shadows them by moving the stack pointer to precede those values.
     fn trace_drop_keep(&self, mut init_vm: WitnessVM, drop_keep: DropKeep) -> Vec<WitnessVM> {
-        // TODO: optimize this to store two writes & reads
         use Instruction as Instr;
         let mut vms = Vec::new();
         init_vm.instr = Instr::DropKeep;
         init_vm.J = init_vm.instr.index_j();
+
+        // `drop` value is traced because we neeed it to calculate the write address for the keep value.
         init_vm.I = drop_keep.drop() as u64;
 
+        // # How the drop keep is traced
+        //
+        // 1. Determine how many values need to be "kept".
+        // 2. Iterate over the keep values, tracing their value and their position in the stack.
+        //    The position is stored in `vm.P`, and the value is accessed from the stack via `self.sp.nth_back(keep as usize)`.
         let mut keep = drop_keep.keep();
-
         while keep > 0 {
+            // Create a new drop_keep VM state, as we trace one keep value per step.
             let mut vm = init_vm.clone();
-            vm.P = keep as u64;
-            vm.Y = self.sp.nth_back(keep as usize).to_bits();
-            keep -= 1;
 
+            // Get the position of the keep value in the stack before it is written to the new address.
+            vm.P = keep as u64;
+
+            // Get the value of the keep value.
+            vm.Y = self.sp.nth_back(keep as usize).to_bits();
+
+            // This is all we need to trace, so we add the VM state to the list of traced states.
             vms.push(vm);
+
+            // move onto next keep value
+            keep -= 1;
         }
 
         vms

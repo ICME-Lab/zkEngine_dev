@@ -145,8 +145,8 @@ pub struct WitnessVM {
     /// Result of instuction. Used to hold the result of a computation instruction.
     /// Also is used to hold an instructions "write" value.
     pub Z: u64,
-    /// Holds a "push" or "write" value, for example when an instruction pushes a value on the stack
+    /// This can hold a read, write or immediate value
     pub P: u64,
-    /// Holds a "push" or "write" value, for example when an instruction pushes a value on the stack
+    /// This can hold a read, write or immediate value
     pub Q: u64,
 }

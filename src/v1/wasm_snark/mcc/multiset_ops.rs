@@ -68,9 +68,14 @@ pub fn step_RS_WS(
     Instr::DropKeep => {
       let drop = vm.I as usize;
       let keep = vm.P as usize;
+
+      // address of the keep value
       let read_addr = vm.pre_sp - keep;
+
+      // new address to write the keep value
       let write_addr = vm.pre_sp - drop - keep;
 
+      // read the keep value at `pre_sp - keep` and write it to `pre_sp - drop - keep`
       read_op(read_addr, global_ts, FS, &mut RS, &mut WS);
       write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }

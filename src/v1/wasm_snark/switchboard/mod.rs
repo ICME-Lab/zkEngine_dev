@@ -326,7 +326,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Unreacable instruction
+  /// # Unreacable instruction
   ///
   /// Basically a no-op instruction.
   fn visit_unreachable<CS, F>(
@@ -343,7 +343,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// local.get
+  /// # local.get
   fn visit_local_get<CS, F>(
     &self,
     mut cs: CS,
@@ -388,7 +388,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// local.set
+  /// # local.set
   fn visit_local_set<CS, F>(
     &self,
     mut cs: CS,
@@ -428,7 +428,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// local.tee
+  /// # local.tee
   fn visit_local_tee<CS, F>(
     &self,
     mut cs: CS,
@@ -468,7 +468,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Instr::Br
+  /// # Instr::Br
   fn visit_br<CS, F>(
     &self,
     mut cs: CS,
@@ -495,7 +495,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Instr::BrIfEqz
+  /// # Instr::BrIfEqz
   fn visit_br_if_eqz<CS, F>(
     &self,
     mut cs: CS,
@@ -546,7 +546,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Instr::BrIfNez
+  /// # Instr::BrIfNez
   fn visit_br_if_nez<CS, F>(
     &self,
     mut cs: CS,
@@ -597,7 +597,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// BrTable
+  /// # BrTable
   fn visit_br_adjust<CS, F>(
     &self,
     mut cs: CS,
@@ -612,7 +612,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// BrTable
+  /// # BrTable
   fn visit_br_table<CS, F>(
     &self,
     mut cs: CS,
@@ -627,7 +627,9 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// drop_keep
+  /// # drop_keep
+  ///
+  /// Read the keep value at `pre_sp - keep` and write it to `pre_sp - drop - keep`
   fn drop_keep<CS, F>(
     &self,
     mut cs: CS,
@@ -644,6 +646,7 @@ impl WASMTransitionCircuit {
     let keep = self.vm.P;
     let pre_sp_u64 = self.vm.pre_sp as u64;
 
+    // keep value address
     let read_addr = Self::alloc_num(
       &mut cs,
       || "read_addr",
@@ -653,9 +656,9 @@ impl WASMTransitionCircuit {
       },
       switch,
     )?;
-
     let read_val = Self::read(cs.namespace(|| "read val"), &read_addr, &self.RS[0], switch)?;
 
+    // write value address for keep value
     let write_addr = Self::alloc_num(
       &mut cs,
       || "write addr",
@@ -666,6 +669,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
+    // write keep value to new write address
     Self::write(
       cs.namespace(|| "drop keep write"),
       &write_addr,
@@ -677,7 +681,14 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Return instruction
+  /// # Return instruction
+  ///
+  /// # Note
+  ///   
+  /// - The main proving done for the return instruction is done via the drop keep instruction,
+  ///   hench this circuit is effectively a no-op.
+  ///
+  /// - wasmi ensures that each return instruction is preceded by a drop keep instruction.
   fn visit_ret<CS, F>(
     &self,
     mut cs: CS,
@@ -692,7 +703,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// host call stack step
+  /// # host call stack step
   fn visit_host_call_stack_step<CS, F>(
     &self,
     mut cs: CS,
