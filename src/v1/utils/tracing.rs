@@ -98,6 +98,11 @@ mod test {
       // globals
       wasmi::Instruction::GlobalGet(BCGlobalIdx::from(0)),
       wasmi::Instruction::GlobalSet(BCGlobalIdx::from(0)),
+      // bulk memory ops
+      wasmi::Instruction::MemorySize,
+      wasmi::Instruction::MemoryGrow,
+      wasmi::Instruction::MemoryFill,
+      wasmi::Instruction::MemoryCopy,
     ];
 
     for instr_to_count in instrs_to_count.iter() {

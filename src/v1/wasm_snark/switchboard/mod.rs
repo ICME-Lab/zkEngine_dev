@@ -1094,21 +1094,6 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// # memory.copy
-  fn visit_memory_copy<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::MemoryCopy }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
   /// # memory.size
   fn visit_memory_size<CS, F>(
     &self,
@@ -1120,11 +1105,27 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemorySize }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+    let write_addr = Self::alloc_num(
+      &mut cs,
+      || "write addr",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch,
+    )?;
+    let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.Y)), switch)?;
+    Self::write(
+      cs.namespace(|| "perform write"),
+      &write_addr,
+      &write_val,
+      &self.WS[0],
+      switch,
+    )?;
     Ok(())
   }
 
-  /// # memory.size
+  /// # memory.grow
+  ///
+  /// This is handle via our MCC
   fn visit_memory_grow<CS, F>(
     &self,
     mut cs: CS,
@@ -1135,7 +1136,26 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryGrow }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    // pop value from stack
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "last addr",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+    let _ = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+
+    // write result
+    let res = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
+    Self::write(
+      cs.namespace(|| "set memory.grow write"),
+      &last_addr,
+      &res,
+      &self.WS[1],
+      switch,
+    )?;
     Ok(())
   }
 
@@ -1165,6 +1185,35 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryFillStep }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+    let write_addr = Self::alloc_num(
+      &mut cs,
+      || "write addr",
+      || Ok(F::from(self.vm.X + self.IS_sizes.stack_len() as u64)),
+      switch,
+    )?;
+    let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
+    Self::write(
+      cs.namespace(|| "perform write"),
+      &write_addr,
+      &write_val,
+      &self.WS[0],
+      switch,
+    )?;
+    Ok(())
+  }
+
+  /// # memory.copy
+  fn visit_memory_copy<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::MemoryCopy }.index_j();
     let _ = self.switch(&mut cs, J, switches)?;
     Ok(())
   }
@@ -1180,7 +1229,21 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryCopyStep }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+    let write_addr = Self::alloc_num(
+      &mut cs,
+      || "write addr",
+      || Ok(F::from(self.vm.X + self.IS_sizes.stack_len() as u64)),
+      switch,
+    )?;
+    let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
+    Self::write(
+      cs.namespace(|| "perform write"),
+      &write_addr,
+      &write_val,
+      &self.WS[0],
+      switch,
+    )?;
     Ok(())
   }
 

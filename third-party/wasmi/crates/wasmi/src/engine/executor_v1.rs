@@ -2260,6 +2260,47 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     }
 
     /// Special method to handle memory copy
+    fn trace_memory_fill(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
+        use Instruction as Instr;
+        let size = init_vm.I;
+        let _value = init_vm.Y;
+        let offset = init_vm.X;
+        init_vm.instr = Instr::MemoryFillStep;
+        init_vm.J = init_vm.instr.index_j();
+        let mut vms = Vec::new();
+        let memory = self.cache.default_memory(self.ctx);
+        let memref = self.ctx.resolve_memory(&memory);
+        let mut new_val_vec = vec![];
+        let mut i = 0;
+        let mut j = 0;
+        while i < size {
+            let mut updated_buf = [0u8; 8];
+            memref
+                .read((offset / 8 + j) as usize * 8, &mut updated_buf)
+                .unwrap();
+            let val = u64::from_le_bytes(updated_buf);
+            new_val_vec.push(val);
+            i += 8;
+            j += 1;
+        }
+        if offset % 8 != 0 {
+            let mut updated_buf = [0u8; 8];
+            memref
+                .read((offset / 8 + j) as usize * 8, &mut updated_buf)
+                .unwrap();
+            let val = u64::from_le_bytes(updated_buf);
+            new_val_vec.push(val);
+        }
+        for (i, new_val) in new_val_vec.into_iter().enumerate() {
+            let mut vm = init_vm.clone();
+            vm.P = new_val;
+            vm.X = offset / 8 + i as u64;
+            vms.push(vm);
+        }
+        vms
+    }
+
+    /// Special method to handle memory copy
     fn trace_memory_copy(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
         use Instruction as Instr;
         let num_bytes_to_copy = init_vm.I;
@@ -2327,47 +2368,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         for i in 0..len {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
-            vms.push(vm);
-        }
-        vms
-    }
-
-    /// Special method to handle memory copy
-    fn trace_memory_fill(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
-        use Instruction as Instr;
-        let size = init_vm.I;
-        let _value = init_vm.Y;
-        let offset = init_vm.X;
-        init_vm.instr = Instr::MemoryFillStep;
-        init_vm.J = init_vm.instr.index_j();
-        let mut vms = Vec::new();
-        let memory = self.cache.default_memory(self.ctx);
-        let memref = self.ctx.resolve_memory(&memory);
-        let mut new_val_vec = vec![];
-        let mut i = 0;
-        let mut j = 0;
-        while i < size {
-            let mut updated_buf = [0u8; 8];
-            memref
-                .read((offset / 8 + j) as usize * 8, &mut updated_buf)
-                .unwrap();
-            let val = u64::from_le_bytes(updated_buf);
-            new_val_vec.push(val);
-            i += 8;
-            j += 1;
-        }
-        if offset % 8 != 0 {
-            let mut updated_buf = [0u8; 8];
-            memref
-                .read((offset / 8 + j) as usize * 8, &mut updated_buf)
-                .unwrap();
-            let val = u64::from_le_bytes(updated_buf);
-            new_val_vec.push(val);
-        }
-        for (i, new_val) in new_val_vec.into_iter().enumerate() {
-            let mut vm = init_vm.clone();
-            vm.P = new_val;
-            vm.X = offset / 8 + i as u64;
             vms.push(vm);
         }
         vms

@@ -178,9 +178,6 @@ pub fn step_RS_WS(
     }
     Instr::MemoryFill => {}
     Instr::MemoryFillStep => {
-      let read_addr = vm.Y as usize + IS_sizes.stack_len();
-      read_op(read_addr, global_ts, FS, &mut RS, &mut WS);
-
       let write_addr = vm.X as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
