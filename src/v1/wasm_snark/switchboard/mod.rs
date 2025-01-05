@@ -715,6 +715,8 @@ impl WASMTransitionCircuit {
   }
 
   /// # visit_call_internal_step
+  ///
+  /// Performs the necessary zero-writes to stack when preparing for a call instruction.
   fn visit_call_internal_step<CS, F>(
     &self,
     mut cs: CS,
@@ -725,26 +727,28 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::CallZeroWrite }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// # host call stack step
-  fn visit_host_call_stack_step<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::HostCallStackStep }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+    let write_addr = Self::alloc_num(
+      &mut cs,
+      || "write addr",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch,
+    )?;
+    let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
+    Self::write(
+      cs.namespace(|| "perform write"),
+      &write_addr,
+      &write_val,
+      &self.WS[0],
+      switch,
+    )?;
     Ok(())
   }
 
   /// # host call step
+  ///
+  /// WASM linear memory gets erased after a host call, so we have to account for these zero-writes
+  /// to linear memory.
   fn visit_host_call_step<CS, F>(
     &self,
     mut cs: CS,
@@ -755,7 +759,52 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::HostCallStep }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+    let write_addr = Self::alloc_num(
+      &mut cs,
+      || "write addr",
+      || Ok(F::from(self.vm.Y + self.IS_sizes.stack_len() as u64)),
+      switch,
+    )?;
+    let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
+    Self::write(
+      cs.namespace(|| "perform write"),
+      &write_addr,
+      &write_val,
+      &self.WS[0],
+      switch,
+    )?;
+    Ok(())
+  }
+
+  /// # host call stack step
+  ///
+  /// Performs the necessary zero-writes to stack when preparing for a call instruction.
+  fn visit_host_call_stack_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::HostCallStackStep }.index_j();
+    let switch = self.switch(&mut cs, J, switches)?;
+    let write_addr = Self::alloc_num(
+      &mut cs,
+      || "write addr",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch,
+    )?;
+    let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
+    Self::write(
+      cs.namespace(|| "perform write"),
+      &write_addr,
+      &write_val,
+      &self.WS[0],
+      switch,
+    )?;
     Ok(())
   }
 
@@ -864,7 +913,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// global.set
+  /// # global.set
   fn visit_global_set<CS, F>(
     &self,
     mut cs: CS,
@@ -908,7 +957,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Store instruction
+  /// # Store instruction
   fn visit_store<CS, F>(
     &self,
     mut cs: CS,
@@ -928,16 +977,13 @@ impl WASMTransitionCircuit {
       || Ok(F::from((self.vm.pre_sp - 2) as u64)),
       switch,
     )?;
-
     let _ = Self::read(cs.namespace(|| "raw_addr"), &raw_last, &self.RS[0], switch)?;
-
     let val_addr = Self::alloc_num(
       &mut cs,
       || "pre_sp - 1",
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
-
     let _ = Self::read(cs.namespace(|| "val"), &val_addr, &self.RS[1], switch)?;
 
     // linear mem ops
@@ -952,7 +998,6 @@ impl WASMTransitionCircuit {
       },
       switch,
     )?;
-
     let write_addr_2 = Self::alloc_num(
       &mut cs,
       || "write_addr_2",
@@ -962,12 +1007,10 @@ impl WASMTransitionCircuit {
       },
       switch,
     )?;
-
     let write_val_1 =
       Self::alloc_num(&mut cs, || "write_val_1", || Ok(F::from(self.vm.P)), switch)?;
     let write_val_2 =
       Self::alloc_num(&mut cs, || "write_val_2", || Ok(F::from(self.vm.Q)), switch)?;
-
     Self::write(
       cs.namespace(|| "store 1"),
       &write_addr_1,
@@ -975,7 +1018,6 @@ impl WASMTransitionCircuit {
       &self.WS[2],
       switch,
     )?;
-
     Self::write(
       cs.namespace(|| "store 2"),
       &write_addr_2,
@@ -983,11 +1025,10 @@ impl WASMTransitionCircuit {
       &self.WS[3],
       switch,
     )?;
-
     Ok(())
   }
 
-  /// Store instruction
+  /// # Load instruction
   fn visit_load<CS, F>(
     &self,
     mut cs: CS,
@@ -1007,12 +1048,10 @@ impl WASMTransitionCircuit {
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
-
     let _ = Self::read(cs.namespace(|| "val"), &last, &self.RS[0], switch)?;
 
     // linear mem ops
     let effective_addr = self.vm.I;
-
     let read_addr_1 = Self::alloc_num(
       &mut cs,
       || "read_addr_1",
@@ -1022,7 +1061,6 @@ impl WASMTransitionCircuit {
       },
       switch,
     )?;
-
     let read_addr_2 = Self::alloc_num(
       &mut cs,
       || "read_addr_2",
@@ -1032,7 +1070,6 @@ impl WASMTransitionCircuit {
       },
       switch,
     )?;
-
     let _ = Self::read(
       cs.namespace(|| "block_val_1"),
       &read_addr_1,
@@ -1045,10 +1082,8 @@ impl WASMTransitionCircuit {
       &self.RS[2],
       switch,
     )?;
-
     let stack_write_val =
       Self::alloc_num(&mut cs, || "stack write", || Ok(F::from(self.vm.Z)), switch)?;
-
     Self::write(
       cs.namespace(|| "store 1"),
       &last,
@@ -1056,11 +1091,10 @@ impl WASMTransitionCircuit {
       &self.WS[3],
       switch,
     )?;
-
     Ok(())
   }
 
-  /// memory.copy
+  /// # memory.copy
   fn visit_memory_copy<CS, F>(
     &self,
     mut cs: CS,
@@ -1075,7 +1109,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// memory.size
+  /// # memory.size
   fn visit_memory_size<CS, F>(
     &self,
     mut cs: CS,
@@ -1090,7 +1124,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// memory.size
+  /// # memory.size
   fn visit_memory_grow<CS, F>(
     &self,
     mut cs: CS,
@@ -1105,7 +1139,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// memory.fill
+  /// # memory.fill
   fn visit_memory_fill<CS, F>(
     &self,
     mut cs: CS,
@@ -1120,7 +1154,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// memory.fill step
+  /// # memory.fill step
   fn visit_memory_fill_step<CS, F>(
     &self,
     mut cs: CS,
@@ -1135,7 +1169,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// memory.copy step
+  /// # memory.copy step
   fn visit_memory_copy_step<CS, F>(
     &self,
     mut cs: CS,
@@ -1150,6 +1184,8 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
+  /// # Const instruction
+  ///
   /// Push a const onto the stack
   fn visit_const<CS, F>(
     &self,
@@ -1182,7 +1218,7 @@ impl WASMTransitionCircuit {
 
     Ok(())
   }
-  /// i32.sub
+  /// # i32.sub
   fn visit_i32_sub<CS, F>(
     &self,
     mut cs: CS,
@@ -1233,7 +1269,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.add
+  /// # i32.add
   fn visit_i32_add<CS, F>(
     &self,
     mut cs: CS,
@@ -1284,7 +1320,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.mul
+  /// # i32.mul
   fn visit_i32_mul<CS, F>(
     &self,
     mut cs: CS,
@@ -1335,7 +1371,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.div_u, i32.rem_u
+  /// # i32.div_u, i32.rem_u
   fn visit_i32_div_rem_u<CS, F>(
     &self,
     mut cs: CS,
@@ -1401,7 +1437,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.div_s, i32.rem_s
+  /// # i32.div_s, i32.rem_s
   fn visit_i32_div_rem_s<CS, F>(
     &self,
     mut cs: CS,
@@ -1467,7 +1503,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.and, i32.xor, i32.or
+  /// # i32.and, i32.xor, i32.or
   fn visit_i32_bitops<CS, F>(
     &self,
     mut cs: CS,
@@ -1522,7 +1558,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.popcnt, i32.clz, i32.ctz
+  /// # i32.popcnt, i32.clz, i32.ctz
   fn visit_i32_unary_ops<CS, F>(
     &self,
     mut cs: CS,
@@ -1578,7 +1614,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.lt_u, i32.lt_s, i32.ge_u, i32.ge_s
+  /// # i32.lt_u, i32.lt_s, i32.ge_u, i32.ge_s
   fn visit_i32_lt_ge_s<CS, F>(
     &self,
     mut cs: CS,
@@ -1642,7 +1678,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.le_u, i32.gt_s, i32.le_u, i32.gt_s
+  /// # i32.le_u, i32.gt_s, i32.le_u, i32.gt_s
   fn visit_i32_le_gt_s<CS, F>(
     &self,
     mut cs: CS,
@@ -1706,7 +1742,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i32.shl, i32.shr_u, i32.shr_s, i32.rotr, i32.rotl
+  /// # i32.shl, i32.shr_u, i32.shr_s, i32.rotr, i32.rotl
   fn visit_i32_shift_rotate<CS, F>(
     &self,
     mut cs: CS,
@@ -1765,7 +1801,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.sub
+  /// # i64.sub
   fn visit_i64_sub<CS, F>(
     &self,
     mut cs: CS,
@@ -1816,7 +1852,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.add
+  /// # i64.add
   fn visit_i64_add<CS, F>(
     &self,
     mut cs: CS,
@@ -1867,7 +1903,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.mul
+  /// # i64.mul
   fn visit_i64_mul<CS, F>(
     &self,
     mut cs: CS,
@@ -1918,7 +1954,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.div_u, i64.rem_u
+  /// # i64.div_u, i64.rem_u
   fn visit_i64_div_rem_u<CS, F>(
     &self,
     mut cs: CS,
@@ -1984,7 +2020,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.div_s, i64.rem_s
+  /// # i64.div_s, i64.rem_s
   fn visit_i64_div_rem_s<CS, F>(
     &self,
     mut cs: CS,
@@ -2050,7 +2086,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.and, i64.xor, i64.or
+  /// # i64.and, i64.xor, i64.or
   fn visit_i64_bitops<CS, F>(
     &self,
     mut cs: CS,
@@ -2105,7 +2141,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.popcnt, i64.clz, i64.ctz
+  /// # i64.popcnt, i64.clz, i64.ctz
   fn visit_i64_unary_ops<CS, F>(
     &self,
     mut cs: CS,
@@ -2156,7 +2192,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.lt_u, i64.lt_s, i64.ge_u, i64.ge_s
+  /// # i64.lt_u, i64.lt_s, i64.ge_u, i64.ge_s
   fn visit_i64_lt_ge_s<CS, F>(
     &self,
     mut cs: CS,
@@ -2220,7 +2256,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.le_u, i64.gt_s, i64.le_u, i64.gt_s
+  /// # i64.le_u, i64.gt_s, i64.le_u, i64.gt_s
   fn visit_i64_le_gt_s<CS, F>(
     &self,
     mut cs: CS,
@@ -2284,7 +2320,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.shl, i64.shr_u, i64.shr_s, i64.rotr, i64.rotl
+  /// # i64.shl, i64.shr_u, i64.shr_s, i64.rotr, i64.rotl
   fn visit_i64_shift_rotate<CS, F>(
     &self,
     mut cs: CS,
@@ -2343,7 +2379,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64., i32.eqz
+  /// # i64.eqz, i32.eqz
   fn visit_eqz<CS, F>(
     &self,
     mut cs: CS,
@@ -2378,7 +2414,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.eq, i32.eq
+  /// # i64.eq, i32.eq
   fn visit_eq<CS, F>(
     &self,
     mut cs: CS,
@@ -2422,7 +2458,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// i64.ne, i32.ne
+  /// # i64.ne, i32.ne
   fn visit_ne<CS, F>(
     &self,
     mut cs: CS,
@@ -2466,7 +2502,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// Unary op
+  /// # Unary op
   fn visit_unary<CS, F>(
     &self,
     mut cs: CS,
@@ -2501,7 +2537,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// visit_binary
+  /// # visit_binary
   fn visit_binary<CS, F>(
     &self,
     mut cs: CS,

@@ -177,7 +177,6 @@ pub fn step_RS_WS(
       write_op(vm.pre_sp - 1, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::MemoryFill => {}
-    Instr::MemoryCopy => {}
     Instr::MemoryFillStep => {
       let read_addr = vm.Y as usize + IS_sizes.stack_len();
       read_op(read_addr, global_ts, FS, &mut RS, &mut WS);
@@ -185,6 +184,7 @@ pub fn step_RS_WS(
       let write_addr = vm.X as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
+    Instr::MemoryCopy => {}
     Instr::MemoryCopyStep => {
       let write_addr = vm.X as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);

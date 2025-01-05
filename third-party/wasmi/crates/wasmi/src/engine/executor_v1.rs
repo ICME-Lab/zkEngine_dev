@@ -1723,16 +1723,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     /// Used to capture necessary values before state change
     fn execute_instr_pre(&self, pre_sp: usize, pc: usize) -> WitnessVM {
         use Instruction as Instr;
-
         let mut vm = WitnessVM::default();
-
         let instruction = unsafe { &*self.ip.ptr };
-
         vm.pre_sp = pre_sp;
         vm.pc = pc;
         vm.instr = *instruction;
         vm.J = instruction.index_j();
-
         match *instruction {
             Instr::LocalGet(..) => {}
             Instr::LocalSet(depth) | Instr::LocalTee(depth) => {
@@ -1771,7 +1767,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::Return(..) => {}
             Instr::CallInternal(..) => {}
             Instr::Drop => {}
-
             Instr::I32Store(offset)
             | Instr::I32Store8(offset)
             | Instr::I32Store16(offset)
@@ -1790,7 +1785,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 let effective_address = effective_address(raw_address as u32, offset).unwrap();
                 vm.I = effective_address as u64;
             }
-
             Instr::I32Load(offset)
             | Instr::I32Load8U(offset)
             | Instr::I32Load8S(offset)
@@ -1813,7 +1807,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = effective_address as u64;
                 vm.Y = raw_address_u64;
             }
-
             Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt | Instr::I64Eqz | Instr::I32Eqz => {
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
@@ -1945,7 +1938,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Y = self.sp.nth_back(2).to_bits();
                 vm.I = self.sp.nth_back(1).to_bits();
             }
-
             Instr::GlobalGet(idx) => {
                 vm.I = idx.to_u32() as u64;
             }
@@ -1983,7 +1975,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 unimplemented!();
             }
         }
-
         vm
     }
 
@@ -1991,7 +1982,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     /// execution
     fn execute_instr_post(&mut self, vm: &mut WitnessVM, instr: &Instruction) {
         use Instruction as Instr;
-
         match *instr {
             Instr::Const32(..)
             | Instr::ConstRef(..)
@@ -2021,7 +2011,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I64ShrS => {
                 vm.Z = self.sp.last().to_bits();
             }
-
             Instr::I32Store(..)
             | Instr::I32Store8(..)
             | Instr::I32Store16(..)
@@ -2039,7 +2028,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     memref.read(effective_address / 8 * 8, &mut buf).unwrap();
                     u64::from_le_bytes(buf)
                 };
-
                 let updated_block_value2 = {
                     let mut buf = [0u8; 8];
                     let memory = self.cache.default_memory(self.ctx);
@@ -2054,11 +2042,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         0
                     }
                 };
-
                 vm.P = updated_block_value1;
                 vm.Q = updated_block_value2;
             }
-
             Instr::I32Load(..)
             | Instr::I32Load8U(..)
             | Instr::I32Load8S(..)
@@ -2081,12 +2067,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                     memref.read(effective_address / 8 * 8, &mut buf).unwrap();
                     u64::from_le_bytes(buf)
                 };
-
                 let block_value2 = {
                     let mut buf = [0u8; 8];
                     let memory = self.cache.default_memory(self.ctx);
                     let memref = self.ctx.resolve_memory(&memory);
-
                     if memref
                         .read((effective_address / 8 + 1) * 8, &mut buf)
                         .is_ok()
@@ -2096,16 +2080,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                         0
                     }
                 };
-
                 vm.Z = self.sp.last().to_bits();
                 vm.P = block_value1;
                 vm.Q = block_value2;
             }
-
             Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt | Instr::I64Eqz | Instr::I32Eqz => {
                 vm.Z = self.sp.nth_back(1).to_bits();
             }
-
             Instr::F32Abs
             | Instr::F32Neg
             | Instr::F32Ceil
@@ -2159,7 +2140,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::I32Popcnt => {
                 vm.Z = self.sp.last().to_bits();
             }
-
             Instr::F32Eq
             | Instr::F32Ne
             | Instr::F32Lt
@@ -2282,22 +2262,17 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     /// Special method to handle memory copy
     fn trace_memory_copy(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
         use Instruction as Instr;
-
         let num_bytes_to_copy = init_vm.I;
         let src = init_vm.Y;
         let destination = init_vm.X;
-
         init_vm.instr = Instr::MemoryCopyStep;
         init_vm.J = init_vm.instr.index_j();
         let mut vms = Vec::new();
-
         let memory = self.cache.default_memory(self.ctx);
         let memref = self.ctx.resolve_memory(&memory);
-
         let mut val_vec = vec![];
         let mut i = 0;
         let mut j = 0;
-
         while i < num_bytes_to_copy {
             let mut buf = [0u8; 8];
             memref.read((src / 8 + j) as usize * 8, &mut buf).unwrap();
@@ -2306,14 +2281,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             i += 8;
             j += 1;
         }
-
         if src % 8 != 0 {
             let mut buf = [0u8; 8];
             memref.read((src / 8 + j) as usize * 8, &mut buf).unwrap();
             let val = u64::from_le_bytes(buf);
             val_vec.push(val);
         }
-
         for (i, val) in val_vec.into_iter().enumerate() {
             let mut vm = init_vm.clone();
             vm.P = val;
@@ -2321,7 +2294,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             vm.X = destination / 8 + i as u64;
             vms.push(vm);
         }
-
         vms
     }
 
@@ -2363,20 +2335,15 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     /// Special method to handle memory copy
     fn trace_memory_fill(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
         use Instruction as Instr;
-
         let size = init_vm.I;
         let _value = init_vm.Y;
         let offset = init_vm.X;
-
         init_vm.instr = Instr::MemoryFillStep;
         init_vm.J = init_vm.instr.index_j();
         let mut vms = Vec::new();
-
         let memory = self.cache.default_memory(self.ctx);
         let memref = self.ctx.resolve_memory(&memory);
-
         let mut new_val_vec = vec![];
-
         let mut i = 0;
         let mut j = 0;
         while i < size {
@@ -2389,7 +2356,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             i += 8;
             j += 1;
         }
-
         if offset % 8 != 0 {
             let mut updated_buf = [0u8; 8];
             memref
@@ -2398,14 +2364,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             let val = u64::from_le_bytes(updated_buf);
             new_val_vec.push(val);
         }
-
         for (i, new_val) in new_val_vec.into_iter().enumerate() {
             let mut vm = init_vm.clone();
             vm.P = new_val;
             vm.X = offset / 8 + i as u64;
             vms.push(vm);
         }
-
         vms
     }
 
@@ -2415,27 +2379,24 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         let mut init_vm = WitnessVM::default();
         init_vm.instr = Instr::HostCallStep;
         init_vm.J = init_vm.instr.index_j();
-
         let memory = self.cache.default_memory(self.ctx);
         let memref = self.ctx.resolve_memory(&memory);
-
         let pages: u32 = self
             .ctx
             .resolve_memory(self.cache.default_memory(self.ctx))
             .current_pages()
             .into();
-
         let mut vms = Vec::new();
-
         for i in 0..(pages * 8192) {
             let mut vm = init_vm.clone();
             let mut buf = [0u8; 8];
             memref.read(i as usize * 8, &mut buf).unwrap();
-            vm.Y = i as u64; // address
-            vm.P = u64::from_le_bytes(buf); // value
+            // address
+            vm.Y = i as u64;
+            // value
+            vm.P = u64::from_le_bytes(buf);
             vms.push(vm);
         }
-
         vms
     }
 

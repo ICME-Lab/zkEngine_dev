@@ -90,6 +90,7 @@ mod test {
       wasmi::Instruction::I32Shl,
       // calls
       wasmi::Instruction::CallZeroWrite,
+      wasmi::Instruction::HostCallStackStep,
       // select
       wasmi::Instruction::Select,
       // drop keep
