@@ -18,7 +18,10 @@ use alu::{
   },
 };
 use bellpepper_core::{
-  self, boolean::AllocatedBit, num::AllocatedNum, ConstraintSystem, SynthesisError,
+  self,
+  boolean::{AllocatedBit, Boolean},
+  num::AllocatedNum,
+  ConstraintSystem, SynthesisError,
 };
 use ff::{PrimeField, PrimeFieldBits};
 use itertools::Itertools;
@@ -84,10 +87,10 @@ where
     self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
 
     // call related opcodes
+    self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
     self
       .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
     self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
-    self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
 
     // select opcode
     self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
@@ -709,6 +712,21 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
+  /// # visit_call_internal_step
+  fn visit_call_internal_step<CS, F>(
+    &self,
+    mut cs: CS,
+    switches: &mut Vec<AllocatedNum<F>>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::CallZeroWrite }.index_j();
+    let _ = self.switch(&mut cs, J, switches)?;
+    Ok(())
+  }
+
   /// # host call stack step
   fn visit_host_call_stack_step<CS, F>(
     &self,
@@ -724,7 +742,7 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// host call step
+  /// # host call step
   fn visit_host_call_step<CS, F>(
     &self,
     mut cs: CS,
@@ -739,22 +757,9 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
-  /// visit_call_internal_step
-  fn visit_call_internal_step<CS, F>(
-    &self,
-    mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
-  ) -> Result<(), SynthesisError>
-  where
-    F: PrimeField,
-    CS: ConstraintSystem<F>,
-  {
-    let J: u64 = { Instr::CallZeroWrite }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
-  }
-
-  /// Select
+  /// # Select
+  ///
+  /// if condition return X else return Y
   fn visit_select<CS, F>(
     &self,
     mut cs: CS,
@@ -765,7 +770,46 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Select }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    // Get X
+    let X_addr = Self::alloc_num(
+      &mut cs,
+      || "X_addr",
+      || Ok(F::from(self.vm.pre_sp as u64 - 3)),
+      switch,
+    )?;
+    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
+
+    // Get Y
+    let Y_addr = Self::alloc_num(
+      &mut cs,
+      || "Y_addr",
+      || Ok(F::from(self.vm.pre_sp as u64 - 2)),
+      switch,
+    )?;
+    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+
+    // Get condition
+    let condition_addr = Self::alloc_num(
+      &mut cs,
+      || "condition_addr",
+      || Ok(F::from(self.vm.pre_sp as u64 - 1)),
+      switch,
+    )?;
+    let condition = Self::read(
+      cs.namespace(|| "condition"),
+      &condition_addr,
+      &self.RS[2],
+      switch,
+    )?;
+    let condition_bit_const = condition.get_value().map(|c| c == F::ONE);
+    let condition_bit = Self::alloc_bit(&mut cs, || "condition_bit", condition_bit_const, switch)?;
+
+    // Calculate Z and write it to the stack
+    let Z = conditionally_select(cs.namespace(|| "Z"), &X, &Y, &Boolean::Is(condition_bit))?;
+    Self::write(cs.namespace(|| "write Z"), &X_addr, &Z, &self.WS[3], switch)?;
+
     Ok(())
   }
 

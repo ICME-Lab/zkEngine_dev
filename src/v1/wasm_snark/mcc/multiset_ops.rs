@@ -24,7 +24,7 @@ pub fn step_RS_WS(
 
   // Construct RS & WS based on the instruction. The RS & WS are constructed as follows:
   match instr {
-    // unreachable
+    // unreachable, no-op instructions
     Instr::Unreachable => {}
 
     // local.get, local.set, local.tee
@@ -82,7 +82,9 @@ pub fn step_RS_WS(
     Instr::Return(..) => {}
 
     // memory operations related to call instructions
-    Instr::CallInternal(..) => {}
+    Instr::CallZeroWrite => {
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
     Instr::HostCallStep => {
       let write_addr = vm.Y as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
@@ -90,10 +92,10 @@ pub fn step_RS_WS(
     Instr::HostCallStackStep => {
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
+    // no-op call instructions
+    Instr::Call(..) => {}
     Instr::CallIndirect(..) => {}
-    Instr::CallZeroWrite => {
-      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
-    }
+    Instr::CallInternal(..) => {}
 
     // select
     Instr::Select => {
@@ -109,7 +111,6 @@ pub fn step_RS_WS(
       read_op(read_addr, global_ts, FS, &mut RS, &mut WS); // Y
       write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
-
     Instr::GlobalSet(..) => {
       let write_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y

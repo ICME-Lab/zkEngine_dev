@@ -17,7 +17,6 @@ pub(crate) fn unwrap_rc_refcell<T>(last_elem: Rc<RefCell<T>>) -> T {
   inner.into_inner()
 }
 
-#[allow(dead_code)]
 #[tracing::instrument(skip_all, name = "estimate_wasm")]
 /// Get estimations of the WASM execution trace size
 pub fn estimate_wasm(program: &impl ZKWASMCtx) -> Result<ExecutionTrace, ZKWASMError> {
@@ -89,6 +88,12 @@ mod test {
       wasmi::Instruction::I32And,
       wasmi::Instruction::I32Popcnt,
       wasmi::Instruction::I32Shl,
+      // calls
+      wasmi::Instruction::CallZeroWrite,
+      // select
+      wasmi::Instruction::Select,
+      // drop keep
+      wasmi::Instruction::DropKeep,
     ];
 
     for instr_to_count in instrs_to_count.iter() {

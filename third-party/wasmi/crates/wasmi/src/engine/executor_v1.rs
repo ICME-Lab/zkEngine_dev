@@ -702,6 +702,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         match self.ctx.resolve_func(func) {
             FuncEntity::Wasm(wasm_func) => {
                 let header = self.code_map.header(wasm_func.func_body());
+                // trace the zero-writes produced from `prepare_wasm_call(..)`
                 if let Some(tracer) = self.tracer.clone() {
                     let mut tracer = tracer.borrow_mut();
                     tracer
@@ -2331,38 +2332,31 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         compiled_func: CompiledFunc,
     ) -> Vec<WitnessVM> {
         use Instruction as Instr;
-
         let len = self.code_map.header(compiled_func).len_locals();
         let pre_sp = init_vm.pre_sp;
-
         init_vm.instr = Instr::CallZeroWrite;
         init_vm.J = init_vm.instr.index_j();
         let mut vms = Vec::new();
-
         for i in 0..len {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
             vms.push(vm);
         }
-
         vms
     }
 
-    /// Special method to handle Call
+    /// Special method to handle Call instruction
     fn trace_call(&self, len: usize, pre_sp: usize) -> Vec<WitnessVM> {
         use Instruction as Instr;
-
         let mut init_vm = WitnessVM::default();
         init_vm.instr = Instr::CallZeroWrite;
         init_vm.J = init_vm.instr.index_j();
         let mut vms = Vec::new();
-
         for i in 0..len {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
             vms.push(vm);
         }
-
         vms
     }
 

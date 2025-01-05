@@ -393,6 +393,7 @@ pub enum Instruction {
     MemoryFillStep,
     HostCallStep,
     HostCallStackStep,
+    // Special instruction to trace the zero writes to the stack when vm is preparing for a function call
     CallZeroWrite,
 }
 
