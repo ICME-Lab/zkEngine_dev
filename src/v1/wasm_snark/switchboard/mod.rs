@@ -803,7 +803,7 @@ impl WASMTransitionCircuit {
       &self.RS[2],
       switch,
     )?;
-    let condition_bit_const = condition.get_value().map(|c| c == F::ONE);
+    let condition_bit_const = condition.get_value().map(|c| c != F::ZERO);
     let condition_bit = Self::alloc_bit(&mut cs, || "condition_bit", condition_bit_const, switch)?;
 
     // Calculate Z and write it to the stack
