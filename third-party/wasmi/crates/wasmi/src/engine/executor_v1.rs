@@ -2260,8 +2260,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         // 1. Determine how many values need to be "kept".
         // 2. Iterate over the keep values, tracing their value and their position in the stack.
         //    The position is stored in `vm.P`, and the value is accessed from the stack via `self.sp.nth_back(keep as usize)`.
-        let mut keep = drop_keep.keep();
-        while keep > 0 {
+        let keep = drop_keep.keep();
+        for keep in 1..=keep {
             // Create a new drop_keep VM state, as we trace one keep value per step.
             let mut vm = init_vm.clone();
 
@@ -2273,9 +2273,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
             // This is all we need to trace, so we add the VM state to the list of traced states.
             vms.push(vm);
-
-            // move onto next keep value
-            keep -= 1;
         }
 
         vms
