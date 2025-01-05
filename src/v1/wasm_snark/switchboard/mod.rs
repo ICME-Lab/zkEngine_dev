@@ -420,7 +420,7 @@ impl WASMTransitionCircuit {
     let depth_addr = Self::alloc_num(
       &mut cs,
       || "depth addr",
-      || Ok(F::from(self.vm.pre_sp as u64 - 1 - self.vm.I)),
+      || Ok(F::from(self.vm.pre_sp as u64 - 1 - self.vm.I)), // the -1 is to account for the pop
       switch,
     )?;
     Self::write(
