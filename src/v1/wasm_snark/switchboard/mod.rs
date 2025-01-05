@@ -1,3 +1,5 @@
+use crate::v1::wasm_ctx::ISMemSizes;
+
 use super::{
   gadgets::{
     int::{add, eqz_bit},
@@ -43,7 +45,7 @@ pub struct WASMTransitionCircuit {
   vm: WitnessVM,
   RS: Vec<(usize, u64, u64)>,
   WS: Vec<(usize, u64, u64)>,
-  stack_len: usize,
+  IS_sizes: ISMemSizes,
 }
 
 impl<F> StepCircuit<F> for WASMTransitionCircuit
@@ -824,7 +826,41 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::GlobalGet(BCGlobalIdx::from(0)) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    // Read global value at global address
+    let read_addr = Self::alloc_num(
+      &mut cs,
+      || "read_addr",
+      || {
+        Ok(F::from(
+          (self.IS_sizes.stack_len() + self.IS_sizes.mem_len()) as u64 + self.vm.I,
+        ))
+      },
+      switch,
+    )?;
+    let read_val = Self::read(
+      cs.namespace(|| "read at global"),
+      &read_addr,
+      &self.RS[0],
+      switch,
+    )?;
+
+    // write that value to the top of the stack
+    let pre_sp = Self::alloc_num(
+      &mut cs,
+      || "pre_sp",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch,
+    )?;
+    Self::write(
+      cs.namespace(|| "push global on stack"),
+      &pre_sp,
+      &read_val,
+      &self.WS[1],
+      switch,
+    )?;
+
     Ok(())
   }
 
@@ -839,7 +875,36 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::GlobalSet(BCGlobalIdx::from(0)) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let switch = self.switch(&mut cs, J, switches)?;
+
+    // pop value from stack
+    let last_addr = Self::alloc_num(
+      &mut cs,
+      || "last addr",
+      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      switch,
+    )?;
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+
+    // write value to local depth
+    let write_addr = Self::alloc_num(
+      &mut cs,
+      || "write addr",
+      || {
+        Ok(F::from(
+          (self.IS_sizes.stack_len() + self.IS_sizes.mem_len()) as u64 + self.vm.I,
+        ))
+      },
+      switch,
+    )?;
+    Self::write(
+      cs.namespace(|| "set global write"),
+      &write_addr,
+      &Y,
+      &self.WS[1],
+      switch,
+    )?;
+
     Ok(())
   }
 
@@ -882,7 +947,7 @@ impl WASMTransitionCircuit {
       &mut cs,
       || "write_addr_1",
       || {
-        let write_addr_1 = effective_addr / 8 + self.stack_len as u64;
+        let write_addr_1 = effective_addr / 8 + self.IS_sizes.stack_len() as u64;
         Ok(F::from(write_addr_1))
       },
       switch,
@@ -892,7 +957,7 @@ impl WASMTransitionCircuit {
       &mut cs,
       || "write_addr_2",
       || {
-        let write_addr_2 = effective_addr / 8 + 1 + self.stack_len as u64;
+        let write_addr_2 = effective_addr / 8 + 1 + self.IS_sizes.stack_len() as u64;
         Ok(F::from(write_addr_2))
       },
       switch,
@@ -952,7 +1017,7 @@ impl WASMTransitionCircuit {
       &mut cs,
       || "read_addr_1",
       || {
-        let read_addr_1 = effective_addr / 8 + self.stack_len as u64;
+        let read_addr_1 = effective_addr / 8 + self.IS_sizes.stack_len() as u64;
         Ok(F::from(read_addr_1))
       },
       switch,
@@ -962,7 +1027,7 @@ impl WASMTransitionCircuit {
       &mut cs,
       || "read_addr_2",
       || {
-        let read_addr_2 = effective_addr / 8 + 1 + self.stack_len as u64;
+        let read_addr_2 = effective_addr / 8 + 1 + self.IS_sizes.stack_len() as u64;
         Ok(F::from(read_addr_2))
       },
       switch,
@@ -2487,13 +2552,13 @@ impl WASMTransitionCircuit {
     vm: WitnessVM,
     RS: Vec<(usize, u64, u64)>,
     WS: Vec<(usize, u64, u64)>,
-    stack_len: usize,
+    IS_sizes: ISMemSizes,
   ) -> Self {
     Self {
       vm,
       RS,
       WS,
-      stack_len,
+      IS_sizes,
     }
   }
 }
@@ -2505,7 +2570,7 @@ impl Default for WASMTransitionCircuit {
       // max memory ops per recursive step is 8
       RS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
       WS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
-      stack_len: 0,
+      IS_sizes: ISMemSizes::default(),
     }
   }
 }

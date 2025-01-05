@@ -220,7 +220,7 @@ where
         RS.push(step_rs.clone());
         WS.push(step_ws.clone());
 
-        WASMTransitionCircuit::new(vm, step_rs, step_ws, IS_sizes.stack_len())
+        WASMTransitionCircuit::new(vm, step_rs, step_ws, IS_sizes)
       })
       .collect();
     let circuits = circuits

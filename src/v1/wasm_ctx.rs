@@ -319,6 +319,7 @@ pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
 /// i.e. Memory sizes for the initial state.
 /// We need to know the sizes of the stack and linear
 /// memory of the WASM module to initialize the initial memory state of the zkVM.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct ISMemSizes {
   IS_stack_len: usize,
   IS_mem_len: usize,

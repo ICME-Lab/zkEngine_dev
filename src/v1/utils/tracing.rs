@@ -31,7 +31,7 @@ pub(crate) fn split_vector<T>(mut vec: Vec<T>, split_index: usize) -> (Vec<T>, V
 
 #[cfg(test)]
 mod test {
-  use wasmi::WitnessVM;
+  use wasmi::{BCGlobalIdx, WitnessVM};
 
   use crate::v1::wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx};
   use std::{collections::HashMap, path::PathBuf};
@@ -94,6 +94,9 @@ mod test {
       wasmi::Instruction::Select,
       // drop keep
       wasmi::Instruction::DropKeep,
+      // globals
+      wasmi::Instruction::GlobalGet(BCGlobalIdx::from(0)),
+      wasmi::Instruction::GlobalSet(BCGlobalIdx::from(0)),
     ];
 
     for instr_to_count in instrs_to_count.iter() {
