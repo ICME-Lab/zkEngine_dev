@@ -747,8 +747,7 @@ impl WASMTransitionCircuit {
 
   /// # host call step
   ///
-  /// WASM linear memory gets erased after a host call, so we have to account for these zero-writes
-  /// to linear memory.
+  /// Host calls can make changes to WASM linear memory, thus we have to account for this
   fn visit_host_call_step<CS, F>(
     &self,
     mut cs: CS,
