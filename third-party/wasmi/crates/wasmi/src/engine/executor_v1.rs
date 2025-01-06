@@ -2259,38 +2259,43 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         vms
     }
 
+    /// Helper method to read memory and return a vector of `u64` values
+    fn read_memory(&mut self, start_addr: u64, size: u64) -> Vec<u64> {
+        let memory = self.cache.default_memory(self.ctx);
+        let memref = self.ctx.resolve_memory(&memory);
+        let mut values = Vec::new();
+        let mut i = 0;
+        let mut j = 0;
+        while i < size {
+            let mut buf = [0u8; 8];
+            memref
+                .read((start_addr / 8 + j) as usize * 8, &mut buf)
+                .unwrap();
+            let val = u64::from_le_bytes(buf);
+            values.push(val);
+            i += 8;
+            j += 1;
+        }
+        if start_addr % 8 != 0 {
+            let mut buf = [0u8; 8];
+            memref
+                .read((start_addr / 8 + j) as usize * 8, &mut buf)
+                .unwrap();
+            let val = u64::from_le_bytes(buf);
+            values.push(val);
+        }
+        values
+    }
+
     /// Special method to handle memory copy
     fn trace_memory_fill(&mut self, mut init_vm: WitnessVM) -> Vec<WitnessVM> {
         use Instruction as Instr;
         let size = init_vm.I;
-        let _value = init_vm.Y;
         let offset = init_vm.X;
         init_vm.instr = Instr::MemoryFillStep;
         init_vm.J = init_vm.instr.index_j();
         let mut vms = Vec::new();
-        let memory = self.cache.default_memory(self.ctx);
-        let memref = self.ctx.resolve_memory(&memory);
-        let mut new_val_vec = vec![];
-        let mut i = 0;
-        let mut j = 0;
-        while i < size {
-            let mut updated_buf = [0u8; 8];
-            memref
-                .read((offset / 8 + j) as usize * 8, &mut updated_buf)
-                .unwrap();
-            let val = u64::from_le_bytes(updated_buf);
-            new_val_vec.push(val);
-            i += 8;
-            j += 1;
-        }
-        if offset % 8 != 0 {
-            let mut updated_buf = [0u8; 8];
-            memref
-                .read((offset / 8 + j) as usize * 8, &mut updated_buf)
-                .unwrap();
-            let val = u64::from_le_bytes(updated_buf);
-            new_val_vec.push(val);
-        }
+        let new_val_vec = self.read_memory(offset, size);
         for (i, new_val) in new_val_vec.into_iter().enumerate() {
             let mut vm = init_vm.clone();
             vm.P = new_val;
@@ -2308,26 +2313,8 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         let destination = init_vm.X;
         init_vm.instr = Instr::MemoryCopyStep;
         init_vm.J = init_vm.instr.index_j();
+        let val_vec = self.read_memory(src, num_bytes_to_copy);
         let mut vms = Vec::new();
-        let memory = self.cache.default_memory(self.ctx);
-        let memref = self.ctx.resolve_memory(&memory);
-        let mut val_vec = vec![];
-        let mut i = 0;
-        let mut j = 0;
-        while i < num_bytes_to_copy {
-            let mut buf = [0u8; 8];
-            memref.read((src / 8 + j) as usize * 8, &mut buf).unwrap();
-            let val = u64::from_le_bytes(buf);
-            val_vec.push(val);
-            i += 8;
-            j += 1;
-        }
-        if src % 8 != 0 {
-            let mut buf = [0u8; 8];
-            memref.read((src / 8 + j) as usize * 8, &mut buf).unwrap();
-            let val = u64::from_le_bytes(buf);
-            val_vec.push(val);
-        }
         for (i, val) in val_vec.into_iter().enumerate() {
             let mut vm = init_vm.clone();
             vm.P = val;
