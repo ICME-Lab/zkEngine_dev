@@ -17,7 +17,6 @@ pub(crate) fn unwrap_rc_refcell<T>(last_elem: Rc<RefCell<T>>) -> T {
   inner.into_inner()
 }
 
-#[allow(dead_code)]
 #[tracing::instrument(skip_all, name = "estimate_wasm")]
 /// Get estimations of the WASM execution trace size
 pub fn estimate_wasm(program: &impl ZKWASMCtx) -> Result<ExecutionTrace, ZKWASMError> {
@@ -32,7 +31,7 @@ pub(crate) fn split_vector<T>(mut vec: Vec<T>, split_index: usize) -> (Vec<T>, V
 
 #[cfg(test)]
 mod test {
-  use wasmi::WitnessVM;
+  use wasmi::{BCGlobalIdx, WitnessVM};
 
   use crate::v1::wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx};
   use std::{collections::HashMap, path::PathBuf};
@@ -89,6 +88,21 @@ mod test {
       wasmi::Instruction::I32And,
       wasmi::Instruction::I32Popcnt,
       wasmi::Instruction::I32Shl,
+      // calls
+      wasmi::Instruction::CallZeroWrite,
+      wasmi::Instruction::HostCallStackStep,
+      // select
+      wasmi::Instruction::Select,
+      // drop keep
+      wasmi::Instruction::DropKeep,
+      // globals
+      wasmi::Instruction::GlobalGet(BCGlobalIdx::from(0)),
+      wasmi::Instruction::GlobalSet(BCGlobalIdx::from(0)),
+      // bulk memory ops
+      wasmi::Instruction::MemorySize,
+      wasmi::Instruction::MemoryGrow,
+      wasmi::Instruction::MemoryFill,
+      wasmi::Instruction::MemoryCopy,
     ];
 
     for instr_to_count in instrs_to_count.iter() {

@@ -1,10 +1,14 @@
+use crate::v1::{wasm_ctx::ISMemSizes, wasm_snark::MEMORY_OPS_PER_STEP};
 use ff::PrimeField;
 use wasmi::{Instruction as Instr, WitnessVM};
 
-use crate::v1::{wasm_ctx::ISMemSizes, wasm_snark::MEMORY_OPS_PER_STEP};
-
 /// Get the RS & WS for a single execution step. A RS (read-set) & a WS (write-set) are of the form
 /// of a vector of (address, value, timestamp) tuples
+///
+/// # Note
+///
+/// It is ok to have `FS` and `global_ts` as mutable references since they are used to represent an
+/// untrusted memory which inherently is mutable.
 pub fn step_RS_WS(
   vm: &WitnessVM,
   FS: &mut [(usize, u64, u64)],
@@ -14,21 +18,16 @@ pub fn step_RS_WS(
   Vec<(usize, u64, u64)>, // RS
   Vec<(usize, u64, u64)>, // WS
 ) {
-  let instr = vm.instr;
+  let instr: Instr = vm.instr;
   let mut RS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP / 2);
   let mut WS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP / 2);
 
+  // Construct RS & WS based on the instruction. The RS & WS are constructed as follows:
   match instr {
+    // unreachable, no-op instructions
     Instr::Unreachable => {}
-    Instr::Select => {
-      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // X
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // Y
-      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
-      write_op(vm.pre_sp - 3, vm.Z, global_ts, FS, &mut RS, &mut WS);
-    }
-    Instr::I64Const32(_) | Instr::Const32(..) | Instr::ConstRef(..) | Instr::F64Const32(..) => {
-      write_op(vm.pre_sp, vm.I, global_ts, FS, &mut RS, &mut WS);
-    }
+
+    // local.get, local.set, local.tee
     Instr::LocalGet(_) => {
       read_op(vm.pre_sp - vm.I as usize, global_ts, FS, &mut RS, &mut WS);
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
@@ -44,7 +43,6 @@ pub fn step_RS_WS(
         &mut WS,
       );
     }
-
     Instr::LocalTee(_) => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
       write_op(
@@ -56,44 +54,70 @@ pub fn step_RS_WS(
         &mut WS,
       );
     }
-    Instr::I64Add
-    | Instr::I64Mul
-    | Instr::I64And
-    | Instr::I64Or
-    | Instr::I64Xor
-    | Instr::I64Sub
-    | Instr::I64Shl
-    | Instr::I64Rotl
-    | Instr::I64Rotr
-    | Instr::I64ShrU
-    | Instr::I64DivS
-    | Instr::I64DivU
-    | Instr::I64RemS
-    | Instr::I64RemU
-    | Instr::I64ShrS => {
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
-      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
 
-      write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
-    }
+    // branch opcodes
+    Instr::Br(_) => {}
     Instr::BrIfEqz(_) | Instr::BrIfNez(_) => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
     }
-    Instr::Br(_) => {}
-    Instr::BrTable(_) => {}
     Instr::BrAdjust(_) => {}
+    Instr::BrTable(_) => {}
+
+    // memory operations related to return instructions
     Instr::Drop => {}
-    Instr::CallInternal(..) => {}
     Instr::DropKeep => {
       let drop = vm.I as usize;
       let keep = vm.P as usize;
+
+      // address of the keep value
       let read_addr = vm.pre_sp - keep;
+
+      // new address to write the keep value
       let write_addr = vm.pre_sp - drop - keep;
 
+      // read the keep value at `pre_sp - keep` and write it to `pre_sp - drop - keep`
       read_op(read_addr, global_ts, FS, &mut RS, &mut WS);
       write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::Return(..) => {}
+
+    // memory operations related to call instructions
+    Instr::CallZeroWrite => {
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::HostCallStep => {
+      let write_addr = vm.Y as usize + IS_sizes.stack_len();
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::HostCallStackStep => {
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    // no-op call instructions
+    Instr::Call(..) => {}
+    Instr::CallIndirect(..) => {}
+    Instr::CallInternal(..) => {}
+
+    // select
+    Instr::Select => {
+      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // X
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // Y
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
+      write_op(vm.pre_sp - 3, vm.Z, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    // global mem ops
+    Instr::GlobalGet(..) => {
+      let read_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
+      read_op(read_addr, global_ts, FS, &mut RS, &mut WS); // Y
+      write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::GlobalSet(..) => {
+      let write_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
+      write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    // linear memory ops
     Instr::I64Store(..)
     | Instr::I64Store8(..)
     | Instr::I64Store16(..)
@@ -115,7 +139,6 @@ pub fn step_RS_WS(
       write_op(write_addr_1, vm.P, global_ts, FS, &mut RS, &mut WS);
       write_op(write_addr_2, vm.Q, global_ts, FS, &mut RS, &mut WS);
     }
-
     Instr::I32Load(..)
     | Instr::I32Load8U(..)
     | Instr::I32Load8S(..)
@@ -145,6 +168,50 @@ pub fn step_RS_WS(
       write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
 
+    // memory size, grow, fill, copy
+    Instr::MemorySize => {
+      write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::MemoryGrow => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
+      write_op(vm.pre_sp - 1, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::MemoryFill => {}
+    Instr::MemoryFillStep => {
+      let write_addr = vm.X as usize + IS_sizes.stack_len();
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::MemoryCopy => {}
+    Instr::MemoryCopyStep => {
+      let write_addr = vm.X as usize + IS_sizes.stack_len();
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    // const opcodes
+    Instr::I64Const32(_) | Instr::Const32(..) | Instr::ConstRef(..) | Instr::F64Const32(..) => {
+      write_op(vm.pre_sp, vm.I, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    Instr::I64Add
+    | Instr::I64Mul
+    | Instr::I64And
+    | Instr::I64Or
+    | Instr::I64Xor
+    | Instr::I64Sub
+    | Instr::I64Shl
+    | Instr::I64Rotl
+    | Instr::I64Rotr
+    | Instr::I64ShrU
+    | Instr::I64DivS
+    | Instr::I64DivU
+    | Instr::I64RemS
+    | Instr::I64RemU
+    | Instr::I64ShrS => {
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
+
+      write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
+    }
     Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt | Instr::I64Eqz | Instr::I32Eqz => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
       write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS); // Z
@@ -273,51 +340,7 @@ pub fn step_RS_WS(
 
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
-    Instr::GlobalGet(..) => {
-      let read_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
-      read_op(read_addr, global_ts, FS, &mut RS, &mut WS); // Y
-      write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
-    }
 
-    Instr::GlobalSet(..) => {
-      let write_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
-      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
-      write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
-    }
-
-    Instr::MemoryFill => {}
-    Instr::MemoryCopy => {}
-    Instr::MemoryFillStep => {
-      let read_addr = vm.Y as usize + IS_sizes.stack_len();
-      read_op(read_addr, global_ts, FS, &mut RS, &mut WS);
-
-      let write_addr = vm.X as usize + IS_sizes.stack_len();
-      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
-    }
-    Instr::MemoryCopyStep => {
-      let write_addr = vm.X as usize + IS_sizes.stack_len();
-      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
-    }
-
-    Instr::HostCallStep => {
-      let write_addr = vm.Y as usize + IS_sizes.stack_len();
-      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
-    }
-    Instr::HostCallStackStep => {
-      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
-    }
-    Instr::CallIndirect(..) => {}
-
-    Instr::MemorySize => {
-      write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
-    }
-    Instr::MemoryGrow => {
-      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
-      write_op(vm.pre_sp - 1, vm.P, global_ts, FS, &mut RS, &mut WS);
-    }
-    Instr::CallZeroWrite => {
-      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
-    }
     _ => unimplemented!("{:?}", instr),
   }
 
@@ -386,10 +409,9 @@ fn write_op(
 }
 
 /// Converts an addr, val, ts tuple `(usize, u64, u64)` to a `Vec<Scalar>`
-pub fn avt_tuple_to_scalar_vec<F>(tuple: (usize, u64, u64)) -> Vec<F>
+pub fn avt_tuple_to_scalar_vec<F>((addr, val, ts): (usize, u64, u64)) -> Vec<F>
 where
   F: PrimeField,
 {
-  let (addr, val, ts) = tuple;
   vec![F::from(addr as u64), F::from(val), F::from(ts)]
 }

@@ -175,12 +175,7 @@ where
     // Split the execution trace at `TraceSliceValues` `start` value. Use the first half to
     // construct IS and use the second half for the actual proving of the shard
     let start = program.args().start();
-    tracing::debug!(
-      "slice values, start: {start}, end: {}",
-      start_execution_trace.len()
-    );
     let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
-    tracing::debug!("IS execution trace length: {:#?}", IS_execution_trace.len());
 
     // If this is a shard of a WASM program calculate shard size & construct IS
     let is_sharded = program.args().is_sharded();
@@ -225,7 +220,7 @@ where
         RS.push(step_rs.clone());
         WS.push(step_ws.clone());
 
-        WASMTransitionCircuit::new(vm, step_rs, step_ws, IS_sizes.stack_len())
+        WASMTransitionCircuit::new(vm, step_rs, step_ws, IS_sizes)
       })
       .collect();
     let circuits = circuits
