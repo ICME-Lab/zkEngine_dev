@@ -24,6 +24,9 @@ pub enum ZKWASMError {
   /// Something went wrong when verifying the multisets
   #[error("MultisetVerificationError")]
   MultisetVerificationError,
+  #[error("AlreadyCompressed")]
+  /// Trying to compress and already compressedSNARK
+  AlreadyCompressed,
 }
 
 impl From<wasmi::Error> for ZKWASMError {

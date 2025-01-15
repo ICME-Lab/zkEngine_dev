@@ -53,6 +53,29 @@ where
   pk_and_vk: OnceCell<(ProverKey<E, S1, S2>, VerifierKey<E, S1, S2>)>,
 }
 
+impl<E, S1, S2> WASMPublicParams<E, S1, S2>
+where
+  E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+{
+  /// provides a reference to a ProverKey suitable for producing a CompressedProof
+  pub fn pk(&self) -> &ProverKey<E, S1, S2> {
+    let (pk, _vk) = self
+      .pk_and_vk
+      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(self).unwrap());
+    pk
+  }
+
+  /// provides a reference to a VerifierKey suitable for verifying a CompressedProof
+  pub fn vk(&self) -> &VerifierKey<E, S1, S2> {
+    let (_pk, vk) = self
+      .pk_and_vk
+      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(self).unwrap());
+    vk
+  }
+}
+
 impl<E, S1, S2> Layer1PPTrait<E> for WASMPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
@@ -403,6 +426,14 @@ where
     ))
   }
 
+  /// Apply Spartan on top of the Nebula IVC proofs
+  pub fn compress(&self, pp: &WASMPublicParams<E, S1, S2>) -> Result<Self, ZKWASMError> {
+    match self {
+      Self::Recursive(rs) => Ok(Self::Compressed(CompressedSNARK::prove(pp, pp.pk(), rs)?)),
+      Self::Compressed(..) => Err(ZKWASMError::AlreadyCompressed),
+    }
+  }
+
   /// Verify the [`WasmSNARK`]
   pub fn verify(
     &self,
@@ -462,7 +493,7 @@ where
           return Err(ZKWASMError::MultisetVerificationError);
         }
       }
-      Self::Compressed(..) => {}
+      Self::Compressed(snark) => snark.verify(pp, pp.vk())?,
     }
 
     Ok(())
