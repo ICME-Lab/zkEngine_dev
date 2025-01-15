@@ -110,10 +110,10 @@ where
     program: &impl ZKWASMCtx,
     step_size: StepSize,
   ) -> Result<(Self, ZKWASMInstance<E>), ZKWASMError> {
-    // We maintain a timestamp counter `globa_ts` that is initialized to
-    // the highest timestamp value in IS.
-    let mut global_ts = 0;
-
+    // Run the vm and get the execution trace of the program.
+    //
+    // # Note:
+    //
     // `start_execution_trace` is an execution trace starting from opcode 0 to opcode `end` from the
     // WASM program `TraceSliceValues`
     //
@@ -122,12 +122,20 @@ where
     // memory checking in continuations/sharding
     let (start_execution_trace, mut IS, IS_sizes) = program.execution_trace()?;
 
+    /*
+     * Construct IS multiset
+     */
+
     // Split the execution trace at `TraceSliceValues` `start` value. Use the first half to
     // construct IS and use the second half for the actual proving of the shard
     let start = program.args().start();
     let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
 
-    // If this is a shard of a WASM program calculate shard size & construct IS
+    // We maintain a timestamp counter `globa_ts` that is initialized to
+    // the highest timestamp value in IS.
+    let mut global_ts = 0;
+
+    // If this is a shard of a WASM program: calculate shard size & construct IS
     let is_sharded = program.args().is_sharded();
     let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
     construct_IS(
@@ -143,7 +151,7 @@ where
     // Get the highest timestamp in the IS
     let IS_gts = global_ts;
 
-    // Construct the RS, WS, & FS multisets for MCC
+    // Construct RS, WS, & FS multisets for MCC
     //
     // # Note:
     //
@@ -153,19 +161,23 @@ where
     // * IS is already constructed.
     //
     // * Initialize the FS multiset to IS, because that will be the starting state of the zkVM which
-    //   will then be constructed according to the execution trace we are proving.
+    //   we will then modify when we build the execution proving step circuits to derive the actual
+    //   FS.
     let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut FS = IS.clone();
 
-    // Pad the execution trace, so its length is a multiple of `step_size`
-    let non_padded_len = execution_trace.len();
-    if non_padded_len % step_size.execution != 0 {
-      let pad_len = step_size.execution - (non_padded_len % step_size.execution);
-      (0..pad_len).for_each(|_| {
-        execution_trace.push(WitnessVM::default());
-      })
-    }
+    // Pad the execution trace, so its length is a multiple of `step_size`.
+    //
+    // 1. This: `step_size.execution - (execution_trace.len() % step_size.execution))` calculates
+    //    the
+    // number of pads needed for execution trace to be a multiple of `step_size.execution`
+    //
+    // 2. We then mod the above value by `step_size.execution` because if the execution trace is
+    //    already a multiple of `step_size.execution` this additional mod makes the pad_len 0
+    let pad_len =
+      (step_size.execution - (execution_trace.len() % step_size.execution)) % step_size.execution;
+    execution_trace.extend((0..pad_len).map(|_| WitnessVM::default()));
 
     // Build the WASMTransitionCircuit from each traced execution frame and then batch them into
     // size `step_size`
@@ -233,11 +245,9 @@ where
     // Pad IS and FS , so length is a multiple of step_size
     {
       let len = IS.len();
-      let pad_len = step_size.memory - (len % step_size.memory);
-      (0..pad_len).for_each(|i| {
-        IS.push((len + i, 0, 0));
-        FS.push((len + i, 0, 0));
-      })
+      let pad_len = (step_size.memory - (len % step_size.memory)) % step_size.memory;
+      IS.extend((len..len + pad_len).map(|i| (i, 0, 0)));
+      FS.extend((len..len + pad_len).map(|i| (i, 0, 0)));
     }
 
     // sanity check
