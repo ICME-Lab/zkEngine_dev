@@ -8,9 +8,10 @@ use mcc::{
 };
 use nova::{
   nebula::{
+    audit_rs::{AuditPublicParams, AuditRecursiveSNARK},
     ic::IC,
-    l2::{sharding::MemoryCommitmentsTraits, Layer1PP, Layer1RSTrait},
-    rs::{PublicParams, RecursiveSNARK, StepCircuit},
+    rs::{PublicParams, RecursiveSNARK},
+    traits::{Layer1PPTrait, Layer1RSTrait, MemoryCommitmentsTraits},
   },
   traits::{snark::default_ck_hint, CurveCycleEquipped, Engine, TranscriptEngineTrait},
 };
@@ -36,18 +37,18 @@ where
   E: CurveCycleEquipped,
 {
   // execution instance
-  execution_z0: Vec<<E as Engine>::Scalar>,
-  IC_i: <E as Engine>::Scalar,
+  execution_z0: Vec<E::Scalar>,
+  IC_i: E::Scalar,
 
   // ops instance
-  ops_z0: Vec<<E as Engine>::Scalar>,
-  ops_IC_i: <E as Engine>::Scalar,
+  ops_z0: Vec<E::Scalar>,
+  ops_IC_i: E::Scalar,
 
   // scan instance
-  scan_z0: Vec<<E as Engine>::Scalar>,
-  scan_IC_i: <E as Engine>::Scalar,
-  IC_IS: <E as Engine>::Scalar,
-  IC_FS: <E as Engine>::Scalar,
+  scan_z0: Vec<E::Scalar>,
+  scan_IC_i: (E::Scalar, E::Scalar),
+  IC_IS: E::Scalar,
+  IC_FS: E::Scalar,
 }
 
 impl<E> MemoryCommitmentsTraits<E> for ZKWASMInstance<E>
@@ -72,41 +73,27 @@ where
 {
   execution_pp: PublicParams<E>,
   ops_pp: PublicParams<E>,
-  scan_pp: PublicParams<E>,
+  scan_pp: AuditPublicParams<E>,
 }
 
-impl<E> WASMPublicParams<E>
+impl<E> Layer1PPTrait<E> for WASMPublicParams<E>
 where
   E: CurveCycleEquipped,
 {
-  /// Get the execution public params
-  pub fn execution(&self) -> &PublicParams<E> {
+  fn into_parts(self) -> (PublicParams<E>, PublicParams<E>, AuditPublicParams<E>) {
+    (self.execution_pp, self.ops_pp, self.scan_pp)
+  }
+
+  fn F(&self) -> &PublicParams<E> {
     &self.execution_pp
   }
 
-  /// Get the ops public params
-  pub fn ops(&self) -> &PublicParams<E> {
+  fn ops(&self) -> &PublicParams<E> {
     &self.ops_pp
   }
 
-  /// Get the scan public params
-  pub fn scan(&self) -> &PublicParams<E> {
+  fn scan(&self) -> &AuditPublicParams<E> {
     &self.scan_pp
-  }
-}
-
-impl<E> Layer1PP<E> for WASMPublicParams<E>
-where
-  E: CurveCycleEquipped,
-{
-  fn into_parts(
-    self,
-  ) -> (
-    nova::nebula::rs::PublicParams<E>,
-    nova::nebula::rs::PublicParams<E>,
-    nova::nebula::rs::PublicParams<E>,
-  ) {
-    (self.execution_pp, self.ops_pp, self.scan_pp)
   }
 }
 
@@ -119,7 +106,7 @@ where
 {
   execution_rs: RecursiveSNARK<E>,
   ops_rs: RecursiveSNARK<E>,
-  scan_rs: RecursiveSNARK<E>,
+  scan_rs: AuditRecursiveSNARK<E>,
 }
 
 impl<E> WasmSNARK<E>
@@ -141,7 +128,7 @@ where
       &*default_ck_hint(),
     );
 
-    let scan_pp = PublicParams::<E>::setup(
+    let scan_pp = AuditPublicParams::<E>::setup(
       &ScanCircuit::empty(step_size.memory),
       &*default_ck_hint(),
       &*default_ck_hint(),
@@ -237,7 +224,7 @@ where
 
     // F represents the transition function of the WASM (stack-based) VM.
     // commitment-carrying IVC to prove the repeated execution of F
-    let execution_pp = pp.execution();
+    let execution_pp = pp.F();
     for (i, circuit) in circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, circuits.len());
       let mut rs = rs_option.unwrap_or_else(|| {
@@ -271,18 +258,13 @@ where
       .zip_eq(WS.into_iter())
       .map(|(rs, ws)| OpsCircuit::new(rs, ws))
       .collect::<Vec<_>>();
-
     let ops_circuits = ops_circuits
       .chunks(step_size.execution)
       .map(|chunk| BatchedOpsCircuit::new(chunk.to_vec()))
       .collect::<Vec<_>>();
-
-    // build scan circuits
-    let mut scan_IC_i = E::Scalar::ZERO;
-    let mut IC_pprime = E::Scalar::ZERO;
+    let mut scan_IC_i = (E::Scalar::ZERO, E::Scalar::ZERO);
     let mut IC_IS = E::Scalar::ZERO;
     let mut IC_FS = E::Scalar::ZERO;
-
     let mut scan_circuits = Vec::new();
 
     // Pad IS and FS , so length is a multiple of step_size
@@ -303,7 +285,7 @@ where
     {
       IC_IS = IC::<E>::commit(
         &scan_pp.ck_primary,
-        &scan_pp.ro_consts_primary,
+        &scan_pp.ro_consts,
         IC_IS,
         IS_chunk
           .iter()
@@ -313,7 +295,7 @@ where
 
       IC_FS = IC::<E>::commit(
         &scan_pp.ck_primary,
-        &scan_pp.ro_consts_primary,
+        &scan_pp.ro_consts,
         IC_FS,
         FS_chunk
           .iter()
@@ -322,19 +304,14 @@ where
       );
 
       let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
-      IC_pprime = IC::<E>::commit(
-        &scan_pp.ck_primary,
-        &scan_pp.ro_consts_primary,
-        IC_pprime,
-        scan_circuit.non_deterministic_advice(),
-      );
       scan_circuits.push(scan_circuit);
     }
 
     // Get alpha and gamma
     let mut keccak = E::TE::new(b"compute MCC challenges");
     keccak.absorb(b"C_n", &IC_i);
-    keccak.absorb(b"C_pprime", &IC_pprime);
+    keccak.absorb(b"IC_IS", &IC_IS);
+    keccak.absorb(b"IC_FS", &IC_FS);
     let gamma = keccak.squeeze(b"gamma")?;
     let alpha = keccak.squeeze(b"alpha")?;
 
@@ -381,13 +358,13 @@ where
 
     // scan_z0 = [gamma, alpha, h_IS=1, h_FS=1]
     let scan_z0 = vec![gamma, alpha, E::Scalar::ONE, E::Scalar::ONE];
-    let mut scan_rs_option: Option<RecursiveSNARK<E>> = None;
+    let mut scan_rs_option: Option<AuditRecursiveSNARK<E>> = None;
 
     tracing::debug!("Proving MCC audit circuits");
     for (i, scan_circuit) in scan_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, scan_circuits.len());
       let mut scan_rs = scan_rs_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(scan_pp, scan_circuit, &scan_z0)
+        AuditRecursiveSNARK::new(scan_pp, scan_circuit, &scan_z0)
           .expect("failed to construct initial recursive SNARK")
       });
 
@@ -401,7 +378,7 @@ where
     let scan_rs = scan_rs_option.ok_or(ZKWASMError::MalformedRS)?;
     scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
 
-    debug_assert_eq!(scan_IC_i, IC_pprime);
+    debug_assert_eq!(scan_IC_i, (IC_IS, IC_FS));
 
     // Public i/o
     let U = ZKWASMInstance {
@@ -429,7 +406,7 @@ where
   pub fn verify(&self, pp: &WASMPublicParams<E>, U: &ZKWASMInstance<E>) -> Result<(), ZKWASMError> {
     // verify F
     self.execution_rs.verify(
-      pp.execution(),
+      pp.F(),
       self.execution_rs.num_steps(),
       &U.execution_z0,
       U.IC_i,
@@ -466,7 +443,8 @@ where
     // Get alpha and gamma
     let mut keccak = E::TE::new(b"compute MCC challenges");
     keccak.absorb(b"C_n", &U.IC_i);
-    keccak.absorb(b"C_pprime", &U.scan_IC_i);
+    keccak.absorb(b"IC_IS", &U.scan_IC_i.0);
+    keccak.absorb(b"IC_FS", &U.scan_IC_i.1);
     let gamma = keccak.squeeze(b"gamma")?;
     let alpha = keccak.squeeze(b"alpha")?;
 
@@ -541,7 +519,7 @@ where
     &self.ops_rs
   }
 
-  fn scan(&self) -> &RecursiveSNARK<E> {
+  fn scan(&self) -> &AuditRecursiveSNARK<E> {
     &self.scan_rs
   }
 }
