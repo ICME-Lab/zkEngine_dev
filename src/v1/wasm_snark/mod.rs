@@ -1,4 +1,8 @@
 //! Implements SNARK proving the WASM module computation
+use super::{
+  error::ZKWASMError,
+  wasm_ctx::{ISMemSizes, ZKWASMCtx},
+};
 use crate::v1::utils::tracing::split_vector;
 use ff::Field;
 use itertools::Itertools;
@@ -17,52 +21,13 @@ use nova::{
 };
 use serde::{Deserialize, Serialize};
 use wasmi::WitnessVM;
-
-use super::{
-  error::ZKWASMError,
-  wasm_ctx::{ISMemSizes, ZKWASMCtx},
-};
 mod gadgets;
 mod mcc;
 mod switchboard;
 use switchboard::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
+
 /// Maximum number of memory ops allowed per step of the zkVM
 pub const MEMORY_OPS_PER_STEP: usize = 8;
-
-/// Public i/o for WASM execution proving
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(bound = "")]
-pub struct ZKWASMInstance<E>
-where
-  E: CurveCycleEquipped,
-{
-  // execution instance
-  execution_z0: Vec<E::Scalar>,
-  IC_i: E::Scalar,
-
-  // ops instance
-  ops_z0: Vec<E::Scalar>,
-  ops_IC_i: E::Scalar,
-
-  // scan instance
-  scan_z0: Vec<E::Scalar>,
-  scan_IC_i: (E::Scalar, E::Scalar),
-  IC_IS: E::Scalar,
-  IC_FS: E::Scalar,
-}
-
-impl<E> MemoryCommitmentsTraits<E> for ZKWASMInstance<E>
-where
-  E: CurveCycleEquipped,
-{
-  fn C_IS(&self) -> <E as Engine>::Scalar {
-    self.IC_IS
-  }
-
-  fn C_FS(&self) -> <E as Engine>::Scalar {
-    self.IC_FS
-  }
-}
 
 /// [`WasmSNARK`] public parameters
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -121,13 +86,11 @@ where
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
-
     let ops_pp = PublicParams::<E>::setup(
       &BatchedOpsCircuit::empty(step_size.execution),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
-
     let scan_pp = AuditPublicParams::<E>::setup(
       &ScanCircuit::empty(step_size.memory),
       &*default_ck_hint(),
@@ -151,12 +114,12 @@ where
     // the highest timestamp value in IS.
     let mut global_ts = 0;
 
-    // `start_execution_trace` is execution trace starting from opcode 0 to opcode `end` in the WASM
-    // program `TraceSliceValues`
+    // `start_execution_trace` is an execution trace starting from opcode 0 to opcode `end` from the
+    // WASM program `TraceSliceValues`
     //
     // We do not slice the execution trace at `TraceSliceValues` `start` value because we need the
-    // execution trace from opcode 0 to opcode `start` to construct the IS for memory checking and
-    // continuations/sharding
+    // values of the execution trace from *opcode 0 to opcode `start`* to construct the IS for
+    // memory checking in continuations/sharding
     let (start_execution_trace, mut IS, IS_sizes) = program.execution_trace()?;
 
     // Split the execution trace at `TraceSliceValues` `start` value. Use the first half to
@@ -180,12 +143,22 @@ where
     // Get the highest timestamp in the IS
     let IS_gts = global_ts;
 
-    // Construct multisets for MCC
+    // Construct the RS, WS, & FS multisets for MCC
+    //
+    // # Note:
+    //
+    // * Initialize the RS, and WS multisets as empty, as these will be filled in when we construct
+    //   the step circuits for execution proving
+    //
+    // * IS is already constructed.
+    //
+    // * Initialize the FS multiset to IS, because that will be the starting state of the zkVM which
+    //   will then be constructed according to the execution trace we are proving.
     let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
     let mut FS = IS.clone();
 
-    // Pad the execution trace, so the length is a multiple of step_size
+    // Pad the execution trace, so its length is a multiple of `step_size`
     let non_padded_len = execution_trace.len();
     if non_padded_len % step_size.execution != 0 {
       let pad_len = step_size.execution - (non_padded_len % step_size.execution);
@@ -194,19 +167,14 @@ where
       })
     }
 
-    tracing::debug!("execution trace length: {:#?}", execution_trace.len());
-    tracing::trace!("execution trace: {:#?}", execution_trace);
-
     // Build the WASMTransitionCircuit from each traced execution frame and then batch them into
     // size `step_size`
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
       .into_iter()
       .map(|vm| {
         let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, &IS_sizes);
-
         RS.push(step_rs.clone());
         WS.push(step_ws.clone());
-
         WASMTransitionCircuit::new(vm, step_rs, step_ws, IS_sizes)
       })
       .collect();
@@ -216,14 +184,15 @@ where
       .collect::<Vec<_>>();
 
     /*
-     * ***** WASM Transition Circuit Proving *****
+     * ************** WASM Transition Circuit Proving **************
      */
+
+    // F represents the transition function of the WASM VM.
+    //
+    // We use commitment-carrying IVC to prove the repeated execution of F
     let mut rs_option: Option<RecursiveSNARK<E>> = None;
     let z0 = vec![E::Scalar::ZERO];
     let mut IC_i = E::Scalar::ZERO;
-
-    // F represents the transition function of the WASM (stack-based) VM.
-    // commitment-carrying IVC to prove the repeated execution of F
     let execution_pp = pp.F();
     for (i, circuit) in circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, circuits.len());
@@ -231,10 +200,8 @@ where
         RecursiveSNARK::new(execution_pp, circuit, &z0)
           .expect("failed to construct initial recursive SNARK")
       });
-
       rs.prove_step(execution_pp, circuit, IC_i)?;
       IC_i = rs.increment_commitment(execution_pp, circuit);
-
       rs_option = Some(rs)
     }
 
@@ -245,10 +212,10 @@ where
     rs.verify(execution_pp, num_steps, &z0, IC_i)?;
 
     /*
-     * Prove grand products for MCC
+     * ************** Prove grand products for MCC **************
      */
 
-    // Get public parameters
+    // Get MCC public parameters
     let ops_pp = pp.ops();
     let scan_pp = pp.scan();
 
@@ -262,10 +229,6 @@ where
       .chunks(step_size.execution)
       .map(|chunk| BatchedOpsCircuit::new(chunk.to_vec()))
       .collect::<Vec<_>>();
-    let mut scan_IC_i = (E::Scalar::ZERO, E::Scalar::ZERO);
-    let mut IC_IS = E::Scalar::ZERO;
-    let mut IC_FS = E::Scalar::ZERO;
-    let mut scan_circuits = Vec::new();
 
     // Pad IS and FS , so length is a multiple of step_size
     {
@@ -276,9 +239,20 @@ where
         FS.push((len + i, 0, 0));
       })
     }
+
     // sanity check
     assert_eq!(IS.len() % step_size.memory, 0);
 
+    // Build the Audit MCC circuits.
+    //
+    // 1. To get the challenges alpha and gamma we first have to compute the incremental
+    //    commitmenents to the multisets IS and FS
+    //
+    // 2. We chunk IS and FS into `step_size.memory` sized chunks and build the [`ScanCircuit`]
+    let mut scan_IC_i = (E::Scalar::ZERO, E::Scalar::ZERO);
+    let mut IC_IS = E::Scalar::ZERO;
+    let mut IC_FS = E::Scalar::ZERO;
+    let mut scan_circuits = Vec::new();
     for (IS_chunk, FS_chunk) in IS
       .chunks(step_size.memory)
       .zip_eq(FS.chunks(step_size.memory))
@@ -292,7 +266,6 @@ where
           .flat_map(|avt| avt_tuple_to_scalar_vec(*avt))
           .collect(),
       );
-
       IC_FS = IC::<E>::commit(
         &scan_pp.ck_primary,
         &scan_pp.ro_consts,
@@ -302,12 +275,11 @@ where
           .flat_map(|avt| avt_tuple_to_scalar_vec(*avt))
           .collect(),
       );
-
       let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
       scan_circuits.push(scan_circuit);
     }
 
-    // Get alpha and gamma
+    // Get gamma and alpha
     let mut keccak = E::TE::new(b"compute MCC challenges");
     keccak.absorb(b"C_n", &IC_i);
     keccak.absorb(b"IC_IS", &IC_IS);
@@ -319,11 +291,7 @@ where
      * Grand product checks for RS & WS
      */
 
-    /*
-     * ***** F_ops proving *****
-     */
-
-    // ops_z0 = [gamma, alpha, ts=gts, h_RS=1, h_WS=1]
+    // z0 <- [gamma, alpha, ts=gts, h_RS=1, h_WS=1]
     let ops_z0 = vec![
       gamma,
       alpha,
@@ -333,7 +301,6 @@ where
     ];
     let mut ops_IC_i = E::Scalar::ZERO;
     let mut ops_rs_option: Option<RecursiveSNARK<E>> = None;
-
     tracing::debug!("Proving MCC ops circuits");
     for (i, ops_circuit) in ops_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, ops_circuits.len());
@@ -341,10 +308,8 @@ where
         RecursiveSNARK::new(ops_pp, ops_circuit, &ops_z0)
           .expect("failed to construct initial recursive SNARK")
       });
-
       ops_rs.prove_step(ops_pp, ops_circuit, ops_IC_i)?;
       ops_IC_i = ops_rs.increment_commitment(ops_pp, ops_circuit);
-
       ops_rs_option = Some(ops_rs)
     }
 
@@ -356,10 +321,9 @@ where
      * Grand product checks for IS & FS
      */
 
-    // scan_z0 = [gamma, alpha, h_IS=1, h_FS=1]
+    // z0 <- [gamma, alpha, h_IS=1, h_FS=1]
     let scan_z0 = vec![gamma, alpha, E::Scalar::ONE, E::Scalar::ONE];
     let mut scan_rs_option: Option<AuditRecursiveSNARK<E>> = None;
-
     tracing::debug!("Proving MCC audit circuits");
     for (i, scan_circuit) in scan_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, scan_circuits.len());
@@ -367,20 +331,17 @@ where
         AuditRecursiveSNARK::new(scan_pp, scan_circuit, &scan_z0)
           .expect("failed to construct initial recursive SNARK")
       });
-
       scan_rs.prove_step(scan_pp, scan_circuit, scan_IC_i)?;
       scan_IC_i = scan_rs.increment_commitment(scan_pp, scan_circuit);
-
       scan_rs_option = Some(scan_rs)
     }
 
     // internal check
     let scan_rs = scan_rs_option.ok_or(ZKWASMError::MalformedRS)?;
     scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
-
     debug_assert_eq!(scan_IC_i, (IC_IS, IC_FS));
 
-    // Public i/o
+    // Instance for [`WasmSNARK`]
     let U = ZKWASMInstance {
       execution_z0: z0,
       IC_i,
@@ -388,8 +349,6 @@ where
       ops_IC_i,
       scan_z0,
       scan_IC_i,
-      IC_IS,
-      IC_FS,
     };
 
     Ok((
@@ -524,6 +483,38 @@ where
   }
 }
 
+/// Public i/o for WASM execution proving
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct ZKWASMInstance<E>
+where
+  E: CurveCycleEquipped,
+{
+  // execution instance
+  execution_z0: Vec<E::Scalar>,
+  IC_i: E::Scalar,
+
+  // ops instance
+  ops_z0: Vec<E::Scalar>,
+  ops_IC_i: E::Scalar,
+
+  // scan instance
+  scan_z0: Vec<E::Scalar>,
+  scan_IC_i: (E::Scalar, E::Scalar),
+}
+
+impl<E> MemoryCommitmentsTraits<E> for ZKWASMInstance<E>
+where
+  E: CurveCycleEquipped,
+{
+  fn C_IS(&self) -> <E as Engine>::Scalar {
+    self.scan_IC_i.0
+  }
+
+  fn C_FS(&self) -> <E as Engine>::Scalar {
+    self.scan_IC_i.1
+  }
+}
 /// Step size of used for zkVM execution
 #[derive(Clone, Debug, Copy)]
 pub struct StepSize {
