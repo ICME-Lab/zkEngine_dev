@@ -1,4 +1,4 @@
-use super::{gen_sharding_pp, ShardingSNARK};
+use super::ShardingSNARK;
 use crate::{
   utils::logging::init_logger,
   v1::{
@@ -148,7 +148,7 @@ fn sim_nodes_and_orchestrator_node(
   // Generate sharding public parameters
   //
   // This is the public parameters used by the orchestrator node
-  let sharding_pp = gen_sharding_pp(node_pp);
+  let sharding_pp = ShardingSNARK::setup(node_pp);
 
   // Create a new instance of ShardingSNARK with the first node SNARK and instance
   //
@@ -170,6 +170,11 @@ fn sim_nodes_and_orchestrator_node(
 
   // Verify sharding was done correctly
   sharding_snark.verify(&sharding_pp).unwrap();
+
+  let compressed_snark = sharding_snark.compress(&sharding_pp).unwrap();
+  compressed_snark
+    .verify(sharding_pp.inner(), sharding_pp.vk())
+    .unwrap();
 }
 
 fn num_shards(program: &impl ZKWASMCtx, shard_opcode_size: usize) -> usize {

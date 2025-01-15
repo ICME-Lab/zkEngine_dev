@@ -14,7 +14,7 @@ use nova::{
 };
 use std::{path::PathBuf, time::Instant};
 
-use super::{gen_aggregation_pp, AggregationSNARK};
+use super::AggregationSNARK;
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
@@ -117,7 +117,7 @@ fn sim_nodes_and_orchestrator_node(
    * ********** Aggregation (Orchestrator Node work) **********
    */
 
-  let aggregation_pp = gen_aggregation_pp(node_pp);
+  let aggregation_pp = AggregationSNARK::setup(node_pp);
 
   // This SNARK will testify that all node SNARKs are correct
   let mut aggregation_snark =
@@ -128,7 +128,13 @@ fn sim_nodes_and_orchestrator_node(
     .aggregate(&aggregation_pp, &node_snarks, &node_instances)
     .unwrap();
 
+  aggregation_snark.verify(&aggregation_pp).unwrap();
   stop_timer!(aggregation_proof_timer);
+
+  let compressed_snark = aggregation_snark.compress(&aggregation_pp).unwrap();
+  compressed_snark
+    .verify(aggregation_pp.inner(), aggregation_pp.vk())
+    .unwrap();
 }
 
 fn node_nw(

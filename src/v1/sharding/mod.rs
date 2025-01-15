@@ -2,7 +2,7 @@
 //!
 //! i.e. continuations
 
-use std::marker::PhantomData;
+use std::{cell::OnceCell, marker::PhantomData};
 
 use super::{
   error::ZKWASMError,
@@ -10,21 +10,57 @@ use super::{
 };
 use itertools::Itertools;
 use nova::{
-  nebula::layer_2::sharding::{ShardingPublicParams, ShardingRecursiveSNARK},
+  nebula::layer_2::sharding::{
+    compression::{CompressedSNARK, ProverKey, VerifierKey},
+    ShardingPublicParams as NovaShardingPublicParams, ShardingRecursiveSNARK,
+  },
   traits::{snark::BatchedRelaxedR1CSSNARKTrait, CurveCycleEquipped, Dual},
 };
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 mod tests;
 
-/// Generate sharding public parameters
-pub fn gen_sharding_pp<E, S1, S2>(wasm_pp: WASMPublicParams<E, S1, S2>) -> ShardingPublicParams<E>
+/// Sharding public parameters
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct ShardingPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
   S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
-  ShardingPublicParams::setup(wasm_pp)
+  pp: NovaShardingPublicParams<E>,
+  /// Prover and verifier key for final proof compression
+  #[serde(skip)]
+  pk_and_vk: OnceCell<(ProverKey<E, S1, S2>, VerifierKey<E, S1, S2>)>,
+}
+
+impl<E, S1, S2> ShardingPublicParams<E, S1, S2>
+where
+  E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+{
+  /// provides a reference to a ProverKey suitable for producing a CompressedProof
+  pub fn pk(&self) -> &ProverKey<E, S1, S2> {
+    let (pk, _vk) = self
+      .pk_and_vk
+      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(&self.pp).unwrap());
+    pk
+  }
+
+  /// provides a reference to a VerifierKey suitable for verifying a CompressedProof
+  pub fn vk(&self) -> &VerifierKey<E, S1, S2> {
+    let (_pk, vk) = self
+      .pk_and_vk
+      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(&self.pp).unwrap());
+    vk
+  }
+
+  /// Get the inner public parameters
+  pub fn inner(&self) -> &NovaShardingPublicParams<E> {
+    &self.pp
+  }
 }
 
 /// Sharding SNARK used to aggregate [`WasmSNARK`]'s
@@ -47,19 +83,28 @@ where
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
   S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
+  /// Get the [`ShardingPublicParams`]
+  pub fn setup(wasm_pp: WASMPublicParams<E, S1, S2>) -> ShardingPublicParams<E, S1, S2> {
+    let pp = NovaShardingPublicParams::<E>::setup(wasm_pp);
+    ShardingPublicParams {
+      pp,
+      pk_and_vk: OnceCell::new(),
+    }
+  }
+
   /// Create a new instance of [`ShardingSNARK`]
   ///
   /// # Note
   ///
   /// Input first shard here
   pub fn new(
-    pp: &ShardingPublicParams<E>,
+    pp: &ShardingPublicParams<E, S1, S2>,
     wasm_snark: &WasmSNARK<E, S1, S2>,
     U: &ZKWASMInstance<E>,
   ) -> Result<Self, ZKWASMError> {
     match wasm_snark {
       WasmSNARK::Recursive(wasm_snark) => {
-        let rs = ShardingRecursiveSNARK::new(pp, wasm_snark, U)?;
+        let rs = ShardingRecursiveSNARK::new(pp.inner(), wasm_snark, U)?;
         Ok(Self {
           rs,
           _s1: PhantomData,
@@ -81,14 +126,14 @@ where
   /// Order of shards inputted here matter.
   pub fn prove_sharding(
     &mut self,
-    pp: &ShardingPublicParams<E>,
+    pp: &ShardingPublicParams<E, S1, S2>,
     wasm_snarks: &[WasmSNARK<E, S1, S2>],
     U: &[ZKWASMInstance<E>],
   ) -> Result<(), ZKWASMError> {
     for (snark, U) in wasm_snarks.iter().zip_eq(U.iter()) {
       match snark {
         WasmSNARK::Recursive(wasm_snark) => {
-          self.rs.prove_step(pp, wasm_snark, U)?;
+          self.rs.prove_step(pp.inner(), wasm_snark, U)?;
         }
         WasmSNARK::Compressed(_) => return Err(ZKWASMError::NotRecursive),
       }
@@ -98,8 +143,17 @@ where
   }
 
   /// Verify the [`ShardingSNARK`]
-  pub fn verify(&self, pp: &ShardingPublicParams<E>) -> Result<(), ZKWASMError> {
-    self.rs.verify(pp)?;
+  pub fn verify(&self, pp: &ShardingPublicParams<E, S1, S2>) -> Result<(), ZKWASMError> {
+    self.rs.verify(pp.inner())?;
     Ok(())
+  }
+
+  /// Apply Spartan on top of the[`ShardingSNARK`]
+  pub fn compress(
+    &self,
+    pp: &ShardingPublicParams<E, S1, S2>,
+  ) -> Result<CompressedSNARK<E, S1, S2>, ZKWASMError> {
+    let snark = CompressedSNARK::prove(pp.inner(), pp.pk(), &self.rs)?;
+    Ok(snark)
   }
 }
