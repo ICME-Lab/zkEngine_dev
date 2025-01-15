@@ -7,13 +7,21 @@ use crate::{
     wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
   },
 };
-use nova::provider::Bn256EngineIPA;
+use nova::{
+  provider::{ipa_pc, Bn256EngineIPA},
+  spartan,
+  traits::Dual,
+};
 use std::{path::PathBuf, time::Instant};
 
 use super::{gen_aggregation_pp, AggregationSNARK};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
+pub type EE1 = ipa_pc::EvaluationEngine<E>;
+pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
+pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
+pub type S2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E>, EE2>;
 
 #[test]
 fn test_aggregation_bit_check() -> Result<(), ZKWASMError> {
@@ -101,7 +109,7 @@ fn sim_nodes_and_orchestrator_node(
   // Public parameters used by [`WasmSNARK`]
   //
   // All nodes will use the same public parameters
-  let node_pp = WasmSNARK::<E>::setup(step_size);
+  let node_pp = WasmSNARK::<E, S1, S2>::setup(step_size);
 
   let (node_snarks, node_instances) = node_nw(&node_pp, wasm_program, num_nodes, step_size);
 
@@ -124,18 +132,18 @@ fn sim_nodes_and_orchestrator_node(
 }
 
 fn node_nw(
-  node_pp: &WASMPublicParams<E>,
+  node_pp: &WASMPublicParams<E, S1, S2>,
   wasm_program: &impl ZKWASMCtx,
   num_nodes: usize,
   step_size: StepSize,
-) -> (Vec<WasmSNARK<E>>, Vec<ZKWASMInstance<E>>) {
+) -> (Vec<WasmSNARK<E, S1, S2>>, Vec<ZKWASMInstance<E>>) {
   let mut node_snarks = Vec::new();
   let mut node_instances = Vec::new();
 
   for i in 0..num_nodes {
     let node_timer = start_timer!(format!("Node Proving {}/{}", i + 1, num_nodes));
 
-    let (snark, U) = WasmSNARK::<E>::prove(node_pp, wasm_program, step_size).unwrap();
+    let (snark, U) = WasmSNARK::<E, S1, S2>::prove(node_pp, wasm_program, step_size).unwrap();
     snark.verify(node_pp, &U).unwrap();
 
     node_snarks.push(snark);

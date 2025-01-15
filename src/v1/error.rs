@@ -25,7 +25,7 @@ pub enum ZKWASMError {
   #[error("MultisetVerificationError")]
   MultisetVerificationError,
   #[error("AlreadyCompressed")]
-  /// Trying to compress and already compressedSNARK
+  /// Returned when trying to compress or aggregate an already compressed proof
   AlreadyCompressed,
 }
 
