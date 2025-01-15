@@ -62,7 +62,7 @@ where
           _s2: PhantomData,
         })
       }
-      WasmSNARK::Compressed(_) => Err(ZKWASMError::AlreadyCompressed),
+      WasmSNARK::Compressed(_) => Err(ZKWASMError::NotRecursive),
     }
   }
 
@@ -82,7 +82,7 @@ where
         WasmSNARK::Recursive(wasm_snark) => {
           self.rs.prove_step(pp, wasm_snark, U)?;
         }
-        WasmSNARK::Compressed(_) => return Err(ZKWASMError::AlreadyCompressed),
+        WasmSNARK::Compressed(_) => return Err(ZKWASMError::NotRecursive),
       }
     }
 

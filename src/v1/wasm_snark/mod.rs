@@ -430,7 +430,7 @@ where
   pub fn compress(&self, pp: &WASMPublicParams<E, S1, S2>) -> Result<Self, ZKWASMError> {
     match self {
       Self::Recursive(rs) => Ok(Self::Compressed(CompressedSNARK::prove(pp, pp.pk(), rs)?)),
-      Self::Compressed(..) => Err(ZKWASMError::AlreadyCompressed),
+      Self::Compressed(..) => Err(ZKWASMError::NotRecursive),
     }
   }
 

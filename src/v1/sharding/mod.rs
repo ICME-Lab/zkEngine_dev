@@ -2,6 +2,8 @@
 //!
 //! i.e. continuations
 
+use std::marker::PhantomData;
+
 use super::{
   error::ZKWASMError,
   wasm_snark::{WASMPublicParams, WasmSNARK, ZKWASMInstance},
@@ -9,16 +11,18 @@ use super::{
 use itertools::Itertools;
 use nova::{
   nebula::layer_2::sharding::{ShardingPublicParams, ShardingRecursiveSNARK},
-  traits::CurveCycleEquipped,
+  traits::{snark::BatchedRelaxedR1CSSNARKTrait, CurveCycleEquipped, Dual},
 };
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
 mod tests;
 
 /// Generate sharding public parameters
-pub fn gen_sharding_pp<E>(wasm_pp: WASMPublicParams<E>) -> ShardingPublicParams<E>
+pub fn gen_sharding_pp<E, S1, S2>(wasm_pp: WASMPublicParams<E, S1, S2>) -> ShardingPublicParams<E>
 where
   E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
   ShardingPublicParams::setup(wasm_pp)
 }
@@ -26,16 +30,22 @@ where
 /// Sharding SNARK used to aggregate [`WasmSNARK`]'s
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct ShardingSNARK<E>
+pub struct ShardingSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
   rs: ShardingRecursiveSNARK<E>,
+  _s1: PhantomData<S1>,
+  _s2: PhantomData<S2>,
 }
 
-impl<E> ShardingSNARK<E>
+impl<E, S1, S2> ShardingSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// Create a new instance of [`ShardingSNARK`]
   ///
@@ -44,11 +54,20 @@ where
   /// Input first shard here
   pub fn new(
     pp: &ShardingPublicParams<E>,
-    wasm_snark: &WasmSNARK<E>,
+    wasm_snark: &WasmSNARK<E, S1, S2>,
     U: &ZKWASMInstance<E>,
   ) -> Result<Self, ZKWASMError> {
-    let rs = ShardingRecursiveSNARK::new(pp, wasm_snark, U)?;
-    Ok(Self { rs })
+    match wasm_snark {
+      WasmSNARK::Recursive(wasm_snark) => {
+        let rs = ShardingRecursiveSNARK::new(pp, wasm_snark, U)?;
+        Ok(Self {
+          rs,
+          _s1: PhantomData,
+          _s2: PhantomData,
+        })
+      }
+      WasmSNARK::Compressed(_) => Err(ZKWASMError::NotRecursive),
+    }
   }
 
   /// Combine the shards [`WasmSNARK`]s
@@ -63,11 +82,16 @@ where
   pub fn prove_sharding(
     &mut self,
     pp: &ShardingPublicParams<E>,
-    wasm_snarks: &[WasmSNARK<E>],
+    wasm_snarks: &[WasmSNARK<E, S1, S2>],
     U: &[ZKWASMInstance<E>],
   ) -> Result<(), ZKWASMError> {
     for (snark, U) in wasm_snarks.iter().zip_eq(U.iter()) {
-      self.rs.prove_step(pp, snark, U)?;
+      match snark {
+        WasmSNARK::Recursive(wasm_snark) => {
+          self.rs.prove_step(pp, wasm_snark, U)?;
+        }
+        WasmSNARK::Compressed(_) => return Err(ZKWASMError::NotRecursive),
+      }
     }
 
     Ok(())

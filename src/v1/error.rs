@@ -24,9 +24,9 @@ pub enum ZKWASMError {
   /// Something went wrong when verifying the multisets
   #[error("MultisetVerificationError")]
   MultisetVerificationError,
-  #[error("AlreadyCompressed")]
+  #[error("NotRecursive")]
   /// Returned when trying to compress or aggregate an already compressed proof
-  AlreadyCompressed,
+  NotRecursive,
 }
 
 impl From<wasmi::Error> for ZKWASMError {
