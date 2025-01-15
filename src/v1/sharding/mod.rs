@@ -8,7 +8,7 @@ use super::{
 };
 use itertools::Itertools;
 use nova::{
-  nebula::l2::sharding::{ShardingPublicParams, ShardingRecursiveSNARK},
+  nebula::layer_2::sharding::{ShardingPublicParams, ShardingRecursiveSNARK},
   traits::CurveCycleEquipped,
 };
 use serde::{Deserialize, Serialize};

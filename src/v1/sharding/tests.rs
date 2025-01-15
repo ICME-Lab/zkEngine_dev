@@ -187,7 +187,6 @@ fn node_nw(
   let mut end = shard_opcode_size;
   let mut node_snarks = Vec::new();
   let mut node_instances = Vec::new();
-
   for i in 0..num_shards {
     let shard_proving_timer = start_timer!(format!("Proving Shard {}/{}", i + 1, num_shards));
     let wasm_ctx = WasiWASMCtx::new(
@@ -196,13 +195,10 @@ fn node_nw(
         .trace_slice(TraceSliceValues::new(start, end))
         .build(),
     );
-
     let (snark, U) = WasmSNARK::<E>::prove(node_pp, &wasm_ctx, step_size).unwrap();
     snark.verify(node_pp, &U).unwrap();
-
     node_snarks.push(snark);
     node_instances.push(U);
-
     start = end;
     end += shard_opcode_size;
     stop_timer!(shard_proving_timer);

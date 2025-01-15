@@ -5,7 +5,7 @@ use super::{
 };
 use itertools::Itertools;
 use nova::{
-  nebula::l2::{AggregationPublicParams, AggregationRecursiveSNARK},
+  nebula::layer_2::aggregation::{AggregationPublicParams, AggregationRecursiveSNARK},
   traits::CurveCycleEquipped,
 };
 use serde::{Deserialize, Serialize};
