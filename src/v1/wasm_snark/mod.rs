@@ -440,16 +440,12 @@ pub fn construct_IS(
     0
   };
 
-  tracing::debug!("shard size: {shard_size}, sharding pad len: {sharding_pad_len}");
-
   IS_execution_trace.iter().enumerate().for_each(|(i, vm)| {
     if i != 0 && i % shard_size == 0 {
-      tracing::debug!("adding {sharding_pad_len} padding at step i: {i}");
       IS_padding(sharding_pad_len, IS, global_ts, IS_sizes);
     }
     let _ = step_RS_WS(vm, IS, global_ts, IS_sizes);
   });
-
   if !IS_execution_trace.is_empty() && is_sharded {
     IS_padding(sharding_pad_len, IS, global_ts, IS_sizes);
   }
