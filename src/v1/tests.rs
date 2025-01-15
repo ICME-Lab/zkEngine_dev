@@ -7,19 +7,27 @@ use crate::{
   utils::logging::init_logger,
   v1::utils::macros::{start_timer, stop_timer},
 };
-use nova::provider::Bn256EngineIPA;
+use nova::{
+  provider::{ipa_pc, Bn256EngineIPA},
+  spartan,
+  traits::Dual,
+};
 use std::{path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
+pub type EE1 = ipa_pc::EvaluationEngine<E>;
+pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
+pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
+pub type S2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E>, EE2>;
 
 fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError> {
   let pp_timer = start_timer!("Producing Public Parameters");
-  let pp = WasmSNARK::<E>::setup(step_size);
+  let pp = WasmSNARK::<E, S1, S2>::setup(step_size);
   stop_timer!(pp_timer);
 
   let proving_timer = start_timer!("Producing WasmSNARK");
-  let (snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size)?;
+  let (snark, U) = WasmSNARK::<E, S1, S2>::prove(&pp, &wasm_ctx, step_size)?;
   stop_timer!(proving_timer);
 
   let verification_timer = start_timer!("Verifying WasmSNARK");

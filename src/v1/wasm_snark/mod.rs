@@ -1,4 +1,7 @@
 //! Implements SNARK proving the WASM module computation
+#![allow(clippy::large_enum_variant)]
+use std::cell::OnceCell;
+
 use super::{
   error::ZKWASMError,
   wasm_ctx::{ISMemSizes, ZKWASMCtx},
@@ -13,11 +16,15 @@ use mcc::{
 use nova::{
   nebula::{
     audit_rs::{AuditPublicParams, AuditRecursiveSNARK},
+    compression::{CompressedSNARK, ProverKey, VerifierKey},
     ic::IC,
     rs::{PublicParams, RecursiveSNARK},
     traits::{Layer1PPTrait, Layer1RSTrait, MemoryCommitmentsTraits},
   },
-  traits::{snark::default_ck_hint, CurveCycleEquipped, Engine, TranscriptEngineTrait},
+  traits::{
+    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait},
+    CurveCycleEquipped, Dual, Engine, TranscriptEngineTrait,
+  },
 };
 use serde::{Deserialize, Serialize};
 use wasmi::WitnessVM;
@@ -30,20 +37,27 @@ use switchboard::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
 pub const MEMORY_OPS_PER_STEP: usize = 8;
 
 /// [`WasmSNARK`] public parameters
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct WASMPublicParams<E>
+pub struct WASMPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
   execution_pp: PublicParams<E>,
   ops_pp: PublicParams<E>,
   scan_pp: AuditPublicParams<E>,
+  /// Prover and verifier key for final proof compression
+  #[serde(skip)]
+  pk_and_vk: OnceCell<(ProverKey<E, S1, S2>, VerifierKey<E, S1, S2>)>,
 }
 
-impl<E> Layer1PPTrait<E> for WASMPublicParams<E>
+impl<E, S1, S2> Layer1PPTrait<E> for WASMPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
   fn into_parts(self) -> (PublicParams<E>, PublicParams<E>, AuditPublicParams<E>) {
     (self.execution_pp, self.ops_pp, self.scan_pp)
@@ -65,7 +79,7 @@ where
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 /// A SNARK that proves the correct execution of a WASM modules execution
-pub struct WasmSNARK<E>
+pub struct RecursiveWasmSNARK<E>
 where
   E: CurveCycleEquipped,
 {
@@ -74,13 +88,30 @@ where
   scan_rs: AuditRecursiveSNARK<E>,
 }
 
-impl<E> WasmSNARK<E>
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "")]
+/// A SNARK that proves the correct execution of a WASM modules execution
+pub enum WasmSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+{
+  /// RecursiveSNARK for WASM execution
+  Recursive(RecursiveWasmSNARK<E>),
+  /// CompressedSNARK for WASM execution
+  Compressed(CompressedSNARK<E, S1, S2>),
+}
+
+impl<E, S1, S2> WasmSNARK<E, S1, S2>
+where
+  E: CurveCycleEquipped,
+  S1: BatchedRelaxedR1CSSNARKTrait<E>,
+  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
-  pub fn setup(step_size: StepSize) -> WASMPublicParams<E> {
+  pub fn setup(step_size: StepSize) -> WASMPublicParams<E, S1, S2> {
     let execution_pp = PublicParams::<E>::setup(
       &BatchedWasmTransitionCircuit::empty(step_size.execution),
       &*default_ck_hint(),
@@ -100,13 +131,14 @@ where
       execution_pp,
       ops_pp,
       scan_pp,
+      pk_and_vk: OnceCell::new(),
     }
   }
 
   #[tracing::instrument(skip_all, name = "WasmSNARK::prove")]
   /// Produce a SNARK for WASM program input
   pub fn prove(
-    pp: &WASMPublicParams<E>,
+    pp: &WASMPublicParams<E, S1, S2>,
     program: &impl ZKWASMCtx,
     step_size: StepSize,
   ) -> Result<(Self, ZKWASMInstance<E>), ZKWASMError> {
@@ -362,71 +394,75 @@ where
     };
 
     Ok((
-      Self {
+      Self::Recursive(RecursiveWasmSNARK {
         execution_rs: rs,
         ops_rs,
         scan_rs,
-      },
+      }),
       U,
     ))
   }
 
   /// Verify the [`WasmSNARK`]
-  pub fn verify(&self, pp: &WASMPublicParams<E>, U: &ZKWASMInstance<E>) -> Result<(), ZKWASMError> {
-    // verify F
-    self.execution_rs.verify(
-      pp.F(),
-      self.execution_rs.num_steps(),
-      &U.execution_z0,
-      U.IC_i,
-    )?;
+  pub fn verify(
+    &self,
+    pp: &WASMPublicParams<E, S1, S2>,
+    U: &ZKWASMInstance<E>,
+  ) -> Result<(), ZKWASMError> {
+    match self {
+      Self::Recursive(rs) => {
+        // verify F
+        rs.execution_rs
+          .verify(pp.F(), rs.execution_rs.num_steps(), &U.execution_z0, U.IC_i)?;
 
-    // verify F_ops
-    let ops_zi = self
-      .ops_rs
-      .verify(pp.ops(), self.ops_rs.num_steps(), &U.ops_z0, U.ops_IC_i)?;
+        // verify F_ops
+        let ops_zi = rs
+          .ops_rs
+          .verify(pp.ops(), rs.ops_rs.num_steps(), &U.ops_z0, U.ops_IC_i)?;
 
-    // verify F_scan
-    let scan_zi =
-      self
-        .scan_rs
-        .verify(pp.scan(), self.scan_rs.num_steps(), &U.scan_z0, U.scan_IC_i)?;
+        // verify F_scan
+        let scan_zi =
+          rs.scan_rs
+            .verify(pp.scan(), rs.scan_rs.num_steps(), &U.scan_z0, U.scan_IC_i)?;
 
-    // 1. check h_IS = h_RS = h_WS = h_FS = 1 // initial values are correct
-    let (init_h_is, init_h_rs, init_h_ws, init_h_fs) =
-      { (U.scan_z0[2], U.ops_z0[3], U.ops_z0[4], U.scan_z0[3]) };
-    if init_h_is != E::Scalar::ONE
-      || init_h_rs != E::Scalar::ONE
-      || init_h_ws != E::Scalar::ONE
-      || init_h_fs != E::Scalar::ONE
-    {
-      return Err(ZKWASMError::MultisetVerificationError);
-    }
+        // 1. check h_IS = h_RS = h_WS = h_FS = 1 // initial values are correct
+        let (init_h_is, init_h_rs, init_h_ws, init_h_fs) =
+          { (U.scan_z0[2], U.ops_z0[3], U.ops_z0[4], U.scan_z0[3]) };
+        if init_h_is != E::Scalar::ONE
+          || init_h_rs != E::Scalar::ONE
+          || init_h_ws != E::Scalar::ONE
+          || init_h_fs != E::Scalar::ONE
+        {
+          return Err(ZKWASMError::MultisetVerificationError);
+        }
 
-    // 2. check Cn′ = Cn // commitments carried in both Πops and ΠF are the same
-    if U.IC_i != U.ops_IC_i {
-      return Err(ZKWASMError::MultisetVerificationError);
-    }
+        // 2. check Cn′ = Cn // commitments carried in both Πops and ΠF are the same
+        if U.IC_i != U.ops_IC_i {
+          return Err(ZKWASMError::MultisetVerificationError);
+        }
 
-    // 3. check γ and γ are derived by hashing C and C′′.
-    // Get alpha and gamma
-    let mut keccak = E::TE::new(b"compute MCC challenges");
-    keccak.absorb(b"C_n", &U.IC_i);
-    keccak.absorb(b"IC_IS", &U.scan_IC_i.0);
-    keccak.absorb(b"IC_FS", &U.scan_IC_i.1);
-    let gamma = keccak.squeeze(b"gamma")?;
-    let alpha = keccak.squeeze(b"alpha")?;
+        // 3. check γ and γ are derived by hashing C and C′′.
+        // Get alpha and gamma
+        let mut keccak = E::TE::new(b"compute MCC challenges");
+        keccak.absorb(b"C_n", &U.IC_i);
+        keccak.absorb(b"IC_IS", &U.scan_IC_i.0);
+        keccak.absorb(b"IC_FS", &U.scan_IC_i.1);
+        let gamma = keccak.squeeze(b"gamma")?;
+        let alpha = keccak.squeeze(b"alpha")?;
 
-    if U.ops_z0[0] != gamma || U.ops_z0[1] != alpha {
-      return Err(ZKWASMError::MultisetVerificationError);
-    }
+        if U.ops_z0[0] != gamma || U.ops_z0[1] != alpha {
+          return Err(ZKWASMError::MultisetVerificationError);
+        }
 
-    // 4. check h_IS' · h_WS' = h_RS' · h_FS'.
+        // 4. check h_IS' · h_WS' = h_RS' · h_FS'.
 
-    // Inputs for multiset check
-    let (h_is, h_rs, h_ws, h_fs) = { (scan_zi[2], ops_zi[3], ops_zi[4], scan_zi[3]) };
-    if h_is * h_ws != h_rs * h_fs {
-      return Err(ZKWASMError::MultisetVerificationError);
+        // Inputs for multiset check
+        let (h_is, h_rs, h_ws, h_fs) = { (scan_zi[2], ops_zi[3], ops_zi[4], scan_zi[3]) };
+        if h_is * h_ws != h_rs * h_fs {
+          return Err(ZKWASMError::MultisetVerificationError);
+        }
+      }
+      Self::Compressed(..) => {}
     }
 
     Ok(())
@@ -472,7 +508,7 @@ fn IS_padding(
   }
 }
 
-impl<E> Layer1RSTrait<E> for WasmSNARK<E>
+impl<E> Layer1RSTrait<E> for RecursiveWasmSNARK<E>
 where
   E: CurveCycleEquipped,
 {
