@@ -24,7 +24,7 @@ pub enum ZKWASMError {
   /// Something went wrong when verifying the multisets
   #[error("MultisetVerificationError")]
   MultisetVerificationError,
-  #[error("NotRecursive")]
+  #[error("Input SNARK needs to be Recursive")]
   /// Returned when trying to compress or aggregate an already compressed proof
   NotRecursive,
 }
