@@ -108,7 +108,7 @@ where
   ) -> Result<Self, ZKWASMError> {
     match wasm_snark {
       WasmSNARK::Recursive(wasm_snark) => {
-        let rs = ShardingRecursiveSNARK::new(pp.inner(), wasm_snark, U)?;
+        let rs = ShardingRecursiveSNARK::new(pp.inner(), wasm_snark.as_ref(), U)?;
         Ok(Self {
           rs,
           _s1: PhantomData,
@@ -137,7 +137,7 @@ where
     for (snark, U) in wasm_snarks.iter().zip_eq(U.iter()) {
       match snark {
         WasmSNARK::Recursive(wasm_snark) => {
-          self.rs.prove_step(pp.inner(), wasm_snark, U)?;
+          self.rs.prove_step(pp.inner(), wasm_snark.as_ref(), U)?;
         }
         WasmSNARK::Compressed(_) => return Err(ZKWASMError::NotRecursive),
       }

@@ -1,5 +1,4 @@
 //! Implements SNARK proving the WASM module computation
-#![allow(clippy::large_enum_variant)]
 use std::cell::OnceCell;
 
 use super::{
@@ -121,7 +120,7 @@ where
   S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// RecursiveSNARK for WASM execution
-  Recursive(RecursiveWasmSNARK<E>),
+  Recursive(Box<RecursiveWasmSNARK<E>>),
   /// CompressedSNARK for WASM execution
   Compressed(CompressedSNARK<E, S1, S2>),
 }
@@ -417,11 +416,11 @@ where
     };
 
     Ok((
-      Self::Recursive(RecursiveWasmSNARK {
+      Self::Recursive(Box::new(RecursiveWasmSNARK {
         execution_rs: rs,
         ops_rs,
         scan_rs,
-      }),
+      })),
       U,
     ))
   }
@@ -429,7 +428,11 @@ where
   /// Apply Spartan on top of the Nebula IVC proofs
   pub fn compress(&self, pp: &WASMPublicParams<E, S1, S2>) -> Result<Self, ZKWASMError> {
     match self {
-      Self::Recursive(rs) => Ok(Self::Compressed(CompressedSNARK::prove(pp, pp.pk(), rs)?)),
+      Self::Recursive(rs) => Ok(Self::Compressed(CompressedSNARK::prove(
+        pp,
+        pp.pk(),
+        rs.as_ref(),
+      )?)),
       Self::Compressed(..) => Err(ZKWASMError::NotRecursive),
     }
   }
