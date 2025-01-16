@@ -122,7 +122,7 @@ where
   /// RecursiveSNARK for WASM execution
   Recursive(Box<RecursiveWasmSNARK<E>>),
   /// CompressedSNARK for WASM execution
-  Compressed(CompressedSNARK<E, S1, S2>),
+  Compressed(Box<CompressedSNARK<E, S1, S2>>),
 }
 
 impl<E, S1, S2> WasmSNARK<E, S1, S2>
@@ -432,12 +432,12 @@ where
     U: &ZKWASMInstance<E>,
   ) -> Result<Self, ZKWASMError> {
     match self {
-      Self::Recursive(rs) => Ok(Self::Compressed(CompressedSNARK::prove(
+      Self::Recursive(rs) => Ok(Self::Compressed(Box::new(CompressedSNARK::prove(
         pp,
         pp.pk(),
         rs.as_ref(),
         U.into(),
-      )?)),
+      )?))),
       Self::Compressed(..) => Err(ZKWASMError::NotRecursive),
     }
   }
