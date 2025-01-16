@@ -11,7 +11,10 @@ use nova::{
     compression::{CompressedSNARK, ProverKey, VerifierKey},
     AggregationPublicParams as NovaAggregationPublicParams, AggregationRecursiveSNARK,
   },
-  traits::{snark::BatchedRelaxedR1CSSNARKTrait, CurveCycleEquipped, Dual},
+  traits::{
+    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait},
+    CurveCycleEquipped, Dual,
+  },
 };
 use serde::{Deserialize, Serialize};
 
@@ -83,7 +86,8 @@ where
 {
   /// Get the [`AggregationPublicParams`]
   pub fn setup(wasm_pp: WASMPublicParams<E, S1, S2>) -> AggregationPublicParams<E, S1, S2> {
-    let pp = NovaAggregationPublicParams::<E>::setup(wasm_pp);
+    let pp =
+      NovaAggregationPublicParams::<E>::setup(wasm_pp, &*default_ck_hint(), &*default_ck_hint());
     AggregationPublicParams {
       pp,
       pk_and_vk: OnceCell::new(),

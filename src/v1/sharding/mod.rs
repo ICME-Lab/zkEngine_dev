@@ -14,7 +14,10 @@ use nova::{
     compression::{CompressedSNARK, ProverKey, VerifierKey},
     ShardingPublicParams as NovaShardingPublicParams, ShardingRecursiveSNARK,
   },
-  traits::{snark::BatchedRelaxedR1CSSNARKTrait, CurveCycleEquipped, Dual},
+  traits::{
+    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait},
+    CurveCycleEquipped, Dual,
+  },
 };
 use serde::{Deserialize, Serialize};
 #[cfg(test)]
@@ -85,7 +88,8 @@ where
 {
   /// Get the [`ShardingPublicParams`]
   pub fn setup(wasm_pp: WASMPublicParams<E, S1, S2>) -> ShardingPublicParams<E, S1, S2> {
-    let pp = NovaShardingPublicParams::<E>::setup(wasm_pp);
+    let pp =
+      NovaShardingPublicParams::<E>::setup(wasm_pp, &*default_ck_hint(), &*default_ck_hint());
     ShardingPublicParams {
       pp,
       pk_and_vk: OnceCell::new(),
