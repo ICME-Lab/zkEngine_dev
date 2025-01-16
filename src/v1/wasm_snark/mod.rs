@@ -15,7 +15,7 @@ use mcc::{
 use nova::{
   nebula::{
     audit_rs::{AuditPublicParams, AuditRecursiveSNARK},
-    compression::{CompressedSNARK, ProverKey, VerifierKey},
+    compression::{CompressedSNARK, NebulaInstance, ProverKey, VerifierKey},
     ic::IC,
     rs::{PublicParams, RecursiveSNARK},
     traits::{Layer1PPTrait, Layer1RSTrait, MemoryCommitmentsTraits},
@@ -426,12 +426,17 @@ where
   }
 
   /// Apply Spartan on top of the Nebula IVC proofs
-  pub fn compress(&self, pp: &WASMPublicParams<E, S1, S2>) -> Result<Self, ZKWASMError> {
+  pub fn compress(
+    &self,
+    pp: &WASMPublicParams<E, S1, S2>,
+    U: &ZKWASMInstance<E>,
+  ) -> Result<Self, ZKWASMError> {
     match self {
       Self::Recursive(rs) => Ok(Self::Compressed(CompressedSNARK::prove(
         pp,
         pp.pk(),
         rs.as_ref(),
+        U.into(),
       )?)),
       Self::Compressed(..) => Err(ZKWASMError::NotRecursive),
     }
@@ -577,6 +582,22 @@ where
   // scan instance
   scan_z0: Vec<E::Scalar>,
   scan_IC_i: (E::Scalar, E::Scalar),
+}
+
+impl<E> From<&ZKWASMInstance<E>> for NebulaInstance<E>
+where
+  E: CurveCycleEquipped,
+{
+  fn from(value: &ZKWASMInstance<E>) -> Self {
+    NebulaInstance::new(
+      value.execution_z0.clone(),
+      value.IC_i,
+      value.ops_z0.clone(),
+      value.ops_IC_i,
+      value.scan_z0.clone(),
+      value.scan_IC_i,
+    )
+  }
 }
 
 impl<E> MemoryCommitmentsTraits<E> for ZKWASMInstance<E>
