@@ -27,6 +27,9 @@ pub enum ZKWASMError {
   #[error("Input SNARK needs to be Recursive")]
   /// Returned when trying to compress or aggregate an already compressed proof
   NotRecursive,
+  /// Returned when invalid [`TraceSliceValues`] are passed
+  #[error("InvalidTraceSliceValues: {0}")]
+  InvalidTraceSliceValues(String),
 }
 
 impl From<wasmi::Error> for ZKWASMError {

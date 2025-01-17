@@ -6,7 +6,7 @@ use crate::{
 };
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
+use std::{cell::RefCell, cmp, path::PathBuf, rc::Rc};
 use wasmi::{Tracer, WitnessVM};
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
@@ -96,6 +96,43 @@ impl WASMArgs {
   pub fn bytecode(&self) -> &[u8] {
     &self.program
   }
+
+  /// Get the end slice value after WASM execution
+  pub fn end(&self, execution_trace_len: usize) -> Result<usize, ZKWASMError> {
+    self.validate_trace_slice_vals()?;
+    Ok(self.calculate_end_slice_value(execution_trace_len))
+  }
+
+  /// Calculate the end slice value considering the execution trace length
+  fn calculate_end_slice_value(&self, execution_trace_len: usize) -> usize {
+    self.trace_slice_vals.map_or(execution_trace_len, |val| {
+      if val.end() == 0 {
+        execution_trace_len
+      } else {
+        cmp::min(val.end(), execution_trace_len)
+      }
+    })
+  }
+
+  /// Validate the [`TraceSliceValues`]
+  pub fn validate_trace_slice_vals(&self) -> Result<(), ZKWASMError> {
+    if let Some(val) = self.trace_slice_vals {
+      if self.is_invalid_end_start_relation(&val) {
+        return Err(self.invalid_trace_slice_error("End value cannot be 0 if start value is not 0 (default case) or start value cannot be greater than end value"));
+      }
+    }
+    Ok(())
+  }
+
+  /// Helper function to check the invalid end-start relationship
+  fn is_invalid_end_start_relation(&self, val: &TraceSliceValues) -> bool {
+    val.end() == 0 && val.start() != 0 || val.start() != 0 && val.start() >= val.end()
+  }
+
+  /// Helper function to create the invalid trace slice error
+  fn invalid_trace_slice_error(&self, message: &str) -> ZKWASMError {
+    ZKWASMError::InvalidTraceSliceValues(message.to_string())
+  }
 }
 
 impl Default for WASMArgsBuilder {
@@ -119,13 +156,12 @@ pub struct TraceSliceValues {
 }
 
 impl TraceSliceValues {
-  /// Build new `TraceSliceValues`
+  /// Build new [`TraceSliceValues`]
   ///
   /// # Panics
   ///
-  /// panics if start is greater than or equal to end
+  /// panics if start is greater than end
   pub fn new(start: usize, end: usize) -> Self {
-    assert!(start < end);
     TraceSliceValues { start, end }
   }
 
@@ -230,14 +266,7 @@ pub trait ZKWASMCtx {
     //
     // We do not use the `start` value to slice the execution trace because we need the execution
     // trace from opcode 0 to opcode `start` to construct the initial memory state of the shard.
-    let end_slice = {
-      let end_slice_val = self
-        .args()
-        .trace_slice_vals
-        .map(|val| val.end())
-        .unwrap_or(execution_trace.len());
-      std::cmp::min(end_slice_val, execution_trace.len())
-    };
+    let end_slice = self.args().end(execution_trace.len())?;
     let execution_trace = execution_trace[..end_slice].to_vec();
 
     Ok((
