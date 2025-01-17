@@ -5,7 +5,7 @@ use zk_engine::{
     spartan,
     traits::Dual,
   },
-  v1::{
+  {
     error::ZKWASMError,
     utils::logging::init_logger,
     wasm_ctx::{WASMArgsBuilder, WASMCtx},

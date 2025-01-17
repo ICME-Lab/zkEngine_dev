@@ -1,16 +1,14 @@
 use std::path::PathBuf;
 use zk_engine::{
+  error::ZKWASMError,
   nova::{
     provider::{ipa_pc, Bn256EngineIPA},
     spartan,
     traits::Dual,
   },
-  v1::{
-    error::ZKWASMError,
-    utils::logging::init_logger,
-    wasm_ctx::{WASMArgsBuilder, WASMCtx},
-    wasm_snark::{StepSize, WasmSNARK},
-  },
+  utils::logging::init_logger,
+  wasm_ctx::{WASMArgsBuilder, WASMCtx},
+  wasm_snark::{StepSize, WasmSNARK},
 };
 
 // Curve Cycle to prove/verify on

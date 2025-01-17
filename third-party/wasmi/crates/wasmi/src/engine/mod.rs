@@ -70,7 +70,7 @@ use crate::{
 };
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicU32, Ordering};
-use executor_v1::execute_wasm_with_trace;
+use executor_execute_wasm_with_trace;
 use spin::{Mutex, RwLock};
 use std::{cell::RefCell, rc::Rc};
 use wasmi_arena::{ArenaIndex, GuardedEntity};
