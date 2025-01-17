@@ -39,7 +39,7 @@ Choosing a bigger `step_size` can improve the proving time but will increase the
 Get the 16th fibonacci number using the wasm program in `wasm/misc/fib.wat`. The wasm program is a simple recursive function that calculates the fibonacci number of the input number.
 
 ```bash
-RUST_LOG=debug cargo +nightly run --release --example fib
+RUST_LOG=debug cargo run --release --example fib
 ```
 
 ```rust
@@ -117,7 +117,7 @@ Also if your WASM program uses `WASI` you would use:
 if you were to run fib(1000), this would take a long time to prove because the wasm program has 16,981 opcodes. To improve the proving time you can increase the `step_size` to 1000.
 
 ```bash
-RUST_LOG=debug cargo +nightly run --release --example fib_large
+RUST_LOG=debug cargo run --release --example fib_large
 ```
 
 ```rust
@@ -182,7 +182,7 @@ In this WASM example (where the WASM calculates the kth factor of a number) the 
 Meaning the MCC will run in 3 steps.
 
 ```bash
-RUST_LOG=debug cargo +nightly run --release --example kth_factor
+RUST_LOG=debug cargo run --release --example kth_factor
 ```
 
 ```rust
