@@ -5,13 +5,11 @@ use ff::PrimeField;
 use nova::{provider::Bn256EngineIPA, traits::Engine};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 
-use crate::{
+use crate::v1::{
+  error::ZKWASMError,
   utils::logging::init_logger,
-  v1::{
-    error::ZKWASMError,
-    wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
-    wasm_snark::mcc::multiset_ops::step_RS_WS,
-  },
+  wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+  wasm_snark::mcc::multiset_ops::step_RS_WS,
 };
 
 /// Curve Cycle to prove/verify on

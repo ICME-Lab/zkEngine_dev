@@ -3,9 +3,9 @@ use super::{
   wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
   wasm_snark::{StepSize, WasmSNARK},
 };
-use crate::{
-  utils::logging::init_logger,
-  v1::utils::macros::{start_timer, stop_timer},
+use crate::v1::utils::{
+  logging::init_logger,
+  macros::{start_timer, stop_timer},
 };
 use nova::{
   provider::{ipa_pc, Bn256EngineIPA},

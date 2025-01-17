@@ -1,11 +1,11 @@
-use crate::{
-  utils::logging::init_logger,
-  v1::{
-    error::ZKWASMError,
-    utils::macros::{start_timer, stop_timer},
-    wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
-    wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
+use crate::v1::{
+  error::ZKWASMError,
+  utils::{
+    logging::init_logger,
+    macros::{start_timer, stop_timer},
   },
+  wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+  wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
 };
 use nova::{
   provider::{ipa_pc, Bn256EngineIPA},

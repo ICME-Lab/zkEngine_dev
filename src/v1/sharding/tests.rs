@@ -1,14 +1,12 @@
 use super::ShardingSNARK;
-use crate::{
-  utils::logging::init_logger,
-  v1::{
-    utils::{
-      macros::{start_timer, stop_timer},
-      tracing::estimate_wasm,
-    },
-    wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WasiWASMCtx, ZKWASMCtx},
-    wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
+use crate::v1::{
+  utils::{
+    logging::init_logger,
+    macros::{start_timer, stop_timer},
+    tracing::estimate_wasm,
   },
+  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WasiWASMCtx, ZKWASMCtx},
+  wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
 };
 use nova::{
   provider::{ipa_pc, Bn256EngineIPA},

@@ -5,9 +5,9 @@ use zk_engine::{
     spartan,
     traits::Dual,
   },
-  utils::logging::init_logger,
   v1::{
     error::ZKWASMError,
+    utils::logging::init_logger,
     wasm_ctx::{WASMArgsBuilder, WASMCtx},
     wasm_snark::{StepSize, WasmSNARK},
   },

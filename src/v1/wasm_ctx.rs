@@ -1,8 +1,8 @@
 //! Implementation of WASM execution context for zkVM
 use super::error::ZKWASMError;
-use crate::{
-  utils::wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat},
-  v1::utils::tracing::unwrap_rc_refcell,
+use crate::v1::utils::{
+  tracing::unwrap_rc_refcell,
+  wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat},
 };
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use serde::{Deserialize, Serialize};

@@ -1,5 +1,5 @@
 //! Utility functions for WASM interpretation
-use super::display::{DisplayFuncType, DisplaySequence, DisplayValue, DisplayValueType};
+use super::display::DisplayValueType;
 use anyhow::{anyhow, bail, Error};
 use std::{ffi::OsStr, fs, path::Path};
 use wasmi::{
@@ -23,32 +23,6 @@ pub fn read_wasm_or_wat(wasm_file: &Path) -> Result<Vec<u8>, Error> {
       .map_err(|error| anyhow!("failed to parse .wat file {wasm_file:?}: {error}"))?;
   }
   Ok(wasm_bytes)
-}
-
-/// Prints a signalling text that Wasm execution has started.
-pub fn print_execution_start(wasm_file: &Path, func_name: &str, func_args: &[Value]) {
-  tracing::info!(
-    "executing File({:?})::{:?}({})",
-    wasm_file,
-    func_name,
-    DisplaySequence::new(", ", func_args.iter().map(DisplayValue::from))
-  );
-}
-
-/// Prints the results of the Wasm computation in a human readable form.
-pub fn print_pretty_results(results: &[Value]) {
-  match results.len() {
-    0 => {}
-    1 => {
-      tracing::info!("wasmi result: {}", DisplayValue::from(&results[0]));
-    }
-    _ => {
-      tracing::info!(
-        "wasmi results: [{}]",
-        DisplaySequence::new(", ", results.iter().map(DisplayValue::from))
-      );
-    }
-  }
 }
 
 /// Decode the given `args` for the [`FuncType`] `ty`.
@@ -103,27 +77,6 @@ pub fn decode_func_args(ty: &FuncType, args: &[String]) -> Result<Box<[Value]>, 
       }
     })
     .collect::<Result<Box<[_]>, _>>()
-}
-
-/// Performs minor typecheck on the function signature.
-///
-/// # Note
-///
-/// This is not strictly required but improve error reporting a bit.
-///
-/// # Errors
-///
-/// If too many or too few function arguments were given to the invoked function.
-pub fn typecheck_args(func_name: &str, func_ty: &FuncType, args: &[Value]) -> Result<(), Error> {
-  if func_ty.params().len() != args.len() {
-    bail!(
-      "invalid amount of arguments given to function {}. expected {} but received {}",
-      DisplayFuncType::new(func_name, func_ty),
-      func_ty.params().len(),
-      args.len()
-    )
-  }
-  Ok(())
 }
 
 /// Prepares the function results for the given [`FuncType`].

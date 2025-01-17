@@ -921,9 +921,9 @@ where
 mod tests {
 
   use super::{add64, mul64};
-  use crate::{
+  use crate::v1::{
     utils::logging::init_logger,
-    v1::wasm_snark::switchboard::{alu::int64::sub64, WASMTransitionCircuit as SwitchBoardCircuit},
+    wasm_snark::switchboard::{alu::int64::sub64, WASMTransitionCircuit as SwitchBoardCircuit},
   };
   use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
   use nova::{provider::Bn256EngineIPA, traits::Engine};
