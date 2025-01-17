@@ -157,10 +157,6 @@ pub struct TraceSliceValues {
 
 impl TraceSliceValues {
   /// Build new [`TraceSliceValues`]
-  ///
-  /// # Panics
-  ///
-  /// panics if start is greater than end
   pub fn new(start: usize, end: usize) -> Self {
     TraceSliceValues { start, end }
   }
