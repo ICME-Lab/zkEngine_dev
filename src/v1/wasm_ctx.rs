@@ -118,7 +118,10 @@ impl WASMArgs {
   pub fn validate_trace_slice_vals(&self) -> Result<(), ZKWASMError> {
     if let Some(val) = self.trace_slice_vals {
       if self.is_invalid_end_start_relation(&val) {
-        return Err(self.invalid_trace_slice_error("End value cannot be 0 if start value is not 0 (default case) or start value cannot be greater than end value"));
+        return Err(ZKWASMError::InvalidTraceSliceValues(
+          "if end does not equal 0 start value cannot be greater than or equal to end value"
+            .to_string(),
+        ));
       }
     }
     Ok(())
@@ -126,12 +129,7 @@ impl WASMArgs {
 
   /// Helper function to check the invalid end-start relationship
   fn is_invalid_end_start_relation(&self, val: &TraceSliceValues) -> bool {
-    val.end() == 0 && val.start() != 0 || val.start() != 0 && val.start() >= val.end()
-  }
-
-  /// Helper function to create the invalid trace slice error
-  fn invalid_trace_slice_error(&self, message: &str) -> ZKWASMError {
-    ZKWASMError::InvalidTraceSliceValues(message.to_string())
+    val.end() != 0 && val.start() >= val.end()
   }
 }
 
@@ -157,6 +155,10 @@ pub struct TraceSliceValues {
 
 impl TraceSliceValues {
   /// Build new [`TraceSliceValues`]
+  ///
+  /// # Note:
+  ///
+  /// if end does not equal 0 start value cannot be greater than or equal to end value
   pub fn new(start: usize, end: usize) -> Self {
     TraceSliceValues { start, end }
   }
