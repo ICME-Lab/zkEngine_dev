@@ -1,8 +1,9 @@
-//! This module contains utility functions and structures that are used throughout the engine.
-pub mod display;
+//! Utility code
+
+mod display;
+
 pub mod logging;
-pub mod memory;
-pub mod nivc;
-pub mod pp;
-pub mod save;
-pub mod wasm;
+#[cfg(test)]
+pub mod macros;
+pub mod tracing;
+pub(crate) mod wasm;

@@ -1,24 +1,19 @@
-//! This library implements zkEngine, a zkWASM with a SuperNova backend.
-#![feature(macro_metavar_expr, concat_idents)]
+//! Nebula based zkVM for WASM ISA
+#![allow(clippy::type_complexity)]
 #![allow(non_snake_case)]
 #![deny(missing_docs)]
-
-mod circuits;
-pub mod errors;
-pub mod pcd;
-pub mod provider;
-pub mod run;
-pub mod snark;
-pub mod traits;
+pub mod aggregation;
+pub mod error;
+pub mod sharding;
 pub mod utils;
-pub mod v1;
-pub mod wasm;
+pub mod wasm_ctx;
+pub mod wasm_snark;
 
-// re-export the wasi module
-pub use wasmi::TraceSliceValues;
+#[cfg(test)]
+mod tests;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use wasmi_wasi::WasiCtx;
 
-// re-export `nova`
+// re-export
 pub use nova;

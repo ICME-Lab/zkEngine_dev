@@ -41,11 +41,8 @@ use self::{
     executor::{execute_wasm, execute_wasm_with_trace_v0, WasmOutcome},
     func_types::FuncTypeRegistry,
     regmach::{
-        bytecode::Instruction as Instruction2,
-        code_map::CompiledFuncEntity,
-        CodeMap as CodeMap2,
-        FuncLocalConstsIter,
-        Stack as Stack2,
+        bytecode::Instruction as Instruction2, code_map::CompiledFuncEntity, CodeMap as CodeMap2,
+        FuncLocalConstsIter, Stack as Stack2,
     },
     resumable::ResumableCallBase,
     stack::{FuncFrame, Stack, ValueStack},
@@ -57,20 +54,14 @@ pub(crate) use self::{
     func_types::DedupFuncType,
     translator::ChosenFuncTranslatorAllocations,
 };
+use crate::engine::executor_v1::execute_wasm_with_trace;
 use crate::{
     core::{Trap, TrapCode},
     func::{FuncEntity, WasmFuncEntity},
-    AsContext,
-    AsContextMut,
-    Func,
-    FuncType,
-    StoreContextMut,
-    Tracer,
-    TracerV0,
+    AsContext, AsContextMut, Func, FuncType, StoreContextMut, Tracer, TracerV0,
 };
 use alloc::sync::Arc;
 use core::sync::atomic::{AtomicU32, Ordering};
-use executor_v1::execute_wasm_with_trace;
 use spin::{Mutex, RwLock};
 use std::{cell::RefCell, rc::Rc};
 use wasmi_arena::{ArenaIndex, GuardedEntity};

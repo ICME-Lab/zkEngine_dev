@@ -3,8 +3,6 @@
 use std::fmt::{self, Display};
 use wasmi::{core::ValueType, FuncType, Value};
 
-use crate::traits::wasm::ZKWASMContext;
-
 /// [`Display`]-wrapper type for [`ValueType`].
 pub struct DisplayValueType<'a>(&'a ValueType);
 
@@ -141,34 +139,6 @@ where
       for param in rest {
         write!(f, "{separator}{param}")?;
       }
-    }
-    Ok(())
-  }
-}
-
-/// [`Display`]-wrapper for exported functions of a [`Context`].
-pub struct DisplayExportedFuncs<'a, CTX: ZKWASMContext> {
-  ctx: &'a CTX,
-}
-
-impl<'a, CTX: ZKWASMContext> From<&'a CTX> for DisplayExportedFuncs<'a, CTX> {
-  fn from(ctx: &'a CTX) -> Self {
-    Self { ctx }
-  }
-}
-
-impl<CTX: ZKWASMContext> Display for DisplayExportedFuncs<'_, CTX> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    let exported_funcs = self.ctx.exported_funcs().collect::<Box<[_]>>();
-    if exported_funcs.is_empty() {
-      return write!(f, "No exported functions found for the Wasm module.");
-    }
-    write!(f, "The Wasm module exports the following functions:\n\n")?;
-    for func in exported_funcs
-      .iter()
-      .map(|(name, func_type)| DisplayFuncType::new(name, func_type))
-    {
-      writeln!(f, " - {func}")?;
     }
     Ok(())
   }
