@@ -15,7 +15,7 @@ use nova::{
   spartan,
   traits::Dual,
 };
-use std::{path::PathBuf, time::Instant};
+use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
@@ -205,7 +205,7 @@ fn node_nw(
     let wasm_ctx = WasiWASMCtx::new(
       wasm_args_builder
         .clone()
-        .trace_slice(TraceSliceValues::new(start, end))
+        .trace_slice(TraceSliceValues::new(start, NonZeroUsize::new(end)))
         .build(),
     );
     let (snark, U) = WasmSNARK::<E, S1, S2>::prove(node_pp, &wasm_ctx, step_size).unwrap();

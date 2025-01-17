@@ -12,7 +12,7 @@ use nova::{
   spartan,
   traits::Dual,
 };
-use std::{path::PathBuf, time::Instant};
+use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
@@ -68,8 +68,7 @@ fn test_int_opcodes() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(100);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/int_opcodes.wat"))
-    .unwrap()
+    .file_path(PathBuf::from("wasm/int_opcodes.wat"))?
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
@@ -84,8 +83,7 @@ fn test_eq_func() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(500);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/nebula/eq_func.wat"))
-    .unwrap()
+    .file_path(PathBuf::from("wasm/nebula/eq_func.wat"))?
     .invoke("eq_func")
     .func_args(vec!["255".to_string(), "255".to_string()])
     .build();
@@ -221,7 +219,7 @@ fn test_bls() -> Result<(), ZKWASMError> {
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/bls.wasm"))
     .unwrap()
-    .trace_slice(TraceSliceValues::new(10_000, 20_000))
+    .trace_slice(TraceSliceValues::new(10_000, NonZeroUsize::new(20_000)))
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);

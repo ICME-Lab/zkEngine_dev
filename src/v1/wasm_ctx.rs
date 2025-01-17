@@ -6,7 +6,7 @@ use crate::{
 };
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, cmp, path::PathBuf, rc::Rc};
+use std::{cell::RefCell, cmp, num::NonZeroUsize, path::PathBuf, rc::Rc};
 use wasmi::{Tracer, WitnessVM};
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
@@ -89,7 +89,7 @@ impl WASMArgs {
 
   /// Get the shard_size
   pub fn shard_size(&self) -> Option<usize> {
-    self.trace_slice_vals.map(|val| val.shard_size())
+    self.trace_slice_vals.and_then(|val| val.shard_size())
   }
 
   /// Get reference to bytecode.
@@ -99,37 +99,23 @@ impl WASMArgs {
 
   /// Get the end slice value after WASM execution
   pub fn end(&self, execution_trace_len: usize) -> Result<usize, ZKWASMError> {
-    self.validate_trace_slice_vals()?;
-    Ok(self.calculate_end_slice_value(execution_trace_len))
+    let end_slice_val = self.calculate_end_slice_value(execution_trace_len);
+    if self.start() >= end_slice_val {
+      return Err(ZKWASMError::InvalidTraceSliceValues(
+        "start value cannot be greater than or equal to end value".to_string(),
+      ));
+    }
+    Ok(end_slice_val)
   }
 
   /// Calculate the end slice value considering the execution trace length
   fn calculate_end_slice_value(&self, execution_trace_len: usize) -> usize {
     self.trace_slice_vals.map_or(execution_trace_len, |val| {
-      if val.end() == 0 {
-        execution_trace_len
-      } else {
-        cmp::min(val.end(), execution_trace_len)
-      }
+      cmp::min(
+        val.end().map_or(execution_trace_len, |end| end.get()),
+        execution_trace_len,
+      )
     })
-  }
-
-  /// Validate the [`TraceSliceValues`]
-  pub fn validate_trace_slice_vals(&self) -> Result<(), ZKWASMError> {
-    if let Some(val) = self.trace_slice_vals {
-      if self.is_invalid_end_start_relation(&val) {
-        return Err(ZKWASMError::InvalidTraceSliceValues(
-          "if end does not equal 0 start value cannot be greater than or equal to end value"
-            .to_string(),
-        ));
-      }
-    }
-    Ok(())
-  }
-
-  /// Helper function to check the invalid end-start relationship
-  fn is_invalid_end_start_relation(&self, val: &TraceSliceValues) -> bool {
-    val.end() != 0 && val.start() >= val.end()
   }
 }
 
@@ -150,7 +136,7 @@ pub struct TraceSliceValues {
   /// Start opcode
   pub(crate) start: usize,
   /// End opcode
-  pub(crate) end: usize,
+  pub(crate) end: Option<NonZeroUsize>,
 }
 
 impl TraceSliceValues {
@@ -159,7 +145,7 @@ impl TraceSliceValues {
   /// # Note:
   ///
   /// if end does not equal 0 start value cannot be greater than or equal to end value
-  pub fn new(start: usize, end: usize) -> Self {
+  pub fn new(start: usize, end: Option<NonZeroUsize>) -> Self {
     TraceSliceValues { start, end }
   }
 
@@ -169,7 +155,7 @@ impl TraceSliceValues {
   }
 
   /// Get end value
-  pub fn end(&self) -> usize {
+  pub fn end(&self) -> Option<NonZeroUsize> {
     self.end
   }
 
@@ -179,13 +165,13 @@ impl TraceSliceValues {
   }
 
   /// Setter for end value
-  pub fn set_end(&mut self, end: usize) {
+  pub fn set_end(&mut self, end: Option<NonZeroUsize>) {
     self.end = end;
   }
 
   /// Calculate the shard_size
-  pub fn shard_size(&self) -> usize {
-    self.end - self.start
+  pub fn shard_size(&self) -> Option<usize> {
+    self.end.and_then(|end| end.get().checked_sub(self.start))
   }
 }
 
