@@ -6,7 +6,7 @@ use crate::{
 };
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, path::PathBuf, rc::Rc};
+use std::{cell::RefCell, cmp, num::NonZeroUsize, path::PathBuf, rc::Rc};
 use wasmi::{Tracer, WitnessVM};
 use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
@@ -89,12 +89,33 @@ impl WASMArgs {
 
   /// Get the shard_size
   pub fn shard_size(&self) -> Option<usize> {
-    self.trace_slice_vals.map(|val| val.shard_size())
+    self.trace_slice_vals.and_then(|val| val.shard_size())
   }
 
   /// Get reference to bytecode.
   pub fn bytecode(&self) -> &[u8] {
     &self.program
+  }
+
+  /// Get the end slice value after WASM execution
+  pub fn end(&self, execution_trace_len: usize) -> Result<usize, ZKWASMError> {
+    let end_slice_val = self.calculate_end_slice_value(execution_trace_len);
+    if self.start() >= end_slice_val {
+      return Err(ZKWASMError::InvalidTraceSliceValues(
+        "start value cannot be greater than or equal to end value".to_string(),
+      ));
+    }
+    Ok(end_slice_val)
+  }
+
+  /// Calculate the end slice value considering the execution trace length
+  fn calculate_end_slice_value(&self, execution_trace_len: usize) -> usize {
+    self.trace_slice_vals.map_or(execution_trace_len, |val| {
+      cmp::min(
+        val.end().map_or(execution_trace_len, |end| end.get()),
+        execution_trace_len,
+      )
+    })
   }
 }
 
@@ -115,17 +136,16 @@ pub struct TraceSliceValues {
   /// Start opcode
   pub(crate) start: usize,
   /// End opcode
-  pub(crate) end: usize,
+  pub(crate) end: Option<NonZeroUsize>,
 }
 
 impl TraceSliceValues {
-  /// Build new `TraceSliceValues`
+  /// Build new [`TraceSliceValues`]
   ///
-  /// # Panics
+  /// # Note:
   ///
-  /// panics if start is greater than or equal to end
-  pub fn new(start: usize, end: usize) -> Self {
-    assert!(start < end);
+  /// if end does not equal 0 start value cannot be greater than or equal to end value
+  pub fn new(start: usize, end: Option<NonZeroUsize>) -> Self {
     TraceSliceValues { start, end }
   }
 
@@ -135,7 +155,7 @@ impl TraceSliceValues {
   }
 
   /// Get end value
-  pub fn end(&self) -> usize {
+  pub fn end(&self) -> Option<NonZeroUsize> {
     self.end
   }
 
@@ -145,13 +165,13 @@ impl TraceSliceValues {
   }
 
   /// Setter for end value
-  pub fn set_end(&mut self, end: usize) {
+  pub fn set_end(&mut self, end: Option<NonZeroUsize>) {
     self.end = end;
   }
 
   /// Calculate the shard_size
-  pub fn shard_size(&self) -> usize {
-    self.end - self.start
+  pub fn shard_size(&self) -> Option<usize> {
+    self.end.and_then(|end| end.get().checked_sub(self.start))
   }
 }
 
@@ -230,14 +250,7 @@ pub trait ZKWASMCtx {
     //
     // We do not use the `start` value to slice the execution trace because we need the execution
     // trace from opcode 0 to opcode `start` to construct the initial memory state of the shard.
-    let end_slice = {
-      let end_slice_val = self
-        .args()
-        .trace_slice_vals
-        .map(|val| val.end())
-        .unwrap_or(execution_trace.len());
-      std::cmp::min(end_slice_val, execution_trace.len())
-    };
+    let end_slice = self.args().end(execution_trace.len())?;
     let execution_trace = execution_trace[..end_slice].to_vec();
 
     Ok((

@@ -1,6 +1,10 @@
 use std::path::PathBuf;
 use zk_engine::{
-  nova::provider::Bn256EngineIPA,
+  nova::{
+    provider::{ipa_pc, Bn256EngineIPA},
+    spartan,
+    traits::Dual,
+  },
   utils::logging::init_logger,
   v1::{
     error::ZKWASMError,
@@ -11,6 +15,10 @@ use zk_engine::{
 
 // Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
+pub type EE1 = ipa_pc::EvaluationEngine<E>;
+pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
+pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
+pub type S2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E>, EE2>;
 
 fn main() -> Result<(), ZKWASMError> {
   init_logger();
@@ -22,7 +30,7 @@ fn main() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(10);
 
   // Produce setup material
-  let pp = WasmSNARK::<E>::setup(step_size);
+  let pp = WasmSNARK::<E, S1, S2>::setup(step_size);
 
   // Specify arguments to the WASM and use it to build a `WASMCtx`
   let wasm_args = WASMArgsBuilder::default()
@@ -34,12 +42,12 @@ fn main() -> Result<(), ZKWASMError> {
   let wasm_ctx = WASMCtx::new(wasm_args);
 
   // Prove wasm execution of fib.wat::fib(16)
-  let (snark, instance) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size)?;
+  let (snark, instance) = WasmSNARK::<E, S1, S2>::prove(&pp, &wasm_ctx, step_size)?;
 
   let str_instance = serde_json::to_string(&instance).unwrap();
   let str_snark = serde_json::to_string(&snark).unwrap();
 
-  let snark: WasmSNARK<E> = serde_json::from_str(&str_snark).unwrap();
+  let snark: WasmSNARK<E, S1, S2> = serde_json::from_str(&str_snark).unwrap();
   let instance: ZKWASMInstance<E> = serde_json::from_str(&str_instance).unwrap();
 
   // Verify the proof

@@ -7,19 +7,35 @@ use crate::{
   utils::logging::init_logger,
   v1::utils::macros::{start_timer, stop_timer},
 };
-use nova::provider::Bn256EngineIPA;
-use std::{path::PathBuf, time::Instant};
+use nova::{
+  provider::{ipa_pc, Bn256EngineIPA},
+  spartan,
+  traits::Dual,
+};
+use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
+pub type EE1 = ipa_pc::EvaluationEngine<E>;
+pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
+pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
+pub type S2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E>, EE2>;
 
 fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError> {
   let pp_timer = start_timer!("Producing Public Parameters");
-  let pp = WasmSNARK::<E>::setup(step_size);
+  let pp = WasmSNARK::<E, S1, S2>::setup(step_size);
   stop_timer!(pp_timer);
 
-  let proving_timer = start_timer!("Producing WasmSNARK");
-  let (snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size)?;
+  let proving_timer = start_timer!("Producing RecursiveWasmSNARK");
+  let (rs_snark, U) = WasmSNARK::<E, S1, S2>::prove(&pp, &wasm_ctx, step_size)?;
+  stop_timer!(proving_timer);
+
+  let verification_timer = start_timer!("Verifying RecursiveWasmSNARK");
+  rs_snark.verify(&pp, &U).unwrap();
+  stop_timer!(verification_timer);
+
+  let proving_timer = start_timer!("Producing compressedSNARK");
+  let snark = rs_snark.compress(&pp, &U)?;
   stop_timer!(proving_timer);
 
   let verification_timer = start_timer!("Verifying WasmSNARK");
@@ -52,8 +68,7 @@ fn test_int_opcodes() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(100);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/int_opcodes.wat"))
-    .unwrap()
+    .file_path(PathBuf::from("wasm/int_opcodes.wat"))?
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
@@ -68,8 +83,7 @@ fn test_eq_func() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(500);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/nebula/eq_func.wat"))
-    .unwrap()
+    .file_path(PathBuf::from("wasm/nebula/eq_func.wat"))?
     .invoke("eq_func")
     .func_args(vec!["255".to_string(), "255".to_string()])
     .build();
@@ -205,7 +219,7 @@ fn test_bls() -> Result<(), ZKWASMError> {
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/bls.wasm"))
     .unwrap()
-    .trace_slice(TraceSliceValues::new(10_000, 20_000))
+    .trace_slice(TraceSliceValues::new(10_000, NonZeroUsize::new(20_000)))
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);

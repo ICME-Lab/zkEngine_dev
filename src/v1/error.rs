@@ -19,11 +19,17 @@ pub enum ZKWASMError {
   #[error("WasmiError")]
   WasmiError(wasmi::Error),
   /// Failed to load WASM module
-  #[error("WasmError")]
+  #[error("WasmError: {0}")]
   WASMError(String),
   /// Something went wrong when verifying the multisets
   #[error("MultisetVerificationError")]
   MultisetVerificationError,
+  #[error("Input SNARK needs to be Recursive")]
+  /// Returned when trying to compress or aggregate an already compressed proof
+  NotRecursive,
+  /// Returned when invalid [`TraceSliceValues`] are passed
+  #[error("InvalidTraceSliceValues: {0}")]
+  InvalidTraceSliceValues(String),
 }
 
 impl From<wasmi::Error> for ZKWASMError {

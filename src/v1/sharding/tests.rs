@@ -1,4 +1,4 @@
-use super::{gen_sharding_pp, ShardingSNARK};
+use super::ShardingSNARK;
 use crate::{
   utils::logging::init_logger,
   v1::{
@@ -10,11 +10,19 @@ use crate::{
     wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
   },
 };
-use nova::provider::Bn256EngineIPA;
-use std::{path::PathBuf, time::Instant};
+use nova::{
+  provider::{ipa_pc, Bn256EngineIPA},
+  spartan,
+  traits::Dual,
+};
+use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
 pub type E = Bn256EngineIPA;
+pub type EE1 = ipa_pc::EvaluationEngine<E>;
+pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
+pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
+pub type S2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E>, EE2>;
 
 #[test]
 fn test_sharding_eq_func_mismatch() {
@@ -117,7 +125,7 @@ fn sim_nodes_and_orchestrator_node(
   // Public parameters used by [`WasmSNARK`]
   //
   // All nodes will use the same public parameters
-  let node_pp = WasmSNARK::<E>::setup(step_size);
+  let node_pp = WasmSNARK::<E, S1, S2>::setup(step_size);
 
   // calculate number of shards from number of opcodes and shard opcode size
   let num_shards = num_shards(
@@ -140,7 +148,7 @@ fn sim_nodes_and_orchestrator_node(
   // Generate sharding public parameters
   //
   // This is the public parameters used by the orchestrator node
-  let sharding_pp = gen_sharding_pp(node_pp);
+  let sharding_pp = ShardingSNARK::setup(node_pp);
 
   // Create a new instance of ShardingSNARK with the first node SNARK and instance
   //
@@ -162,6 +170,11 @@ fn sim_nodes_and_orchestrator_node(
 
   // Verify sharding was done correctly
   sharding_snark.verify(&sharding_pp).unwrap();
+
+  let compressed_snark = sharding_snark.compress(&sharding_pp).unwrap();
+  compressed_snark
+    .verify(sharding_pp.inner(), sharding_pp.vk())
+    .unwrap();
 }
 
 fn num_shards(program: &impl ZKWASMCtx, shard_opcode_size: usize) -> usize {
@@ -177,32 +190,28 @@ fn num_shards(program: &impl ZKWASMCtx, shard_opcode_size: usize) -> usize {
 }
 
 fn node_nw(
-  node_pp: &WASMPublicParams<E>,
+  node_pp: &WASMPublicParams<E, S1, S2>,
   wasm_args_builder: &WASMArgsBuilder,
   num_shards: usize,
   step_size: StepSize,
   shard_opcode_size: usize,
-) -> (Vec<WasmSNARK<E>>, Vec<ZKWASMInstance<E>>) {
+) -> (Vec<WasmSNARK<E, S1, S2>>, Vec<ZKWASMInstance<E>>) {
   let mut start = 0;
   let mut end = shard_opcode_size;
   let mut node_snarks = Vec::new();
   let mut node_instances = Vec::new();
-
   for i in 0..num_shards {
     let shard_proving_timer = start_timer!(format!("Proving Shard {}/{}", i + 1, num_shards));
     let wasm_ctx = WasiWASMCtx::new(
       wasm_args_builder
         .clone()
-        .trace_slice(TraceSliceValues::new(start, end))
+        .trace_slice(TraceSliceValues::new(start, NonZeroUsize::new(end)))
         .build(),
     );
-
-    let (snark, U) = WasmSNARK::<E>::prove(node_pp, &wasm_ctx, step_size).unwrap();
+    let (snark, U) = WasmSNARK::<E, S1, S2>::prove(node_pp, &wasm_ctx, step_size).unwrap();
     snark.verify(node_pp, &U).unwrap();
-
     node_snarks.push(snark);
     node_instances.push(U);
-
     start = end;
     end += shard_opcode_size;
     stop_timer!(shard_proving_timer);

@@ -11,7 +11,7 @@ use super::{
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use itertools::Itertools;
-use nova::nebula::rs::StepCircuit;
+use nova::nebula::{audit_rs::AuditStepCircuit, rs::StepCircuit};
 
 pub mod multiset_ops;
 #[cfg(test)]
@@ -149,7 +149,7 @@ pub struct ScanCircuit {
   FS: Vec<(usize, u64, u64)>, // Vec<(a, v, t)>
 }
 
-impl<F> StepCircuit<F> for ScanCircuit
+impl<F> AuditStepCircuit<F> for ScanCircuit
 where
   F: PrimeField,
 {
@@ -228,16 +228,19 @@ where
     Ok(vec![gamma, alpha, h_is, h_fs])
   }
 
-  fn non_deterministic_advice(&self) -> Vec<F> {
+  fn IS_advice(&self) -> Vec<F> {
     self
       .IS
       .iter()
-      .zip_eq(self.FS.iter())
-      .flat_map(|(is, fs)| {
-        avt_tuple_to_scalar_vec::<F>(*is)
-          .into_iter()
-          .chain(avt_tuple_to_scalar_vec::<F>(*fs))
-      })
+      .flat_map(|is| avt_tuple_to_scalar_vec::<F>(*is))
+      .collect()
+  }
+
+  fn FS_advice(&self) -> Vec<F> {
+    self
+      .FS
+      .iter()
+      .flat_map(|fs| avt_tuple_to_scalar_vec::<F>(*fs))
       .collect()
   }
 }
