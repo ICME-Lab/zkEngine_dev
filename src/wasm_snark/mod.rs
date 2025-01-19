@@ -21,7 +21,7 @@ use nova::{
     traits::{Layer1PPTrait, Layer1RSTrait, MemoryCommitmentsTraits},
   },
   traits::{
-    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait},
+    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
     CurveCycleEquipped, Dual, Engine, TranscriptEngineTrait,
   },
 };
@@ -42,7 +42,7 @@ pub struct WASMPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   execution_pp: PublicParams<E>,
   ops_pp: PublicParams<E>,
@@ -56,7 +56,7 @@ impl<E, S1, S2> WASMPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// provides a reference to a ProverKey suitable for producing a CompressedProof
   pub fn pk(&self) -> &ProverKey<E, S1, S2> {
@@ -79,7 +79,7 @@ impl<E, S1, S2> Layer1PPTrait<E> for WASMPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   fn into_parts(self) -> (PublicParams<E>, PublicParams<E>, AuditPublicParams<E>) {
     (self.execution_pp, self.ops_pp, self.scan_pp)
@@ -117,7 +117,7 @@ pub enum WasmSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// RecursiveSNARK for WASM execution
   Recursive(Box<RecursiveWasmSNARK<E>>),
@@ -129,7 +129,7 @@ impl<E, S1, S2> WasmSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions

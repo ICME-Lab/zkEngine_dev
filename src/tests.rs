@@ -19,7 +19,7 @@ pub type E = Bn256EngineIPA;
 pub type EE1 = ipa_pc::EvaluationEngine<E>;
 pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
 pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
-pub type S2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E>, EE2>;
+pub type S2 = spartan::snark::RelaxedR1CSSNARK<Dual<E>, EE2>;
 
 fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError> {
   let pp_timer = start_timer!("Producing Public Parameters");
