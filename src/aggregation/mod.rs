@@ -12,7 +12,7 @@ use nova::{
     AggregationPublicParams as NovaAggregationPublicParams, AggregationRecursiveSNARK,
   },
   traits::{
-    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait},
+    snark::{default_ck_hint, BatchedRelaxedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
     CurveCycleEquipped, Dual,
   },
 };
@@ -28,7 +28,7 @@ pub struct AggregationPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   pp: NovaAggregationPublicParams<E>,
   /// Prover and verifier key for final proof compression
@@ -40,7 +40,7 @@ impl<E, S1, S2> AggregationPublicParams<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// provides a reference to a ProverKey suitable for producing a CompressedProof
   pub fn pk(&self) -> &ProverKey<E, S1, S2> {
@@ -71,7 +71,7 @@ pub struct AggregationSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   rs: AggregationRecursiveSNARK<E>,
   _s1: PhantomData<S1>,
@@ -82,7 +82,7 @@ impl<E, S1, S2> AggregationSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
-  S2: BatchedRelaxedR1CSSNARKTrait<Dual<E>>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// Get the [`AggregationPublicParams`]
   pub fn setup(wasm_pp: WASMPublicParams<E, S1, S2>) -> AggregationPublicParams<E, S1, S2> {

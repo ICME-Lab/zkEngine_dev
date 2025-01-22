@@ -21,7 +21,7 @@ pub type E = Bn256EngineIPA;
 pub type EE1 = ipa_pc::EvaluationEngine<E>;
 pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
 pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
-pub type S2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E>, EE2>;
+pub type S2 = spartan::snark::RelaxedR1CSSNARK<Dual<E>, EE2>;
 
 #[test]
 fn test_aggregation_bit_check() -> Result<(), ZKWASMError> {
