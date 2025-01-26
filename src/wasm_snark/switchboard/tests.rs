@@ -89,6 +89,19 @@ fn test_basic() {
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }
 
+#[test]
+fn test_basic_i64() {
+  init_logger();
+  let step_size = StepSize::new(1);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/basic.wat"))
+    .unwrap()
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
 fn tracing_init() {
   // Create an EnvFilter that filters out spans below the 'info' level
   let filter = EnvFilter::new("arecibo=info");

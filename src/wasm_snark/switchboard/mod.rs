@@ -80,48 +80,48 @@ where
     let mut switchboard_vars = SwitchBoardCircuitVars::new(pc, sp);
 
     // // unreachable, i.e. nop
-    // self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
+    // self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switchboard_vars)?;
 
     // // local.get, local.set, local.tee
-    // self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
-    // self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
-    // self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
+    // self.visit_local_get(cs.namespace(|| "local.get"), &mut switchboard_vars)?;
+    // self.visit_local_set(cs.namespace(|| "local.set"), &mut switchboard_vars)?;
+    // self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switchboard_vars)?;
 
     // // branch opcodes
-    // self.visit_br(cs.namespace(|| "br"), &mut switches)?;
-    // self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
-    // self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
-    // self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switches)?;
-    // self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
+    // self.visit_br(cs.namespace(|| "br"), &mut switchboard_vars)?;
+    // self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switchboard_vars)?;
+    // self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switchboard_vars)?;
+    // self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switchboard_vars)?;
+    // self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switchboard_vars)?;
 
     // // return opcodes
-    // self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
-    // self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
+    // self.drop_keep(cs.namespace(|| "drop keep"), &mut switchboard_vars)?;
+    // self.visit_ret(cs.namespace(|| "return"), &mut switchboard_vars)?;
 
     // // call related opcodes
-    // self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
+    // self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switchboard_vars)?;
     // self
-    //   .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
-    // self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
+    //   .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switchboard_vars)?;
+    // self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switchboard_vars)?;
 
     // // select opcode
-    // self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
+    // self.visit_select(cs.namespace(|| "visit_select"), &mut switchboard_vars)?;
 
     // // global opcodes
-    // self.visit_global_get(cs.namespace(|| "global.get"), &mut switches)?;
-    // self.visit_global_set(cs.namespace(|| "global.set"), &mut switches)?;
+    // self.visit_global_get(cs.namespace(|| "global.get"), &mut switchboard_vars)?;
+    // self.visit_global_set(cs.namespace(|| "global.set"), &mut switchboard_vars)?;
 
     // // store and load opcodes
-    // self.visit_store(cs.namespace(|| "store"), &mut switches)?;
-    // self.visit_load(cs.namespace(|| "load"), &mut switches)?;
+    // self.visit_store(cs.namespace(|| "store"), &mut switchboard_vars)?;
+    // self.visit_load(cs.namespace(|| "load"), &mut switchboard_vars)?;
 
     // // specific linear memory opcodes
-    // self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
-    // self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
-    // self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switches)?;
-    // self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switches)?;
-    // self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
-    // self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
+    // self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switchboard_vars)?;
+    // self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switchboard_vars)?;
+    // self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switchboard_vars)?;
+    // self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switchboard_vars)?;
+    // self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switchboard_vars)?;
+    // self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switchboard_vars)?;
 
     // const opcodes
     self.visit_const(cs.namespace(|| "const"), &mut switchboard_vars)?;
@@ -130,7 +130,10 @@ where
     self.visit_i32_add(cs.namespace(|| "i32.add"), &mut switchboard_vars)?;
     self.visit_i32_sub(cs.namespace(|| "i32.sub"), &mut switchboard_vars)?;
     self.visit_i32_mul(cs.namespace(|| "i32.mul"), &mut switchboard_vars)?;
-    // self.visit_i32_div_rem_u(cs.namespace(|| "visit_i32_div_rem_u"), &mut switchboard_vars)?;
+    self.visit_i32_div_rem_u(
+      cs.namespace(|| "visit_i32_div_rem_u"),
+      &mut switchboard_vars,
+    )?;
     // self.visit_i32_div_rem_s(cs.namespace(|| "visit_i32_div_rem_s"), &mut switchboard_vars)?;
     // self.visit_i32_bitops(cs.namespace(|| "visit_i32_bitops"), &mut switchboard_vars)?;
     // self.visit_i32_unary_ops(cs.namespace(|| "visit_i32_unary_ops"), &mut switchboard_vars)?;
@@ -142,22 +145,25 @@ where
     self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switchboard_vars)?;
     self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switchboard_vars)?;
     self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switchboard_vars)?;
-    // self.visit_i64_div_rem_u(cs.namespace(|| "visit_i64_div_rem_u"), &mut switches)?;
-    // self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switches)?;
-    // self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switches)?;
-    // self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switches)?;
-    // self.visit_i64_shift_rotate(cs.namespace(|| "visit_i64_shift_rotate"), &mut switches)?;
-    // self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
-    // self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
+    self.visit_i64_div_rem_u(
+      cs.namespace(|| "visit_i64_div_rem_u"),
+      &mut switchboard_vars,
+    )?;
+    // self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switchboard_vars)?;
+    // self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switchboard_vars)?;
+    // self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switchboard_vars)?;
+    // self.visit_i64_shift_rotate(cs.namespace(|| "visit_i64_shift_rotate"), &mut switchboard_vars)?;
+    // self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switchboard_vars)?;
+    // self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switchboard_vars)?;
 
     // // eq, eqz, ne for i32 and i64
-    // self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
-    // self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
-    // self.visit_ne(cs.namespace(|| "visit_ne"), &mut switches)?;
+    // self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switchboard_vars)?;
+    // self.visit_eq(cs.namespace(|| "visit_eq"), &mut switchboard_vars)?;
+    // self.visit_ne(cs.namespace(|| "visit_ne"), &mut switchboard_vars)?;
 
     // // unary and binary ops
-    // self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
-    // self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
+    // self.visit_unary(cs.namespace(|| "visit_unary"), &mut switchboard_vars)?;
+    // self.visit_binary(cs.namespace(|| "visit_binary"), &mut switchboard_vars)?;
 
     /*
      *  ***************** Switch constraints *****************
@@ -1465,32 +1471,16 @@ impl WASMTransitionCircuit {
   fn visit_i32_div_rem_u<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I32DivU }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let X_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
-      switch,
-    )?;
-
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
-
-    let Y_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
 
     let (quotient, rem) = div_rem_u_32(
       cs.namespace(|| "div_rem_u_32"),
@@ -1524,7 +1514,14 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Ok(())
+    // Push final stack pointer and program counter
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # i32.div_s, i32.rem_s
@@ -1949,32 +1946,16 @@ impl WASMTransitionCircuit {
   fn visit_i64_div_rem_u<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64DivU }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let X_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
-      switch,
-    )?;
-
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
-
-    let Y_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
 
     let (quotient, rem) = div_rem_u_64(
       cs.namespace(|| "div_rem_u_64"),
@@ -2008,7 +1989,14 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Ok(())
+    // Push final stack pointer and program counter
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # i64.div_s, i64.rem_s
@@ -2595,13 +2583,7 @@ impl WASMTransitionCircuit {
     let J: u64 = instruction.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-
-    // pop Y of the stack
-    let (Y, sp) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
-
-    // Get X of from the stack
-    let X_addr = sp.dec_by(cs.namespace(|| "sp - 1"), &minus_one)?;
-    let X = X_addr.get(cs.namespace(|| "get X"), &self.RS[1], switch)?;
+    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
 
     // Compute Z = binary_op(X, Y)
     // & push Z on the stack
@@ -2623,6 +2605,34 @@ impl WASMTransitionCircuit {
       &one,
     )?;
     Ok(())
+  }
+
+  fn top_2<CS, F>(
+    &self,
+    mut cs: CS,
+    pre_sp: AllocatedStackPtr<F>,
+    switch: F,
+    minus_one: &AllocatedNum<F>,
+  ) -> Result<
+    (
+      AllocatedNum<F>,
+      AllocatedStackPtr<F>,
+      AllocatedNum<F>,
+      AllocatedStackPtr<F>,
+    ),
+    SynthesisError,
+  >
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    // pop Y of the stack
+    let (Y, sp) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, minus_one, &self.RS[0])?;
+
+    // Get X of from the stack
+    let X_addr = sp.dec_by(cs.namespace(|| "sp - 1"), minus_one)?;
+    let X = X_addr.get(cs.namespace(|| "get X"), &self.RS[1], switch)?;
+    Ok((Y, sp, X, X_addr))
   }
 }
 

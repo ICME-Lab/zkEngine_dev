@@ -7,5 +7,9 @@
             i32.add
             i32.sub
             i32.mul
+            i32.const 1000
+            i32.div_u
+            i32.const 1000
+            i32.rem_u
     )
 )
