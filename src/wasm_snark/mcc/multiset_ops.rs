@@ -207,9 +207,8 @@ pub fn step_RS_WS(
     | Instr::I64RemS
     | Instr::I64RemU
     | Instr::I64ShrS => {
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
-
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt | Instr::I64Eqz | Instr::I32Eqz => {
@@ -335,9 +334,8 @@ pub fn step_RS_WS(
     | Instr::I32ShrU
     | Instr::I32Rotl
     | Instr::I32Rotr => {
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
-
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
 
