@@ -2,44 +2,27 @@ use super::{
     bytecode::{BranchOffset, F64Const32},
     const_pool::ConstRef,
     executor::{CallKind, CallOutcome, ReturnOutcome, WasmOutcome},
-    CompiledFunc,
-    ConstPoolView,
+    CompiledFunc, ConstPoolView,
 };
 use crate::{
     core::TrapCode,
     engine::{
         bytecode::{
-            AddressOffset,
-            BlockFuel,
-            BranchTableTargets,
-            DataSegmentIdx,
-            ElementSegmentIdx,
-            FuncIdx,
-            GlobalIdx,
-            Instruction,
-            LocalDepth,
-            SignatureIdx,
-            TableIdx,
+            AddressOffset, BlockFuel, BranchTableTargets, DataSegmentIdx, ElementSegmentIdx,
+            FuncIdx, GlobalIdx, Instruction, LocalDepth, SignatureIdx, TableIdx,
         },
         cache::InstanceCache,
         code_map::{CodeMap, InstructionPtr},
         config::FuelCosts,
         stack::{CallStack, ValueStackPtr},
-        DropKeep,
-        FuncFrame,
-        ValueStack,
+        DropKeep, FuncFrame, ValueStack,
     },
     error::EntityGrowError,
     func::FuncEntity,
     store::ResourceLimiterRef,
     table::TableEntity,
     tracer::WitnessVM,
-    FuelConsumptionMode,
-    Func,
-    FuncRef,
-    StoreInner,
-    Table,
-    Tracer,
+    FuelConsumptionMode, Func, FuncRef, StoreInner, Table, Tracer,
 };
 use alloc::rc::Rc;
 use core::{
@@ -1727,6 +1710,15 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         let instruction = unsafe { &*self.ip.ptr };
         vm.pre_sp = pre_sp;
         vm.pc = pc;
+
+        // Keep these as post values incase we use virtual instructions that don't have a post trace
+        //
+        // # Note
+        //
+        // - Post trace will correctly capture the post values
+        vm.post_sp = pre_sp;
+        vm.post_pc = pc;
+
         vm.instr = *instruction;
         vm.J = instruction.index_j();
         match *instruction {
@@ -1982,6 +1974,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     /// execution
     fn execute_instr_post(&mut self, vm: &mut WitnessVM, instr: &Instruction) {
         use Instruction as Instr;
+        vm.post_pc = self.pc();
+        vm.post_sp = self.sp();
+
         match *instr {
             Instr::Const32(..)
             | Instr::ConstRef(..)
@@ -2394,5 +2389,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         //         Wasm validation and `wasmi` codegen to never run out
         //         of valid bounds using this method.
         (unsafe { self.ip.ptr.offset_from(base_ptr) }) as usize
+    }
+
+    /// Get 'usize' value for the sp
+    fn sp(&mut self) -> usize {
+        self.sync_stack_ptr();
+        self.value_stack.stack_ptr
     }
 }

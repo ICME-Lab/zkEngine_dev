@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use crate::wasm_ctx::ISMemSizes;
 
 use super::{
@@ -55,7 +57,7 @@ where
   F: PrimeField + PrimeFieldBits,
 {
   fn arity(&self) -> usize {
-    1
+    2
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
@@ -67,93 +69,98 @@ where
      * ***************** Switchboard Circuit *****************
      */
 
-    // This stores the switch variables for each instruction. The switch variables are needed to
+    // Allocate switchboard "global" variables (pc, sp and switches).
+    //
+    // This also stores the switch variables for each instruction. The switch variables are needed to
     // turn sub-circuits on or off.
-    let mut switches = Vec::new();
+    let pc = z[0].clone();
+    let sp = AllocatedStackPtr { sp: z[1].clone() };
+    let mut switchboard_vars = SwitchBoardCircuitVars::new(pc, sp);
 
-    // unreachable, i.e. nop
-    self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
+    // // unreachable, i.e. nop
+    // self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switches)?;
 
-    // local.get, local.set, local.tee
-    self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
-    self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
-    self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
+    // // local.get, local.set, local.tee
+    // self.visit_local_get(cs.namespace(|| "local.get"), &mut switches)?;
+    // self.visit_local_set(cs.namespace(|| "local.set"), &mut switches)?;
+    // self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switches)?;
 
-    // branch opcodes
-    self.visit_br(cs.namespace(|| "br"), &mut switches)?;
-    self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
-    self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
-    self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switches)?;
-    self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
+    // // branch opcodes
+    // self.visit_br(cs.namespace(|| "br"), &mut switches)?;
+    // self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switches)?;
+    // self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switches)?;
+    // self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switches)?;
+    // self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switches)?;
 
-    // return opcodes
-    self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
-    self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
+    // // return opcodes
+    // self.drop_keep(cs.namespace(|| "drop keep"), &mut switches)?;
+    // self.visit_ret(cs.namespace(|| "return"), &mut switches)?;
 
-    // call related opcodes
-    self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
-    self
-      .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
-    self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
+    // // call related opcodes
+    // self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switches)?;
+    // self
+    //   .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switches)?;
+    // self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switches)?;
 
-    // select opcode
-    self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
+    // // select opcode
+    // self.visit_select(cs.namespace(|| "visit_select"), &mut switches)?;
 
-    // global opcodes
-    self.visit_global_get(cs.namespace(|| "global.get"), &mut switches)?;
-    self.visit_global_set(cs.namespace(|| "global.set"), &mut switches)?;
+    // // global opcodes
+    // self.visit_global_get(cs.namespace(|| "global.get"), &mut switches)?;
+    // self.visit_global_set(cs.namespace(|| "global.set"), &mut switches)?;
 
-    // store and load opcodes
-    self.visit_store(cs.namespace(|| "store"), &mut switches)?;
-    self.visit_load(cs.namespace(|| "load"), &mut switches)?;
+    // // store and load opcodes
+    // self.visit_store(cs.namespace(|| "store"), &mut switches)?;
+    // self.visit_load(cs.namespace(|| "load"), &mut switches)?;
 
-    // specific linear memory opcodes
-    self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
-    self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
-    self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switches)?;
-    self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switches)?;
-    self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
-    self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
+    // // specific linear memory opcodes
+    // self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switches)?;
+    // self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switches)?;
+    // self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switches)?;
+    // self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switches)?;
+    // self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switches)?;
+    // self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switches)?;
 
     // const opcodes
-    self.visit_const(cs.namespace(|| "const"), &mut switches)?;
+    self.visit_const(cs.namespace(|| "const"), &mut switchboard_vars)?;
 
-    // i32 opcodes
-    self.visit_i32_add(cs.namespace(|| "i32.add"), &mut switches)?;
-    self.visit_i32_sub(cs.namespace(|| "i32.sub"), &mut switches)?;
-    self.visit_i32_mul(cs.namespace(|| "i32.mul"), &mut switches)?;
-    self.visit_i32_div_rem_u(cs.namespace(|| "visit_i32_div_rem_u"), &mut switches)?;
-    self.visit_i32_div_rem_s(cs.namespace(|| "visit_i32_div_rem_s"), &mut switches)?;
-    self.visit_i32_bitops(cs.namespace(|| "visit_i32_bitops"), &mut switches)?;
-    self.visit_i32_unary_ops(cs.namespace(|| "visit_i32_unary_ops"), &mut switches)?;
-    self.visit_i32_shift_rotate(cs.namespace(|| "visit_i32_shift_rotate"), &mut switches)?;
-    self.visit_i32_lt_ge_s(cs.namespace(|| "visit_i32_lt_ge_s"), &mut switches)?;
-    self.visit_i32_le_gt_s(cs.namespace(|| "visit_i32_le_gt_s"), &mut switches)?;
+    // // i32 opcodes
+    // self.visit_i32_add(cs.namespace(|| "i32.add"), &mut switches)?;
+    // self.visit_i32_sub(cs.namespace(|| "i32.sub"), &mut switches)?;
+    // self.visit_i32_mul(cs.namespace(|| "i32.mul"), &mut switches)?;
+    // self.visit_i32_div_rem_u(cs.namespace(|| "visit_i32_div_rem_u"), &mut switches)?;
+    // self.visit_i32_div_rem_s(cs.namespace(|| "visit_i32_div_rem_s"), &mut switches)?;
+    // self.visit_i32_bitops(cs.namespace(|| "visit_i32_bitops"), &mut switches)?;
+    // self.visit_i32_unary_ops(cs.namespace(|| "visit_i32_unary_ops"), &mut switches)?;
+    // self.visit_i32_shift_rotate(cs.namespace(|| "visit_i32_shift_rotate"), &mut switches)?;
+    // self.visit_i32_lt_ge_s(cs.namespace(|| "visit_i32_lt_ge_s"), &mut switches)?;
+    // self.visit_i32_le_gt_s(cs.namespace(|| "visit_i32_le_gt_s"), &mut switches)?;
 
-    // i64 opcodes
-    self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
-    self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
-    self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
-    self.visit_i64_div_rem_u(cs.namespace(|| "visit_i64_div_rem_u"), &mut switches)?;
-    self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switches)?;
-    self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switches)?;
-    self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switches)?;
-    self.visit_i64_shift_rotate(cs.namespace(|| "visit_i64_shift_rotate"), &mut switches)?;
-    self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
-    self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
+    // // i64 opcodes
+    // self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switches)?;
+    // self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switches)?;
+    // self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switches)?;
+    // self.visit_i64_div_rem_u(cs.namespace(|| "visit_i64_div_rem_u"), &mut switches)?;
+    // self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switches)?;
+    // self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switches)?;
+    // self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switches)?;
+    // self.visit_i64_shift_rotate(cs.namespace(|| "visit_i64_shift_rotate"), &mut switches)?;
+    // self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switches)?;
+    // self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switches)?;
 
-    // eq, eqz, ne for i32 and i64
-    self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
-    self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
-    self.visit_ne(cs.namespace(|| "visit_ne"), &mut switches)?;
+    // // eq, eqz, ne for i32 and i64
+    // self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switches)?;
+    // self.visit_eq(cs.namespace(|| "visit_eq"), &mut switches)?;
+    // self.visit_ne(cs.namespace(|| "visit_ne"), &mut switches)?;
 
-    // unary and binary ops
-    self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
-    self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
+    // // unary and binary ops
+    // self.visit_unary(cs.namespace(|| "visit_unary"), &mut switches)?;
+    // self.visit_binary(cs.namespace(|| "visit_binary"), &mut switches)?;
 
     /*
      *  ***************** Switch constraints *****************
      */
+    let switches = switchboard_vars.switches();
 
     // 1. Single switch constraint:
     cs.enforce(
@@ -177,7 +184,34 @@ where
       );
     }
 
-    Ok(z.to_vec())
+    // Check program counter and stack pointer
+    let PC = AllocatedNum::alloc(cs.namespace(|| "PC"), || {
+      Ok(F::from(self.vm.post_pc as u64))
+    })?;
+    let post_sp = AllocatedNum::alloc(cs.namespace(|| "post_sp"), || {
+      Ok(F::from(self.vm.post_sp as u64))
+    })?;
+    for ((pc, switch), sp) in switchboard_vars
+      .program_counters()
+      .iter()
+      .zip_eq(switchboard_vars.switches().iter())
+      .zip_eq(switchboard_vars.stack_pointers().iter())
+    {
+      cs.enforce(
+        || "PC == post_pc",
+        |lc| lc + PC.get_variable(),
+        |lc| lc + switch.get_variable(),
+        |lc| lc + pc.get_variable(),
+      );
+      cs.enforce(
+        || "sp == post_sp",
+        |lc| lc + post_sp.get_variable(),
+        |lc| lc + switch.get_variable(),
+        |lc| lc + sp.get_variable(),
+      );
+    }
+
+    Ok(vec![PC, post_sp])
   }
 
   fn non_deterministic_advice(&self) -> Vec<F> {
@@ -216,6 +250,103 @@ impl WASMTransitionCircuit {
 
     // return the switch as a constant
     Ok(switch)
+  }
+
+  /// Allocate a switch. Depending on the instruction it could be on or off.
+  fn allocate_opcode_vars<CS, F>(
+    &self,
+    cs: &mut CS,
+    J: u64,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
+  ) -> Result<
+    (
+      F,
+      AllocatedNum<F>,
+      AllocatedStackPtr<F>,
+      AllocatedNum<F>,
+      AllocatedNum<F>,
+    ), // switch, pre_sp, 1, -1
+    SynthesisError,
+  >
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    // Check if instruction is on or off
+    let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
+    let alloc_switch = AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?;
+
+    // Allocate pre_pc and check it is equal to z_i[0]
+    let pre_pc =
+      WASMTransitionCircuit::alloc_num(cs, || "pre pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
+    cs.enforce(
+      || "vm.pc == opcode.pc",
+      |lc| lc + switchboard_vars.pre_pc().get_variable(),
+      |lc| lc + alloc_switch.get_variable(),
+      |lc| lc + pre_pc.get_variable(),
+    );
+
+    // Allocate pre_sp and check it is equal to z_i[1]
+    let pre_sp = WASMTransitionCircuit::alloc_num(
+      cs,
+      || "pre sp",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch,
+    )?;
+    cs.enforce(
+      || "vm.pre_sp == opcode.pre_sp",
+      |lc| lc + switchboard_vars.pre_sp().get_variable(),
+      |lc| lc + alloc_switch.get_variable(),
+      |lc| lc + pre_sp.get_variable(),
+    );
+    let pre_sp = AllocatedStackPtr { sp: pre_sp };
+
+    // Push the allocated switch to the switches vector to be used in the switch constraints
+    switchboard_vars.push_switch(alloc_switch);
+
+    // Used to calculate stack pointer and program counter
+    let minus_one = WASMTransitionCircuit::alloc_minus_one(cs.namespace(|| "-one"), switch);
+    let one = WASMTransitionCircuit::alloc_one(cs.namespace(|| "one"), switch);
+
+    // return the switch as a constant
+    Ok((switch, pre_pc, pre_sp, one, minus_one))
+  }
+
+  fn alloc_one<CS, F>(mut cs: CS, switch: F) -> AllocatedNum<F>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    AllocatedNum::alloc_infallible(cs.namespace(|| "one"), || F::ONE * switch)
+  }
+
+  fn alloc_minus_one<CS, F>(mut cs: CS, switch: F) -> AllocatedNum<F>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    AllocatedNum::alloc_infallible(cs.namespace(|| "one"), || (-F::ONE) * switch)
+  }
+
+  fn next_instr<CS, F>(
+    &self,
+    mut cs: CS,
+    pc: &AllocatedNum<F>,
+    sp: AllocatedStackPtr<F>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
+    one: &AllocatedNum<F>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    // Save variable to global switchboard memory space so we can use it later to build constraints for stack pointer
+    switchboard_vars.push_sp(sp);
+
+    // Update pc and push to global switchboard memory space
+    let new_pc = pc.add(cs.namespace(|| "pc + 1"), one)?;
+    switchboard_vars.push_pc(new_pc);
+    Ok(())
   }
 
   /// Allocate a num into the zkWASM CS
@@ -1254,32 +1385,24 @@ impl WASMTransitionCircuit {
   fn visit_const<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Const32(0) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let pre_sp = Self::alloc_num(
-      &mut cs,
-      || "pre_sp",
-      || Ok(F::from(self.vm.pre_sp as u64)),
-      switch,
-    )?;
-
+    let (switch, pre_pc, pre_sp, one, _) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch)?;
-
-    Self::write(
-      cs.namespace(|| "push I on stack"),
-      &pre_sp,
-      &I,
-      &self.WS[0],
-      switch,
+    let new_sp = pre_sp.push(cs.namespace(|| "push imm"), switch, &I, &one, &self.WS[0])?;
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      new_sp,
+      switchboard_vars,
+      &one,
     )?;
-
     Ok(())
   }
   /// # i32.sub
@@ -2686,7 +2809,7 @@ where
   F: PrimeField + PrimeFieldBits,
 {
   fn arity(&self) -> usize {
-    1
+    2
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
@@ -2723,5 +2846,156 @@ impl BatchedWasmTransitionCircuit {
   /// Create a new instance of [`BatchedWasmTransitionCircuit`]
   pub fn new(circuits: Vec<WASMTransitionCircuit>) -> Self {
     Self { circuits }
+  }
+}
+
+pub struct AllocatedStackPtr<F>
+where
+  F: PrimeField,
+{
+  sp: AllocatedNum<F>,
+}
+
+impl<F> AllocatedStackPtr<F>
+where
+  F: PrimeField,
+{
+  fn pop<CS>(
+    &self,
+    mut cs: CS,
+    switch: F,
+    minus_one: &AllocatedNum<F>,
+    advice: &(usize, u64, u64),
+  ) -> Result<
+    (AllocatedNum<F>, AllocatedStackPtr<F>), // value, sp
+    SynthesisError,
+  >
+  where
+    CS: ConstraintSystem<F>,
+  {
+    let popped_sp = self.dec_by(cs.namespace(|| "dec by"), minus_one)?;
+    let X = WASMTransitionCircuit::read(cs.namespace(|| "X"), &popped_sp, advice, switch)?;
+    Ok((X, popped_sp))
+  }
+
+  fn push<CS>(
+    &self,
+    mut cs: CS,
+    switch: F,
+    val: &AllocatedNum<F>,
+    one: &AllocatedNum<F>,
+    advice: &(usize, u64, u64),
+  ) -> Result<AllocatedStackPtr<F>, SynthesisError>
+  where
+    CS: ConstraintSystem<F>,
+  {
+    WASMTransitionCircuit::write(cs.namespace(|| "X"), self, val, advice, switch)?;
+    let new_sp = self.inc_by(cs.namespace(|| "dec by"), one)?;
+    Ok(new_sp)
+  }
+
+  fn get<CS>(
+    &self,
+    mut cs: CS,
+    advice: &(usize, u64, u64),
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>
+  where
+    CS: ConstraintSystem<F>,
+  {
+    WASMTransitionCircuit::read(cs.namespace(|| "val"), self, advice, switch)
+  }
+
+  fn dec_by<CS>(
+    &self,
+    mut cs: CS,
+    minus_v: &AllocatedNum<F>,
+  ) -> Result<AllocatedStackPtr<F>, SynthesisError>
+  where
+    CS: ConstraintSystem<F>,
+  {
+    let new_sp = self.sp.add(cs.namespace(|| "sp - v"), minus_v)?;
+    Ok(AllocatedStackPtr { sp: new_sp })
+  }
+
+  fn inc_by<CS>(
+    &self,
+    mut cs: CS,
+    v: &AllocatedNum<F>,
+  ) -> Result<AllocatedStackPtr<F>, SynthesisError>
+  where
+    CS: ConstraintSystem<F>,
+  {
+    let new_sp = self.sp.add(cs.namespace(|| "sp + v"), v)?;
+    Ok(AllocatedStackPtr { sp: new_sp })
+  }
+}
+
+impl<F> Deref for AllocatedStackPtr<F>
+where
+  F: PrimeField,
+{
+  type Target = AllocatedNum<F>;
+
+  fn deref(&self) -> &Self::Target {
+    &self.sp
+  }
+}
+
+pub struct SwitchBoardCircuitVars<F>
+where
+  F: PrimeField,
+{
+  switches: Vec<AllocatedNum<F>>,
+  program_counters: Vec<AllocatedNum<F>>,
+  stack_pointers: Vec<AllocatedStackPtr<F>>,
+  pre_pc: AllocatedNum<F>,
+  pre_sp: AllocatedStackPtr<F>,
+}
+
+impl<F> SwitchBoardCircuitVars<F>
+where
+  F: PrimeField,
+{
+  fn new(pre_pc: AllocatedNum<F>, pre_sp: AllocatedStackPtr<F>) -> Self {
+    Self {
+      switches: Vec::new(),
+      program_counters: Vec::new(),
+      stack_pointers: Vec::new(),
+      pre_pc,
+      pre_sp,
+    }
+  }
+
+  fn push_switch(&mut self, switch: AllocatedNum<F>) {
+    self.switches.push(switch);
+  }
+
+  fn push_pc(&mut self, pc: AllocatedNum<F>) {
+    self.program_counters.push(pc);
+  }
+
+  fn push_sp(&mut self, sp: AllocatedStackPtr<F>) {
+    self.stack_pointers.push(sp);
+  }
+
+  fn pre_pc(&self) -> &AllocatedNum<F> {
+    &self.pre_pc
+  }
+
+  fn pre_sp(&self) -> &AllocatedStackPtr<F> {
+    &self.pre_sp
+  }
+
+  fn switches(&self) -> &Vec<AllocatedNum<F>> {
+    &self.switches
+  }
+
+  fn program_counters(&self) -> &Vec<AllocatedNum<F>> {
+    &self.program_counters
+  }
+
+  fn stack_pointers(&self) -> &Vec<AllocatedStackPtr<F>> {
+    &self.stack_pointers
   }
 }
