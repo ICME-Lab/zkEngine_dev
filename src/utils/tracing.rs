@@ -235,9 +235,7 @@ mod test {
       ])
       .invoke("main")
       .build();
-
     let wasm_ctx = WASMCtx::new(wasm_args);
-
     test_count_with(&wasm_ctx);
   }
 
@@ -260,9 +258,7 @@ mod test {
       ])
       .invoke("main")
       .build();
-
     let wasm_ctx = WASMCtx::new(wasm_args);
-
     test_count_with(&wasm_ctx);
   }
 
@@ -285,9 +281,7 @@ mod test {
       ])
       .invoke("main")
       .build();
-
     let wasm_ctx = WASMCtx::new(wasm_args);
-
     test_count_with(&wasm_ctx);
   }
 
@@ -309,9 +303,7 @@ mod test {
       ])
       .invoke("main")
       .build();
-
     let wasm_ctx = WASMCtx::new(wasm_args);
-
     test_count_with(&wasm_ctx);
   }
 
@@ -323,9 +315,7 @@ mod test {
       .func_args(vec!["100".to_string()])
       .invoke("integer_hash")
       .build();
-
     let wasm_ctx = WASMCtx::new(wasm_args);
-
     test_count_with(&wasm_ctx);
   }
 
@@ -336,9 +326,19 @@ mod test {
       .unwrap()
       .invoke("_start")
       .build();
-
     let wasm_ctx = WasiWASMCtx::new(wasm_args);
+    test_count_with(&wasm_ctx);
+  }
 
+  #[test]
+  fn test_count_kth_factor() {
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/nebula/kth_factor.wat"))
+      .unwrap()
+      .func_args(vec!["250".to_string(), "15".to_string()])
+      .invoke("kth_factor")
+      .build();
+    let wasm_ctx = WASMCtx::new(wasm_args);
     test_count_with(&wasm_ctx);
   }
 }

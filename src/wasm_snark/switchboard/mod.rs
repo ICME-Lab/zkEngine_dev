@@ -34,6 +34,8 @@ use wasmi::{
 };
 
 mod alu;
+#[cfg(test)]
+mod tests;
 
 /// The circuit representing a step in the execution of a WASM program. Each step in WASM execution
 /// corresponds to an opcode (from the WASM ISA) that gets executed.

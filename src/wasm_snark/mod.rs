@@ -189,7 +189,7 @@ where
     // the highest timestamp value in IS.
     let mut global_ts = 0;
 
-    // If this is a shard of a WASM program: calculate shard size & construct IS
+    // If we are proving a shard of a WASM program: calculate shard size & construct correct shard IS
     let is_sharded = program.args().is_sharded();
     let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
     construct_IS(
