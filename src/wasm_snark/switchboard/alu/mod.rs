@@ -193,6 +193,321 @@ where
   Ok(res)
 }
 
+pub fn add<F, CS, B>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: B,
+  b_bits: B,
+  switch: F,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+  B: OverFlowTrait,
+{
+  let zero = F::ZERO;
+  let range = F::from_u128(1_u128 << B::NUM_BITS);
+  let neg_range: F = zero - range;
+  let (c, overflow) = a_bits.of_add(b_bits);
+  let o = if overflow { neg_range } else { zero };
+
+  // construct witness
+  let c = SwitchBoardCircuit::alloc_num(&mut cs, || "c", || Ok(F::from(c.into())), switch)?;
+
+  // note, this is "advice"
+  let o = SwitchBoardCircuit::alloc_num(&mut cs, || "o", || Ok(o), switch)?;
+
+  // check o * (o + range) == 0
+  cs.enforce(
+    || "check o * (o + range) == 0",
+    |lc| lc + (range, CS::one()) + o.get_variable(),
+    |lc| lc + o.get_variable(),
+    |lc| lc,
+  );
+
+  // a + b + o = c
+  cs.enforce(
+    || "a + b + o = c",
+    |lc| lc + a.get_variable() + b.get_variable() + o.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + c.get_variable(),
+  );
+
+  Ok(c)
+}
+
+pub fn sub<F, CS, B>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: B,
+  b_bits: B,
+  switch: F,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+  B: OverFlowTrait,
+{
+  let range = F::from_u128(1_u128 << B::NUM_BITS);
+  let (c, of) = a_bits.of_sub(b_bits);
+  let c = SwitchBoardCircuit::alloc_num(&mut cs, || "c", || Ok(F::from(c.into())), switch)?;
+  let of = SwitchBoardCircuit::alloc_bit(&mut cs, || "of", Some(of), switch)?;
+  cs.enforce(
+    || "a - b + (range * of) = c",
+    |lc| lc + a.get_variable() - b.get_variable() + (range, of.get_variable()),
+    |lc| lc + CS::one(),
+    |lc| lc + c.get_variable(),
+  );
+  Ok(c)
+}
+
+pub fn mul<F, CS, B>(
+  mut cs: CS,
+  a: &AllocatedNum<F>,
+  b: &AllocatedNum<F>,
+  a_bits: B,
+  b_bits: B,
+  switch: F,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+  B: OverFlowTrait,
+{
+  // Get value WASM vm will spit out
+  let c = a_bits.wrap_mul(b_bits);
+  let c = SwitchBoardCircuit::alloc_num(&mut cs, || "c", || Ok(F::from(c.into())), switch)?;
+
+  // Calculate the product value in 128 bits
+  let a_128_bits: u128 = a_bits.into();
+  let b_128_bits: u128 = b_bits.into();
+  let c_128_bits = a_128_bits * b_128_bits;
+
+  // Calculate the left overs (value to subtract from c_128 to get c)
+  //
+  // # Note
+  //
+  // This is advice
+  let range = F::from_u128(1_u128 << B::NUM_BITS);
+
+  let trunc = SwitchBoardCircuit::alloc_num(
+    &mut cs,
+    || "trunc",
+    || Ok(F::from_u128(c_128_bits >> B::NUM_BITS)),
+    switch,
+  )?;
+
+  /*
+   * Enforce c_128 is the product of a and b
+   */
+  let c_intermediate = a.mul(cs.namespace(|| "c_intermediate"), b)?;
+
+  // c == c_128 - left_overs
+  cs.enforce(
+    || "c == c_128 - left_overs",
+    |lc| lc + c.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + c_intermediate.get_variable() - (range, trunc.get_variable()),
+  );
+
+  Ok(c)
+}
+
+pub trait OverFlowTrait: Into<u64> + Into<u128> + Copy
+where
+  Self: Sized,
+{
+  const NUM_BITS: u32;
+
+  fn of_add(&self, other: Self) -> (Self, bool);
+
+  fn of_sub(&self, other: Self) -> (Self, bool);
+
+  fn wrap_mul(&self, other: Self) -> Self;
+}
+
+macro_rules! impl_overflow_trait {
+  ($($t:ty),*) => {
+      $(
+          impl OverFlowTrait for $t {
+              const NUM_BITS: u32 = <$t>::BITS;
+
+              fn of_add(&self, other: Self) -> (Self, bool) {
+                  self.overflowing_add(other)
+              }
+
+              fn of_sub(&self, other: Self) -> (Self, bool) {
+                  self.overflowing_sub(other)
+              }
+
+              fn wrap_mul(&self, other: Self) -> Self {
+                  self.wrapping_mul(other)
+              }
+
+          }
+      )*
+  };
+}
+
+impl_overflow_trait!(u32, u64);
+
+pub trait IntegerOps<F, CS>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  fn i64_add(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>;
+
+  fn i32_add(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>;
+
+  fn i64_sub(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>;
+
+  fn i32_sub(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>;
+
+  fn i64_mul(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>;
+
+  fn i32_mul(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError>;
+}
+
+pub struct ALUGadget;
+
+impl<F, CS> IntegerOps<F, CS> for ALUGadget
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  fn i64_add(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError> {
+    add(cs.namespace(|| "i64_add"), a, b, a_bits, b_bits, switch)
+  }
+
+  fn i32_add(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError> {
+    add(
+      cs.namespace(|| "i32_add"),
+      a,
+      b,
+      a_bits as u32,
+      b_bits as u32,
+      switch,
+    )
+  }
+
+  fn i64_sub(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError> {
+    sub(cs.namespace(|| "i64_sub"), a, b, a_bits, b_bits, switch)
+  }
+
+  fn i32_sub(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError> {
+    sub(
+      cs.namespace(|| "i32_sub"),
+      a,
+      b,
+      a_bits as u32,
+      b_bits as u32,
+      switch,
+    )
+  }
+
+  fn i64_mul(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError> {
+    mul(cs.namespace(|| "i64_mul"), a, b, a_bits, b_bits, switch)
+  }
+
+  fn i32_mul(
+    cs: &mut CS,
+    a: &AllocatedNum<F>,
+    b: &AllocatedNum<F>,
+    a_bits: u64,
+    b_bits: u64,
+    switch: F,
+  ) -> Result<AllocatedNum<F>, SynthesisError> {
+    mul(
+      cs.namespace(|| "i32_mul"),
+      a,
+      b,
+      a_bits as u32,
+      b_bits as u32,
+      switch,
+    )
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
