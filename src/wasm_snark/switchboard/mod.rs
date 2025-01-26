@@ -128,8 +128,8 @@ where
 
     // i32 opcodes
     self.visit_i32_add(cs.namespace(|| "i32.add"), &mut switchboard_vars)?;
-    // self.visit_i32_sub(cs.namespace(|| "i32.sub"), &mut switchboard_vars)?;
-    // self.visit_i32_mul(cs.namespace(|| "i32.mul"), &mut switchboard_vars)?;
+    self.visit_i32_sub(cs.namespace(|| "i32.sub"), &mut switchboard_vars)?;
+    self.visit_i32_mul(cs.namespace(|| "i32.mul"), &mut switchboard_vars)?;
     // self.visit_i32_div_rem_u(cs.namespace(|| "visit_i32_div_rem_u"), &mut switchboard_vars)?;
     // self.visit_i32_div_rem_s(cs.namespace(|| "visit_i32_div_rem_s"), &mut switchboard_vars)?;
     // self.visit_i32_bitops(cs.namespace(|| "visit_i32_bitops"), &mut switchboard_vars)?;
@@ -139,9 +139,9 @@ where
     // self.visit_i32_le_gt_s(cs.namespace(|| "visit_i32_le_gt_s"), &mut switchboard_vars)?;
 
     // i64 opcodes
-    // self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switchboard_vars)?;
-    // self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switchboard_vars)?;
-    // self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switchboard_vars)?;
+    self.visit_i64_add(cs.namespace(|| "i64.add"), &mut switchboard_vars)?;
+    self.visit_i64_sub(cs.namespace(|| "i64.sub"), &mut switchboard_vars)?;
+    self.visit_i64_mul(cs.namespace(|| "i64.mul"), &mut switchboard_vars)?;
     // self.visit_i64_div_rem_u(cs.namespace(|| "visit_i64_div_rem_u"), &mut switches)?;
     // self.visit_i64_div_rem_s(cs.namespace(|| "visit_i64_div_rem_s"), &mut switches)?;
     // self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switches)?;

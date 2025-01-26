@@ -77,7 +77,7 @@ where
 }
 
 #[test]
-fn test_const() {
+fn test_basic() {
   init_logger();
   let step_size = StepSize::new(1);
   let wasm_args = WASMArgsBuilder::default()
