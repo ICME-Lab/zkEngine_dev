@@ -1,5 +1,5 @@
 (module
-    (func (export "main") (result i64)
+    (func (export "main") (result i32)
 		    i64.const 1000
             i64.const 42
             i64.const 42
@@ -11,5 +11,7 @@
             i64.div_u
             i64.const 1000
             i64.rem_u
+            i64.clz
+            i64.eqz
     )
 )

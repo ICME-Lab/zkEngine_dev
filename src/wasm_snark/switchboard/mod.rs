@@ -139,7 +139,10 @@ where
       &mut switchboard_vars,
     )?;
     self.visit_i32_bitops(cs.namespace(|| "visit_i32_bitops"), &mut switchboard_vars)?;
-    // self.visit_i32_unary_ops(cs.namespace(|| "visit_i32_unary_ops"), &mut switchboard_vars)?;
+    self.visit_i32_unary_ops(
+      cs.namespace(|| "visit_i32_unary_ops"),
+      &mut switchboard_vars,
+    )?;
     self.visit_i32_shift_rotate(
       cs.namespace(|| "visit_i32_shift_rotate"),
       &mut switchboard_vars,
@@ -160,7 +163,10 @@ where
       &mut switchboard_vars,
     )?;
     self.visit_i64_bitops(cs.namespace(|| "visit_i64_bitops"), &mut switchboard_vars)?;
-    // self.visit_i64_unary_ops(cs.namespace(|| "visit_i64_unary_ops"), &mut switchboard_vars)?;
+    self.visit_i64_unary_ops(
+      cs.namespace(|| "visit_i64_unary_ops"),
+      &mut switchboard_vars,
+    )?;
     self.visit_i64_shift_rotate(
       cs.namespace(|| "visit_i64_shift_rotate"),
       &mut switchboard_vars,
@@ -168,13 +174,13 @@ where
     self.visit_i64_lt_ge_s(cs.namespace(|| "visit_i64_lt_ge_s"), &mut switchboard_vars)?;
     self.visit_i64_le_gt_s(cs.namespace(|| "visit_i64_le_gt_s"), &mut switchboard_vars)?;
 
-    // // eq, eqz, ne for i32 and i64
-    // self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switchboard_vars)?;
+    // eq, eqz, ne for i32 and i64
+    self.visit_eqz(cs.namespace(|| "visit_eqz"), &mut switchboard_vars)?;
     self.visit_eq(cs.namespace(|| "visit_eq"), &mut switchboard_vars)?;
     self.visit_ne(cs.namespace(|| "visit_ne"), &mut switchboard_vars)?;
 
-    // // unary and binary ops
-    // self.visit_unary(cs.namespace(|| "visit_unary"), &mut switchboard_vars)?;
+    // unary and binary ops
+    self.visit_unary(cs.namespace(|| "visit_unary"), &mut switchboard_vars)?;
     self.visit_binary(cs.namespace(|| "visit_binary"), &mut switchboard_vars)?;
 
     /*
@@ -1643,23 +1649,16 @@ impl WASMTransitionCircuit {
   fn visit_i32_unary_ops<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField + PrimeFieldBits,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I32Popcnt }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
 
     let (popcnt, clz, ctz) = unary_ops_32(
       cs.namespace(|| "unary_ops_32"),
@@ -1686,13 +1685,20 @@ impl WASMTransitionCircuit {
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
-      &last_addr, // pre_sp - 1
+      &Y_addr, // pre_sp - 1
       &Z,
       &self.WS[1],
       switch,
     )?;
 
-    Ok(())
+    // Push final stack pointer and program counter
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      pre_sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # i32.lt_u, i32.lt_s, i32.ge_u, i32.ge_s
@@ -2073,23 +2079,16 @@ impl WASMTransitionCircuit {
   fn visit_i64_unary_ops<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField + PrimeFieldBits,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Popcnt }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
 
     let (popcnt, clz, ctz) = unary_ops_64(cs.namespace(|| "unary_ops_64"), &Y, self.vm.Y, switch)?;
 
@@ -2111,13 +2110,20 @@ impl WASMTransitionCircuit {
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
-      &last_addr, // pre_sp - 1
+      &Y_addr, // pre_sp - 1
       &Z,
       &self.WS[1],
       switch,
     )?;
 
-    Ok(())
+    // Push final stack pointer and program counter
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      pre_sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # i64.lt_u, i64.lt_s, i64.ge_u, i64.ge_s
@@ -2284,35 +2290,35 @@ impl WASMTransitionCircuit {
   fn visit_eqz<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField + PrimeFieldBits,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Eqz }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
 
     let Z = eqz(cs.namespace(|| "eqz"), &Y, switch)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
-      &last_addr, // pre_sp - 1
+      &Y_addr, // pre_sp - 1
       &Z,
       &self.WS[1],
       switch,
     )?;
 
-    Ok(())
+    // Push final stack pointer and program counter
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      pre_sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # i64.eq, i32.eq
@@ -2389,35 +2395,35 @@ impl WASMTransitionCircuit {
   fn visit_unary<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField + PrimeFieldBits,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::F32Abs }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-
-    let _ = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (_, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
 
     let Z = Self::alloc_num(&mut cs, || "unary_op(Y)", || Ok(F::from(self.vm.Z)), switch)?;
 
     Self::write(
       cs.namespace(|| "push Z on stack"),
-      &last_addr, // pre_sp - 1
+      &Y_addr, // pre_sp - 1
       &Z,
       &self.WS[1],
       switch,
     )?;
 
-    Ok(())
+    // Push final stack pointer and program counter
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      pre_sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # visit_binary

@@ -11,5 +11,7 @@
             i32.div_u
             i32.const 1000
             i32.rem_u
+            i32.clz
+            i32.eqz
     )
 )

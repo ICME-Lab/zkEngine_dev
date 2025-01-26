@@ -94,7 +94,7 @@ fn test_basic_i64() {
   init_logger();
   let step_size = StepSize::new(1);
   let wasm_args = WASMArgsBuilder::default()
-    .file_path(PathBuf::from("wasm/sb/basic.wat"))
+    .file_path(PathBuf::from("wasm/sb/basic_i64.wat"))
     .unwrap()
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
