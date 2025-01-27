@@ -31,7 +31,7 @@ pub(crate) fn split_vector<T>(mut vec: Vec<T>, split_index: usize) -> (Vec<T>, V
 
 #[cfg(test)]
 mod test {
-  use wasmi::{BCGlobalIdx, WitnessVM};
+  use wasmi::{BCGlobalIdx, BranchTableTargets, WitnessVM};
 
   use crate::wasm_ctx::{wasi::WasiWASMCtx, WASMArgsBuilder, WASMCtx, ZKWASMCtx};
   use std::{collections::HashMap, path::PathBuf};
@@ -39,7 +39,6 @@ mod test {
   /// Count how many time an opcode gets used. Uses the J index of the opcode
   fn count_opcodes(vms: &[WitnessVM]) -> HashMap<u64, usize> {
     let capacity = wasmi::Instruction::MAX_J + 1;
-
     let mut opcodes_count = HashMap::with_capacity(capacity as usize);
 
     for c in 0..capacity {
@@ -103,6 +102,19 @@ mod test {
       wasmi::Instruction::MemoryGrow,
       wasmi::Instruction::MemoryFill,
       wasmi::Instruction::MemoryCopy,
+      // locals
+      wasmi::Instruction::LocalGet(0.into()),
+      wasmi::Instruction::LocalSet(0.into()),
+      wasmi::Instruction::LocalTee(0.into()),
+      // Br's
+      wasmi::Instruction::Br(0.into()),
+      wasmi::Instruction::BrIfEqz(0.into()),
+      wasmi::Instruction::BrIfNez(0.into()),
+      wasmi::Instruction::BrTable(0.try_into().unwrap()),
+      wasmi::Instruction::BrAdjust(0.into()),
+      // store/load
+      wasmi::Instruction::I64Store(0.into()),
+      wasmi::Instruction::I64Load(0.into()),
     ];
 
     for instr_to_count in instrs_to_count.iter() {
@@ -325,6 +337,18 @@ mod test {
       .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
       .unwrap()
       .invoke("_start")
+      .build();
+    let wasm_ctx = WasiWASMCtx::new(wasm_args);
+    test_count_with(&wasm_ctx);
+  }
+
+  #[test]
+  fn test_count_eq_func() {
+    let wasm_args = WASMArgsBuilder::default()
+      .file_path(PathBuf::from("wasm/nebula/eq_func.wat"))
+      .unwrap()
+      .invoke("eq_func")
+      .func_args(vec!["255".to_string(), "255".to_string()])
       .build();
     let wasm_ctx = WasiWASMCtx::new(wasm_args);
     test_count_with(&wasm_ctx);

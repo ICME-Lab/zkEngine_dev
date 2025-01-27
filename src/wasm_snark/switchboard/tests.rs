@@ -11,15 +11,11 @@ use ff::Field;
 use nova::{
   nebula::rs::{PublicParams, RecursiveSNARK},
   provider::Bn256EngineIPA,
-  traits::{snark::default_ck_hint, CurveCycleEquipped, Engine},
+  traits::{snark::default_ck_hint, CurveCycleEquipped},
 };
-use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
-use tracing_subscriber::{fmt, EnvFilter, Registry};
-use tracing_texray::TeXRayLayer;
 use wasmi::WitnessVM;
 
 pub type E = Bn256EngineIPA;
-type F = <E as Engine>::Scalar;
 
 fn gen_pp<E>(step_size: StepSize) -> PublicParams<E>
 where
@@ -102,17 +98,32 @@ fn test_basic_i64() {
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }
 
-fn tracing_init() {
-  // Create an EnvFilter that filters out spans below the 'info' level
-  let filter = EnvFilter::new("arecibo=info");
+#[test]
+fn test_bit_check() {
+  init_logger();
+  let step_size = StepSize::new(1);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/bit_check.wat"))
+    .unwrap()
+    .invoke("bit_check")
+    .func_args(vec!["255".to_string(), "255".to_string()])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
 
-  // Create a TeXRayLayer
-  let texray_layer = TeXRayLayer::new();
-
-  // Set up the global subscriber
-  let subscriber = Registry::default()
-    .with(filter)
-    .with(fmt::layer())
-    .with(texray_layer);
-  tracing::subscriber::set_global_default(subscriber).expect("Failed to set global subscriber");
+#[test]
+fn test_eq_func() {
+  init_logger();
+  let step_size = StepSize::new(100);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/eq_func.wat"))
+    .unwrap()
+    .invoke("eq_func")
+    .func_args(vec!["255".to_string(), "255".to_string()])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }

@@ -1,5 +1,5 @@
 use super::WASMTransitionCircuit as SwitchBoardCircuit;
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 
 pub mod int32;
@@ -191,6 +191,58 @@ where
   );
 
   Ok(res)
+}
+
+/// Returns `1` if a == 0 else `0`
+pub fn eqz_bit<F, CS>(mut cs: CS, a: &AllocatedNum<F>, switch: F) -> Result<Boolean, SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let zero = F::ZERO;
+  let one = F::ONE;
+
+  let a_val = a.get_value();
+  let is_zero = a_val.map(|val| val == F::ZERO);
+
+  // result = (a == 0)
+  let res = SwitchBoardCircuit::alloc_bit(&mut cs, || "res", is_zero, switch)?;
+
+  // result * a = 0
+  // This means that at least one of result or a is zero.
+  cs.enforce(
+    || "res or a is 0",
+    |lc| lc + res.get_variable(),
+    |lc| lc + a.get_variable(),
+    |lc| lc,
+  );
+
+  // Inverse of `a`, if it exists, otherwise one.
+  let q = cs.alloc(
+    || "q",
+    || {
+      let a_val = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
+      let tmp = a_val.invert();
+      if tmp.is_some().into() {
+        Ok(tmp.unwrap())
+      } else {
+        Ok(F::ONE)
+      }
+    },
+  )?;
+
+  let one = SwitchBoardCircuit::alloc_num(&mut cs, || "one", || Ok(F::ONE), switch)?;
+
+  // (a + result) * q = 1.
+  // This enforces that x and result are not both 0.
+  cs.enforce(
+    || "(a + res) * q = 1",
+    |lc| lc + a.get_variable() + res.get_variable(),
+    |lc| lc + q,
+    |lc| lc + one.get_variable(),
+  );
+
+  Ok(Boolean::Is(res))
 }
 
 pub fn add<F, CS, B>(
