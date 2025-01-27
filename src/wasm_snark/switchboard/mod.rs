@@ -79,8 +79,8 @@ where
     let sp = AllocatedStackPtr { sp: z[1].clone() };
     let mut switchboard_vars = SwitchBoardCircuitVars::new(pc, sp);
 
-    // // unreachable, i.e. nop
-    // self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switchboard_vars)?;
+    // unreachable, i.e. nop
+    self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switchboard_vars)?;
 
     // local.get, local.set, local.tee
     self.visit_local_get(cs.namespace(|| "local.get"), &mut switchboard_vars)?;
@@ -502,14 +502,34 @@ impl WASMTransitionCircuit {
   fn visit_unreachable<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Unreachable }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+
+    // Check if instruction is on or off
+    let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
+    let alloc_switch = AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?;
+
+    // Allocate pre_pc and pre_sp
+    let pre_pc = WASMTransitionCircuit::alloc_num(
+      &mut cs,
+      || "pre pc",
+      || Ok(F::from(self.vm.pc as u64)),
+      switch,
+    )?;
+    let pre_sp = WASMTransitionCircuit::alloc_num(
+      &mut cs,
+      || "pre sp",
+      || Ok(F::from(self.vm.pre_sp as u64)),
+      switch,
+    )?;
+    switchboard_vars.push_pc(pre_pc);
+    switchboard_vars.push_sp(AllocatedStackPtr { sp: pre_sp });
+    switchboard_vars.push_switch(alloc_switch);
     Ok(())
   }
 
@@ -773,7 +793,6 @@ impl WASMTransitionCircuit {
       &branch_pc,
       &reversed_condition,
     )?;
-
     switchboard_vars.push_sp(condition_addr);
     switchboard_vars.push_pc(new_pc);
     Ok(())

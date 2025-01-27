@@ -287,13 +287,6 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 Instr::Unreachable => self.visit_unreachable()?,
                 Instr::ConsumeFuel(block_fuel) => self.visit_consume_fuel(block_fuel)?,
                 Instr::Return(drop_keep) => {
-                    if let Some(tracer) = self.tracer.clone() {
-                        let mut tracer = tracer.borrow_mut();
-                        tracer.set_max_sp(vm.pre_sp);
-                        tracer
-                            .execution_trace
-                            .extend(self.trace_drop_keep(vm.clone(), drop_keep));
-                    }
                     if let ReturnOutcome::Host = self.visit_ret(drop_keep) {
                         return Ok(WasmOutcome::Return);
                     }
@@ -1739,7 +1732,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             // }
             Instr::BrIfNez(branch_offset) => {
                 vm.Y = self.sp.nth_back(1).to_bits(); // condition value
-                vm.I = branch_offset.to_i32() as u64;
+                vm.I = branch_offset.to_i32() as u32 as u64;
             }
             // Instr::Br(branch_offset) => {
             //     vm.I = branch_offset.to_i32() as u64;

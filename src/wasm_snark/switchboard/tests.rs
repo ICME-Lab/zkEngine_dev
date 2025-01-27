@@ -1,10 +1,10 @@
-use std::path::PathBuf;
+use std::{num::NonZeroUsize, path::PathBuf};
 
 use super::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
 use crate::{
   error::ZKWASMError,
   utils::logging::init_logger,
-  wasm_ctx::{WASMArgsBuilder, WASMCtx, ZKWASMCtx},
+  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
   wasm_snark::{mcc::multiset_ops::step_RS_WS, StepSize},
 };
 use ff::Field;
@@ -34,7 +34,7 @@ where
 {
   let pp = &gen_pp::<E>(step_size);
   let (mut execution_trace, IS, IS_sizes) = program.execution_trace()?;
-  tracing::info!("execution trace: {:#?}", execution_trace);
+  tracing::info!("execution trace len: {:#?}", execution_trace.len());
   let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
   let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
   let mut FS = IS.clone();
@@ -116,7 +116,7 @@ fn test_bit_check() {
 #[test]
 fn test_eq_func() {
   init_logger();
-  let step_size = StepSize::new(100);
+  let step_size = StepSize::new(600);
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/eq_func.wat"))
     .unwrap()
