@@ -3,7 +3,7 @@ use std::{num::NonZeroUsize, path::PathBuf};
 use super::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
 use crate::{
   error::ZKWASMError,
-  utils::logging::init_logger,
+  utils::{logging::init_logger, tracing::estimate_wasm},
   wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
   wasm_snark::{mcc::multiset_ops::step_RS_WS, StepSize},
 };
@@ -122,6 +122,21 @@ fn test_eq_func() {
     .unwrap()
     .invoke("eq_func")
     .func_args(vec!["255".to_string(), "255".to_string()])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_factorial() {
+  init_logger();
+  let step_size = StepSize::new(500);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/factorial.wasm"))
+    .unwrap()
+    .invoke("main")
+    .func_args(vec!["1000".to_string()])
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
