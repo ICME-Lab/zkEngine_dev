@@ -84,10 +84,10 @@ pub fn step_RS_WS(
     // }
     // Instr::Return(..) => {}
 
-    // // memory operations related to call instructions
-    // Instr::CallZeroWrite => {
-    //   write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
-    // }
+    // memory operations related to call instructions
+    Instr::CallZeroWrite => {
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
     // Instr::HostCallStep => {
     //   let write_addr = vm.Y as usize + IS_sizes.stack_len();
     //   write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
@@ -98,78 +98,75 @@ pub fn step_RS_WS(
     // // no-op call instructions
     // Instr::Call(..) => {}
     // Instr::CallIndirect(..) => {}
-    // Instr::CallInternal(..) => {}
+    Instr::CallInternal(..) => {}
 
-    // // select
-    // Instr::Select => {
-    //   read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // X
-    //   read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // Y
-    //   read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
-    //   write_op(vm.pre_sp - 3, vm.Z, global_ts, FS, &mut RS, &mut WS);
-    // }
+    // select
+    Instr::Select => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // Y
+      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // X
+      write_op(vm.pre_sp - 3, vm.Z, global_ts, FS, &mut RS, &mut WS);
+    }
 
-    // // global mem ops
-    // Instr::GlobalGet(..) => {
-    //   let read_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
-    //   read_op(read_addr, global_ts, FS, &mut RS, &mut WS); // Y
-    //   write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
-    // }
-    // Instr::GlobalSet(..) => {
-    //   let write_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
-    //   read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
-    //   write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
-    // }
+    // global mem ops
+    Instr::GlobalGet(..) => {
+      let read_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
+      read_op(read_addr, global_ts, FS, &mut RS, &mut WS); // Y
+      write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::GlobalSet(..) => {
+      let write_addr = IS_sizes.stack_len() + IS_sizes.mem_len() + vm.I as usize;
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
+      write_op(write_addr, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
 
-    // // linear memory ops
-    // Instr::I64Store(..)
-    // | Instr::I64Store8(..)
-    // | Instr::I64Store16(..)
-    // | Instr::I64Store32(..)
-    // | Instr::I32Store(..)
-    // | Instr::I32Store8(..)
-    // | Instr::I32Store16(..)
-    // | Instr::F32Store(..)
-    // | Instr::F64Store(..) => {
-    //   // Stack ops
-    //   read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // raw addr
-    //   read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // value
+    // linear memory ops
+    Instr::I64Store(..)
+    | Instr::I64Store8(..)
+    | Instr::I64Store16(..)
+    | Instr::I64Store32(..)
+    | Instr::I32Store(..)
+    | Instr::I32Store8(..)
+    | Instr::I32Store16(..)
+    | Instr::F32Store(..)
+    | Instr::F64Store(..) => {
+      // Stack ops
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // value
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // raw addr
 
-    //   // Linear mem ops
-    //   let effective_addr = vm.I as usize;
+      // Linear mem ops
+      let effective_addr = vm.I as usize;
+      let write_addr_1 = effective_addr / 8 + IS_sizes.stack_len();
+      let write_addr_2 = effective_addr / 8 + 1 + IS_sizes.stack_len();
+      write_op(write_addr_1, vm.P, global_ts, FS, &mut RS, &mut WS);
+      write_op(write_addr_2, vm.Q, global_ts, FS, &mut RS, &mut WS);
+    }
 
-    //   let write_addr_1 = effective_addr / 8 + IS_sizes.stack_len();
-    //   let write_addr_2 = effective_addr / 8 + 1 + IS_sizes.stack_len();
-    //   write_op(write_addr_1, vm.P, global_ts, FS, &mut RS, &mut WS);
-    //   write_op(write_addr_2, vm.Q, global_ts, FS, &mut RS, &mut WS);
-    // }
-    // Instr::I32Load(..)
-    // | Instr::I32Load8U(..)
-    // | Instr::I32Load8S(..)
-    // | Instr::I32Load16U(..)
-    // | Instr::I32Load16S(..)
-    // | Instr::F32Load(..)
-    // | Instr::F64Load(..)
-    // | Instr::I64Load(..)
-    // | Instr::I64Load8S(..)
-    // | Instr::I64Load8U(..)
-    // | Instr::I64Load16S(..)
-    // | Instr::I64Load16U(..)
-    // | Instr::I64Load32S(..)
-    // | Instr::I64Load32U(..) => {
-    //   // stack ops
-    //   read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // addr
+    Instr::I32Load(..)
+    | Instr::I32Load8U(..)
+    | Instr::I32Load8S(..)
+    | Instr::I32Load16U(..)
+    | Instr::I32Load16S(..)
+    | Instr::F32Load(..)
+    | Instr::F64Load(..)
+    | Instr::I64Load(..)
+    | Instr::I64Load8S(..)
+    | Instr::I64Load8U(..)
+    | Instr::I64Load16S(..)
+    | Instr::I64Load16U(..)
+    | Instr::I64Load32S(..)
+    | Instr::I64Load32U(..) => {
+      // stack ops
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // addr
 
-    //   // linear mem ops
-    //   let effective_addr = vm.I as usize;
-
-    //   let read_addr_1 = effective_addr / 8 + IS_sizes.stack_len();
-    //   let read_addr_2 = effective_addr / 8 + 1 + IS_sizes.stack_len();
-
-    //   read_op(read_addr_1, global_ts, FS, &mut RS, &mut WS);
-    //   read_op(read_addr_2, global_ts, FS, &mut RS, &mut WS);
-
-    //   write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS);
-    // }
+      // linear mem ops
+      let effective_addr = vm.I as usize;
+      let read_addr_1 = effective_addr / 8 + IS_sizes.stack_len();
+      let read_addr_2 = effective_addr / 8 + 1 + IS_sizes.stack_len();
+      read_op(read_addr_1, global_ts, FS, &mut RS, &mut WS);
+      read_op(read_addr_2, global_ts, FS, &mut RS, &mut WS);
+      write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS);
+    }
 
     // // memory size, grow, fill, copy
     // Instr::MemorySize => {

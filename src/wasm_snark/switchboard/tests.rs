@@ -34,6 +34,7 @@ where
 {
   let pp = &gen_pp::<E>(step_size);
   let (mut execution_trace, IS, IS_sizes) = program.execution_trace()?;
+  tracing::info!("execution trace: {:#?}", execution_trace);
   tracing::info!("execution trace len: {:#?}", execution_trace.len());
   let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
   let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
@@ -139,6 +140,28 @@ fn test_factorial() {
     .func_args(vec!["1000".to_string()])
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_poly_transform() {
+  init_logger();
+  let step_size = StepSize::new(5);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/polynomial-transform.wasm"))
+    .unwrap()
+    .invoke("main")
+    .trace_slice(TraceSliceValues::new(0, NonZeroUsize::new(100)))
+    .func_args(vec![
+      "1000".to_string(),
+      "1000".to_string(),
+      "1000".to_string(),
+    ])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  // let (execution_trace, IS, IS_sizes) = wasm_ctx.execution_trace().unwrap();
+  // println!("execution trace len: {:#?}", execution_trace.len());
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }

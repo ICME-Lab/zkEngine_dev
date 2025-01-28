@@ -1756,48 +1756,49 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
             Instr::Return(..) => {}
-            // Instr::CallInternal(..) => {}
+            Instr::CallInternal(..) => {}
+
             // Instr::Drop => {}
-            // Instr::I32Store(offset)
-            // | Instr::I32Store8(offset)
-            // | Instr::I32Store16(offset)
-            // | Instr::F32Store(offset)
-            // | Instr::F64Store(offset)
-            // | Instr::I64Store(offset)
-            // | Instr::I64Store8(offset)
-            // | Instr::I64Store16(offset)
-            // | Instr::I64Store32(offset) => {
-            //     let raw_address: u64 = self.sp.nth_back(2).to_bits();
-            //     let value: u64 = self.sp.nth_back(1).to_bits();
-            //     vm.X = raw_address;
-            //     vm.Y = value;
+            Instr::I32Store(offset)
+            | Instr::I32Store8(offset)
+            | Instr::I32Store16(offset)
+            | Instr::F32Store(offset)
+            | Instr::F64Store(offset)
+            | Instr::I64Store(offset)
+            | Instr::I64Store8(offset)
+            | Instr::I64Store16(offset)
+            | Instr::I64Store32(offset) => {
+                let raw_address: u64 = self.sp.nth_back(2).to_bits();
+                let value: u64 = self.sp.nth_back(1).to_bits();
+                vm.X = raw_address;
+                vm.Y = value;
 
-            //     let offset = offset.into_inner();
-            //     let effective_address = effective_address(raw_address as u32, offset).unwrap();
-            //     vm.I = effective_address as u64;
-            // }
-            // Instr::I32Load(offset)
-            // | Instr::I32Load8U(offset)
-            // | Instr::I32Load8S(offset)
-            // | Instr::I32Load16U(offset)
-            // | Instr::I32Load16S(offset)
-            // | Instr::F32Load(offset)
-            // | Instr::F64Load(offset)
-            // | Instr::I64Load(offset)
-            // | Instr::I64Load8S(offset)
-            // | Instr::I64Load8U(offset)
-            // | Instr::I64Load16S(offset)
-            // | Instr::I64Load16U(offset)
-            // | Instr::I64Load32S(offset)
-            // | Instr::I64Load32U(offset) => {
-            //     let raw_address_u64 = self.sp.last().to_bits();
-            //     let raw_address = raw_address_u64 as u32;
-            //     let offset = offset.into_inner();
-            //     let effective_address = effective_address(offset, raw_address).unwrap();
+                let offset = offset.into_inner();
+                let effective_address = effective_address(raw_address as u32, offset).unwrap();
+                vm.I = effective_address as u64;
+            }
+            Instr::I32Load(offset)
+            | Instr::I32Load8U(offset)
+            | Instr::I32Load8S(offset)
+            | Instr::I32Load16U(offset)
+            | Instr::I32Load16S(offset)
+            | Instr::F32Load(offset)
+            | Instr::F64Load(offset)
+            | Instr::I64Load(offset)
+            | Instr::I64Load8S(offset)
+            | Instr::I64Load8U(offset)
+            | Instr::I64Load16S(offset)
+            | Instr::I64Load16U(offset)
+            | Instr::I64Load32S(offset)
+            | Instr::I64Load32U(offset) => {
+                let raw_address_u64 = self.sp.last().to_bits();
+                let raw_address = raw_address_u64 as u32;
+                let offset = offset.into_inner();
+                let effective_address = effective_address(offset, raw_address).unwrap();
 
-            //     vm.I = effective_address as u64;
-            //     vm.Y = raw_address_u64;
-            // }
+                vm.I = effective_address as u64;
+                vm.Y = raw_address_u64;
+            }
             Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt | Instr::I64Eqz | Instr::I32Eqz => {
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
@@ -1924,19 +1925,19 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
-            // Instr::Select => {
-            //     vm.X = self.sp.nth_back(3).to_bits();
-            //     vm.Y = self.sp.nth_back(2).to_bits();
-            //     vm.I = self.sp.nth_back(1).to_bits();
-            // }
-            // Instr::GlobalGet(idx) => {
-            //     vm.I = idx.to_u32() as u64;
-            // }
-            // Instr::GlobalSet(idx) => {
-            //     let value = self.sp.last().to_bits();
-            //     vm.I = idx.to_u32() as u64;
-            //     vm.Y = value;
-            // }
+            Instr::Select => {
+                vm.X = self.sp.nth_back(3).to_bits();
+                vm.Y = self.sp.nth_back(2).to_bits();
+                vm.I = self.sp.nth_back(1).to_bits();
+            }
+            Instr::GlobalGet(idx) => {
+                vm.I = idx.to_u32() as u64;
+            }
+            Instr::GlobalSet(idx) => {
+                let value = self.sp.last().to_bits();
+                vm.I = idx.to_u32() as u64;
+                vm.Y = value;
+            }
             // Instr::BrTable(..) => {}
             // Instr::BrAdjust(..) => {}
             // Instr::MemoryCopy => {
@@ -2334,6 +2335,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         for i in 0..len {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
+            vm.post_sp = vm.pre_sp + 1;
             vms.push(vm);
         }
         vms
@@ -2349,6 +2351,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         for i in 0..len {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
+            vm.post_sp = vm.pre_sp + 1;
             vms.push(vm);
         }
         vms

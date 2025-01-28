@@ -1,7 +1,5 @@
 use std::ops::Deref;
 
-use crate::wasm_ctx::ISMemSizes;
-
 use super::{
   gadgets::{
     int::add,
@@ -10,6 +8,7 @@ use super::{
   mcc::multiset_ops::avt_tuple_to_scalar_vec,
   MEMORY_OPS_PER_STEP,
 };
+use crate::wasm_ctx::ISMemSizes;
 use alu::{
   eq, eqz, eqz_bit,
   int32::{
@@ -22,6 +21,7 @@ use alu::{
   },
   ALUGadget,
 };
+use bellpepper::gadgets::Assignment;
 use bellpepper_core::{
   self,
   boolean::{AllocatedBit, Boolean},
@@ -32,8 +32,8 @@ use ff::{PrimeField, PrimeFieldBits};
 use itertools::Itertools;
 use nova::nebula::rs::StepCircuit;
 use wasmi::{
-  AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, DropKeep, Instruction as Instr,
-  WitnessVM,
+  AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, CompiledFunc, DropKeep,
+  Instruction as Instr, WitnessVM,
 };
 
 mod alu;
@@ -98,22 +98,29 @@ where
     // self.drop_keep(cs.namespace(|| "drop keep"), &mut switchboard_vars)?;
     // self.visit_ret(cs.namespace(|| "return"), &mut switchboard_vars)?;
 
-    // // call related opcodes
-    // self.visit_call_internal_step(cs.namespace(|| "visit_call_internal_step"), &mut switchboard_vars)?;
+    // call related opcodes
+    self.visit_call_internal_step(
+      cs.namespace(|| "visit_call_internal_step"),
+      &mut switchboard_vars,
+    )?;
+    self.visit_call_internal(
+      cs.namespace(|| "visit_call_internal"),
+      &mut switchboard_vars,
+    )?;
     // self
     //   .visit_host_call_stack_step(cs.namespace(|| "visit_host_call_stack_step"), &mut switchboard_vars)?;
     // self.visit_host_call_step(cs.namespace(|| "visit_host_call_step"), &mut switchboard_vars)?;
 
-    // // select opcode
-    // self.visit_select(cs.namespace(|| "visit_select"), &mut switchboard_vars)?;
+    // select opcode
+    self.visit_select(cs.namespace(|| "visit_select"), &mut switchboard_vars)?;
 
-    // // global opcodes
-    // self.visit_global_get(cs.namespace(|| "global.get"), &mut switchboard_vars)?;
-    // self.visit_global_set(cs.namespace(|| "global.set"), &mut switchboard_vars)?;
+    // global opcodes
+    self.visit_global_get(cs.namespace(|| "global.get"), &mut switchboard_vars)?;
+    self.visit_global_set(cs.namespace(|| "global.set"), &mut switchboard_vars)?;
 
-    // // store and load opcodes
-    // self.visit_store(cs.namespace(|| "store"), &mut switchboard_vars)?;
-    // self.visit_load(cs.namespace(|| "load"), &mut switchboard_vars)?;
+    // store and load opcodes
+    self.visit_store(cs.namespace(|| "store"), &mut switchboard_vars)?;
+    self.visit_load(cs.namespace(|| "load"), &mut switchboard_vars)?;
 
     // // specific linear memory opcodes
     // self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switchboard_vars)?;
@@ -910,28 +917,59 @@ impl WASMTransitionCircuit {
   fn visit_call_internal_step<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::CallZeroWrite }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-    let write_addr = Self::alloc_num(
-      &mut cs,
-      || "write addr",
-      || Ok(F::from(self.vm.pre_sp as u64)),
-      switch,
-    )?;
+    let (switch, pre_pc, pre_sp, one, _) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
-    Self::write(
-      cs.namespace(|| "perform write"),
-      &write_addr,
+    let sp = pre_sp.push(
+      cs.namespace(|| "push zero"),
+      switch,
       &write_val,
+      &one,
       &self.WS[0],
+    )?;
+    switchboard_vars.push_sp(sp);
+    switchboard_vars.push_pc(pre_pc);
+    Ok(())
+  }
+
+  /// # visit_call_internal
+  fn visit_call_internal<CS, F>(
+    &self,
+    mut cs: CS,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::CallInternal(CompiledFunc::from_u32(0)) }.index_j();
+    let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
+    let alloc_switch = AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?;
+    switchboard_vars.push_switch(alloc_switch);
+    let sp = WASMTransitionCircuit::alloc_num(
+      &mut cs,
+      || "sp",
+      || {
+        let sp_val = *switchboard_vars.pre_sp.sp.get_value().get()?;
+        Ok(sp_val)
+      },
       switch,
     )?;
+    let post_pc = WASMTransitionCircuit::alloc_num(
+      &mut cs,
+      || "post pc",
+      || Ok(F::from(self.vm.post_pc as u64)),
+      switch,
+    )?;
+    switchboard_vars.push_sp(AllocatedStackPtr { sp });
+    switchboard_vars.push_pc(post_pc);
     Ok(())
   }
 
@@ -1003,46 +1041,19 @@ impl WASMTransitionCircuit {
   fn visit_select<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Select }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    // Get X
-    let X_addr = Self::alloc_num(
-      &mut cs,
-      || "X_addr",
-      || Ok(F::from(self.vm.pre_sp as u64 - 3)),
-      switch,
-    )?;
-    let X = Self::read(cs.namespace(|| "X"), &X_addr, &self.RS[0], switch)?;
-
-    // Get Y
-    let Y_addr = Self::alloc_num(
-      &mut cs,
-      || "Y_addr",
-      || Ok(F::from(self.vm.pre_sp as u64 - 2)),
-      switch,
-    )?;
-    let Y = Self::read(cs.namespace(|| "Y"), &Y_addr, &self.RS[1], switch)?;
-
-    // Get condition
-    let condition_addr = Self::alloc_num(
-      &mut cs,
-      || "condition_addr",
-      || Ok(F::from(self.vm.pre_sp as u64 - 1)),
-      switch,
-    )?;
-    let condition = Self::read(
-      cs.namespace(|| "condition"),
-      &condition_addr,
-      &self.RS[2],
-      switch,
-    )?;
+    let (switch, pre_pc, pre_sp, one, _) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (condition, condition_addr) =
+      pre_sp.pop(cs.namespace(|| "pop condition"), switch, &one, &self.RS[0])?;
+    let (Y, Y_addr) = condition_addr.pop(cs.namespace(|| "pop Y"), switch, &one, &self.RS[1])?;
+    let (X, X_addr) = Y_addr.pop(cs.namespace(|| "pop X"), switch, &one, &self.RS[2])?;
     let condition_bit_const = condition.get_value().map(|c| c != F::ZERO);
     let condition_bit = Self::alloc_bit(&mut cs, || "condition_bit", condition_bit_const, switch)?;
 
@@ -1050,21 +1061,29 @@ impl WASMTransitionCircuit {
     let Z = conditionally_select(cs.namespace(|| "Z"), &X, &Y, &Boolean::Is(condition_bit))?;
     Self::write(cs.namespace(|| "write Z"), &X_addr, &Z, &self.WS[3], switch)?;
 
-    Ok(())
+    // Push final stack pointer and program counter
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      Y_addr,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// global.get
   fn visit_global_get<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::GlobalGet(BCGlobalIdx::from(0)) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, one, _) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
 
     // Read global value at global address
     let read_addr = Self::alloc_num(
@@ -1085,46 +1104,47 @@ impl WASMTransitionCircuit {
     )?;
 
     // write that value to the top of the stack
-    let pre_sp = Self::alloc_num(
-      &mut cs,
-      || "pre_sp",
-      || Ok(F::from(self.vm.pre_sp as u64)),
+    let sp = pre_sp.push(
+      cs.namespace(|| "push global"),
       switch,
-    )?;
-    Self::write(
-      cs.namespace(|| "push global on stack"),
-      &pre_sp,
       &read_val,
+      &one,
       &self.WS[1],
-      switch,
     )?;
 
-    Ok(())
+    // Push final stack pointer and program counter
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # global.set
   fn visit_global_set<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::GlobalSet(BCGlobalIdx::from(0)) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
 
     // pop value from stack
-    let last_addr = Self::alloc_num(
-      &mut cs,
-      || "last addr",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+    let (Y, Y_addr) = pre_sp.pop(
+      cs.namespace(|| "pop global"),
       switch,
+      &minus_one,
+      &self.RS[0],
     )?;
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
 
-    // write value to local depth
+    // write value to global depth
     let write_addr = Self::alloc_num(
       &mut cs,
       || "write addr",
@@ -1143,41 +1163,36 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Ok(())
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      Y_addr,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # Store instruction
   fn visit_store<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Store(AddressOffset::from(0)) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
 
-    // Stack ops
-    let raw_last = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 2",
-      || Ok(F::from((self.vm.pre_sp - 2) as u64)),
-      switch,
-    )?;
-    let _ = Self::read(cs.namespace(|| "raw_addr"), &raw_last, &self.RS[0], switch)?;
-    let val_addr = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-    let _ = Self::read(cs.namespace(|| "val"), &val_addr, &self.RS[1], switch)?;
+    // stack ops
+    let (_, val_addr) = pre_sp.pop(cs.namespace(|| "pop val"), switch, &minus_one, &self.RS[0])?;
+    let (_, addr_addr) =
+      val_addr.pop(cs.namespace(|| "pop addr"), switch, &minus_one, &self.RS[1])?;
 
     // linear mem ops
     let effective_addr = self.vm.I;
-
     let write_addr_1 = Self::alloc_num(
       &mut cs,
       || "write_addr_1",
@@ -1214,30 +1229,32 @@ impl WASMTransitionCircuit {
       &self.WS[3],
       switch,
     )?;
-    Ok(())
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      addr_addr,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # Load instruction
   fn visit_load<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::I64Load(AddressOffset::from(0)) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
 
     // Stack ops
-    let last = Self::alloc_num(
-      &mut cs,
-      || "pre_sp - 1",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
-      switch,
-    )?;
-    let _ = Self::read(cs.namespace(|| "val"), &last, &self.RS[0], switch)?;
+    let (_, addr_addr) =
+      pre_sp.pop(cs.namespace(|| "pop addr"), switch, &minus_one, &self.RS[0])?;
 
     // linear mem ops
     let effective_addr = self.vm.I;
@@ -1275,12 +1292,18 @@ impl WASMTransitionCircuit {
       Self::alloc_num(&mut cs, || "stack write", || Ok(F::from(self.vm.Z)), switch)?;
     Self::write(
       cs.namespace(|| "store 1"),
-      &last,
+      &addr_addr,
       &stack_write_val,
       &self.WS[3],
       switch,
     )?;
-    Ok(())
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      pre_sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # memory.size
