@@ -91,8 +91,8 @@ where
     self.visit_br(cs.namespace(|| "br"), &mut switchboard_vars)?;
     self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switchboard_vars)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switchboard_vars)?;
-    // self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switchboard_vars)?;
-    // self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switchboard_vars)?;
+    self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switchboard_vars)?;
+    self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switchboard_vars)?;
 
     // return opcodes
     self.visit_drop(cs.namespace(|| "visit_drop"), &mut switchboard_vars)?;
@@ -124,12 +124,18 @@ where
     self.visit_load(cs.namespace(|| "load"), &mut switchboard_vars)?;
 
     // specific linear memory opcodes
-    // self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switchboard_vars)?;
+    self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switchboard_vars)?;
     self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switchboard_vars)?;
-    // self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switchboard_vars)?;
-    // self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switchboard_vars)?;
-    // self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switchboard_vars)?;
-    // self.visit_memory_copy_step(cs.namespace(|| "visit_memory_copy_step"), &mut switchboard_vars)?;
+    self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switchboard_vars)?;
+    self.visit_memory_fill_step(
+      cs.namespace(|| "visit_memory_fill_step"),
+      &mut switchboard_vars,
+    )?;
+    self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switchboard_vars)?;
+    self.visit_memory_copy_step(
+      cs.namespace(|| "visit_memory_copy_step"),
+      &mut switchboard_vars,
+    )?;
 
     // const opcodes
     self.visit_const(cs.namespace(|| "const"), &mut switchboard_vars)?;
@@ -809,14 +815,34 @@ impl WASMTransitionCircuit {
   fn visit_br_adjust<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::BrAdjust(BranchOffset::uninit()) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, _, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let drop = Self::alloc_num(&mut cs, || "drop", || Ok(F::from(self.vm.P)), switch)?;
+    let neg_drop = drop.mul(cs.namespace(|| "drop * -1"), &minus_one)?;
+    let new_sp = pre_sp.dec_by(cs.namespace(|| "ret sp"), &neg_drop)?;
+    let branch_offset = Self::alloc_num(
+      &mut cs,
+      || "branch_offset",
+      || Ok(F::from(self.vm.I)),
+      switch,
+    )?;
+    let branch_pc = ALUGadget::i32_add(
+      &mut cs,
+      &pre_pc,
+      &branch_offset,
+      self.vm.pc as u64,
+      self.vm.I,
+      switch,
+    )?;
+    switchboard_vars.push_sp(new_sp);
+    switchboard_vars.push_pc(branch_pc);
     Ok(())
   }
 
@@ -824,14 +850,37 @@ impl WASMTransitionCircuit {
   fn visit_br_table<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::BrTable(BranchTableTargets::try_from(0).unwrap()) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, _, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (_, index_addr) = pre_sp.pop(
+      cs.namespace(|| "pop index"),
+      switch,
+      &minus_one,
+      &self.RS[0],
+    )?;
+    let branch_offset = Self::alloc_num(
+      &mut cs,
+      || "branch_offset",
+      || Ok(F::from(self.vm.I)),
+      switch,
+    )?;
+    let branch_pc = ALUGadget::i32_add(
+      &mut cs,
+      &pre_pc,
+      &branch_offset,
+      self.vm.pc as u64,
+      self.vm.I,
+      switch,
+    )?;
+    switchboard_vars.push_sp(index_addr);
+    switchboard_vars.push_pc(branch_pc);
     Ok(())
   }
 
@@ -1349,29 +1398,31 @@ impl WASMTransitionCircuit {
   fn visit_memory_size<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemorySize }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-    let write_addr = Self::alloc_num(
-      &mut cs,
-      || "write addr",
-      || Ok(F::from(self.vm.pre_sp as u64)),
-      switch,
-    )?;
+    let (switch, pre_pc, pre_sp, one, _) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.Y)), switch)?;
-    Self::write(
-      cs.namespace(|| "perform write"),
-      &write_addr,
-      &write_val,
-      &self.WS[0],
+    let new_sp = pre_sp.push(
+      cs.namespace(|| "push memory size"),
       switch,
+      &write_val,
+      &one,
+      &self.WS[0],
     )?;
-    Ok(())
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      new_sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # memory.grow
@@ -1421,14 +1472,31 @@ impl WASMTransitionCircuit {
   fn visit_memory_fill<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryFill }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (_, size_addr) = pre_sp.pop(
+      cs.namespace(|| "pop condition"),
+      switch,
+      &minus_one,
+      &self.RS[0],
+    )?;
+    let (_, val_addr) = size_addr.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[1])?;
+    let (_, offset_addr) =
+      val_addr.pop(cs.namespace(|| "pop X"), switch, &minus_one, &self.RS[2])?;
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      offset_addr,
+      switchboard_vars,
+      &one,
+    )?;
     Ok(())
   }
 
@@ -1436,14 +1504,14 @@ impl WASMTransitionCircuit {
   fn visit_memory_fill_step<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryFillStep }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, _, _) = self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let write_addr = Self::alloc_num(
       &mut cs,
       || "write addr",
@@ -1458,6 +1526,8 @@ impl WASMTransitionCircuit {
       &self.WS[0],
       switch,
     )?;
+    switchboard_vars.push_pc(pre_pc);
+    switchboard_vars.push_sp(pre_sp);
     Ok(())
   }
 
@@ -1465,29 +1535,45 @@ impl WASMTransitionCircuit {
   fn visit_memory_copy<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryCopy }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
-    Ok(())
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (_, bytes_addr) = pre_sp.pop(
+      cs.namespace(|| "pop condition"),
+      switch,
+      &minus_one,
+      &self.RS[0],
+    )?;
+    let (_, src_addr) =
+      bytes_addr.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[1])?;
+    let (_, dest_addr) = src_addr.pop(cs.namespace(|| "pop X"), switch, &minus_one, &self.RS[2])?;
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      dest_addr,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # memory.copy step
   fn visit_memory_copy_step<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryCopyStep }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, _, _) = self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let write_addr = Self::alloc_num(
       &mut cs,
       || "write addr",
@@ -1502,6 +1588,8 @@ impl WASMTransitionCircuit {
       &self.WS[0],
       switch,
     )?;
+    switchboard_vars.push_pc(pre_pc);
+    switchboard_vars.push_sp(pre_sp);
     Ok(())
   }
 

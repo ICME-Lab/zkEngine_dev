@@ -1945,27 +1945,31 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.I = idx.to_u32() as u64;
                 vm.Y = value;
             }
-            // Instr::BrTable(..) => {}
-            // Instr::BrAdjust(..) => {}
-            // Instr::MemoryCopy => {
-            //     let num_bytes_to_copy = self.sp.nth_back(1).to_bits();
-            //     let src = self.sp.nth_back(2).to_bits();
-            //     let destination = self.sp.nth_back(3).to_bits();
-            //     vm.I = num_bytes_to_copy;
-            //     vm.Y = src;
-            //     vm.X = destination;
-            // }
-            // Instr::MemoryFill => {
-            //     let size = self.sp.nth_back(1).to_bits();
-            //     let value = self.sp.nth_back(2).to_bits();
-            //     let offset = self.sp.nth_back(3).to_bits();
-            //     vm.I = size;
-            //     vm.Y = value;
-            //     vm.X = offset;
-            // }
-            // Instr::Call(..) => {}
+            Instr::BrTable(..) => {}
+            Instr::BrAdjust(offset) => {
+                let drop_keep = self.fetch_drop_keep(1);
+                vm.P = drop_keep.drop() as u64;
+                vm.I = offset.to_i32() as u32 as u64;
+            }
+            Instr::MemoryCopy => {
+                let num_bytes_to_copy = self.sp.nth_back(1).to_bits();
+                let src = self.sp.nth_back(2).to_bits();
+                let destination = self.sp.nth_back(3).to_bits();
+                vm.I = num_bytes_to_copy;
+                vm.Y = src;
+                vm.X = destination;
+            }
+            Instr::MemoryFill => {
+                let size = self.sp.nth_back(1).to_bits();
+                let value = self.sp.nth_back(2).to_bits();
+                let offset = self.sp.nth_back(3).to_bits();
+                vm.I = size;
+                vm.Y = value;
+                vm.X = offset;
+            }
+            Instr::Call(..) => {}
             // Instr::CallIndirect(..) => {}
-            // Instr::MemorySize => {}
+            Instr::MemorySize => {}
             Instr::MemoryGrow => {
                 vm.Y = self.sp.last().to_bits();
             }
@@ -2216,6 +2220,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             }
             Instr::MemoryGrow => {
                 vm.P = self.sp.last().to_bits();
+            }
+            Instr::BrTable(..) => {
+                vm.I = (vm.post_pc - vm.pc) as u64;
             }
             _ => {}
         }

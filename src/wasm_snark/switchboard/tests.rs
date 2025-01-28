@@ -174,8 +174,6 @@ fn test_small_funcs() {
     .func_args(vec!["10".to_string(), "10".to_string()])
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
-  // let (execution_trace, IS, IS_sizes) = wasm_ctx.execution_trace().unwrap();
-  // println!("execution trace len: {:#?}", execution_trace.len());
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }
@@ -191,8 +189,6 @@ fn test_rotl() {
     .func_args(vec!["100".to_string(), "100".to_string(), "10".to_string()])
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
-  // let (execution_trace, IS, IS_sizes) = wasm_ctx.execution_trace().unwrap();
-  // println!("execution trace len: {:#?}", execution_trace.len());
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }
@@ -213,8 +209,63 @@ fn test_small_ml() {
     ])
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
-  // let (execution_trace, IS, IS_sizes) = wasm_ctx.execution_trace().unwrap();
-  // println!("execution trace len: {:#?}", execution_trace.len());
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_bulk_ops() -> Result<(), ZKWASMError> {
+  let step_size = StepSize::new(1000).set_memory_step_size(10_000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/misc/bulk-ops.wat"))?
+    .func_args(vec!["200".to_string()])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+  Ok(())
+}
+
+#[test]
+fn test_memsize() -> Result<(), ZKWASMError> {
+  let step_size = StepSize::new(1);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/memory/mem_size.wat"))?
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+  Ok(())
+}
+
+#[test]
+fn test_bradjust0() -> Result<(), ZKWASMError> {
+  let step_size = StepSize::new(1);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/br_adjust/br_adjust_0.wat"))?
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  // let (execution_trace, _, _) = wasm_ctx.execution_trace()?;
+  // println!("execution trace: {:#?}", execution_trace);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+  Ok(())
+}
+
+#[test]
+fn test_integer_hash() {
+  let step_size = StepSize::new(2_500).set_memory_step_size(50_000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
+    .unwrap()
+    .func_args(vec!["100".to_string()])
+    .invoke("integer_hash")
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }

@@ -57,14 +57,13 @@ pub fn step_RS_WS(
 
     // branch opcodes
     Instr::Br(_) => {}
-    // Instr::BrIfEqz(_) | Instr::BrIfNez(_) => {
-    //   read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
-    // }
-    Instr::BrIfNez(_) => {
+    Instr::BrIfNez(_) | Instr::BrIfEqz(_) => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
     }
-    // Instr::BrAdjust(_) => {}
-    // Instr::BrTable(_) => {}
+    Instr::BrAdjust(_) => {}
+    Instr::BrTable(_) => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // index
+    }
 
     // memory operations related to return instructions
     Instr::Drop => {}
@@ -169,23 +168,31 @@ pub fn step_RS_WS(
     }
 
     // memory size, grow, fill, copy
-    // Instr::MemorySize => {
-    //   write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
-    // }
+    Instr::MemorySize => {
+      write_op(vm.pre_sp, vm.Y, global_ts, FS, &mut RS, &mut WS);
+    }
     Instr::MemoryGrow => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
       write_op(vm.pre_sp - 1, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
-    // Instr::MemoryFill => {}
-    // Instr::MemoryFillStep => {
-    //   let write_addr = vm.X as usize + IS_sizes.stack_len();
-    //   write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
-    // }
-    // Instr::MemoryCopy => {}
-    // Instr::MemoryCopyStep => {
-    //   let write_addr = vm.X as usize + IS_sizes.stack_len();
-    //   write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
-    // }
+    Instr::MemoryFill => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // size
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // value
+      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // offset
+    }
+    Instr::MemoryFillStep => {
+      let write_addr = vm.X as usize + IS_sizes.stack_len();
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::MemoryCopy => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // num_bytes
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // src
+      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // dest
+    }
+    Instr::MemoryCopyStep => {
+      let write_addr = vm.X as usize + IS_sizes.stack_len();
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
 
     // const opcodes
     Instr::I64Const32(_) | Instr::Const32(..) | Instr::ConstRef(..) | Instr::F64Const32(..) => {
