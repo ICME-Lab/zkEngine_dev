@@ -34,7 +34,7 @@ where
 {
   let pp = &gen_pp::<E>(step_size);
   let (mut execution_trace, IS, IS_sizes) = program.execution_trace()?;
-  tracing::info!("execution trace: {:#?}", execution_trace);
+  tracing::debug!("execution trace: {:#?}", execution_trace);
   tracing::info!("execution trace len: {:#?}", execution_trace.len());
   let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
   let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
@@ -147,12 +147,11 @@ fn test_factorial() {
 #[test]
 fn test_poly_transform() {
   init_logger();
-  let step_size = StepSize::new(5);
+  let step_size = StepSize::new(10);
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/sb/polynomial-transform.wasm"))
     .unwrap()
     .invoke("main")
-    .trace_slice(TraceSliceValues::new(0, NonZeroUsize::new(100)))
     .func_args(vec![
       "1000".to_string(),
       "1000".to_string(),
@@ -160,8 +159,75 @@ fn test_poly_transform() {
     ])
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_small_funcs() {
+  init_logger();
+  let step_size = StepSize::new(1000);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/small-funcs.wasm"))
+    .unwrap()
+    .invoke("main")
+    .func_args(vec!["10".to_string(), "10".to_string()])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
   // let (execution_trace, IS, IS_sizes) = wasm_ctx.execution_trace().unwrap();
   // println!("execution trace len: {:#?}", execution_trace.len());
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_rotl() {
+  init_logger();
+  let step_size = StepSize::new(100);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/rotl.wasm"))
+    .unwrap()
+    .invoke("main")
+    .func_args(vec!["100".to_string(), "100".to_string(), "10".to_string()])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  // let (execution_trace, IS, IS_sizes) = wasm_ctx.execution_trace().unwrap();
+  // println!("execution trace len: {:#?}", execution_trace.len());
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_small_ml() {
+  init_logger();
+  let step_size = StepSize::new(1000);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/small-ml.wasm"))
+    .unwrap()
+    .invoke("main")
+    .func_args(vec![
+      "50".to_string(),
+      "1".to_string(),
+      "2".to_string(),
+      "1".to_string(),
+    ])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+  // let (execution_trace, IS, IS_sizes) = wasm_ctx.execution_trace().unwrap();
+  // println!("execution trace len: {:#?}", execution_trace.len());
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_dk() {
+  init_logger();
+  let step_size = StepSize::new(1);
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/dk.wat"))
+    .unwrap()
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }

@@ -88,15 +88,16 @@ where
     self.visit_local_tee(cs.namespace(|| "local.tee"), &mut switchboard_vars)?;
 
     // branch opcodes
-    // self.visit_br(cs.namespace(|| "br"), &mut switchboard_vars)?;
-    // self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switchboard_vars)?;
+    self.visit_br(cs.namespace(|| "br"), &mut switchboard_vars)?;
+    self.visit_br_if_eqz(cs.namespace(|| "Instr::BrIfEqz"), &mut switchboard_vars)?;
     self.visit_br_if_nez(cs.namespace(|| "Instr::BrIfNez"), &mut switchboard_vars)?;
     // self.visit_br_adjust(cs.namespace(|| "visit_br_adjust"), &mut switchboard_vars)?;
     // self.visit_br_table(cs.namespace(|| "Instr::BrTable"), &mut switchboard_vars)?;
 
-    // // return opcodes
-    // self.drop_keep(cs.namespace(|| "drop keep"), &mut switchboard_vars)?;
-    // self.visit_ret(cs.namespace(|| "return"), &mut switchboard_vars)?;
+    // return opcodes
+    self.visit_drop(cs.namespace(|| "visit_drop"), &mut switchboard_vars)?;
+    self.drop_keep(cs.namespace(|| "drop keep"), &mut switchboard_vars)?;
+    self.visit_ret(cs.namespace(|| "return"), &mut switchboard_vars)?;
 
     // call related opcodes
     self.visit_call_internal_step(
@@ -122,9 +123,9 @@ where
     self.visit_store(cs.namespace(|| "store"), &mut switchboard_vars)?;
     self.visit_load(cs.namespace(|| "load"), &mut switchboard_vars)?;
 
-    // // specific linear memory opcodes
+    // specific linear memory opcodes
     // self.visit_memory_size(cs.namespace(|| "visit_memory_size"), &mut switchboard_vars)?;
-    // self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switchboard_vars)?;
+    self.visit_memory_grow(cs.namespace(|| "visit_memory_grow"), &mut switchboard_vars)?;
     // self.visit_memory_fill(cs.namespace(|| "visit_memory_fill"), &mut switchboard_vars)?;
     // self.visit_memory_fill_step(cs.namespace(|| "visit_memory_fill_step"), &mut switchboard_vars)?;
     // self.visit_memory_copy(cs.namespace(|| "visit_memory_copy"), &mut switchboard_vars)?;
@@ -681,26 +682,30 @@ impl WASMTransitionCircuit {
   fn visit_br<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Br(BranchOffset::uninit()) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
-
+    let (switch, pre_pc, pre_sp, _, _) = self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let branch_offset = Self::alloc_num(
       &mut cs,
       || "branch_offset",
       || Ok(F::from(self.vm.I)),
       switch,
     )?;
-
-    let _branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
-
+    let branch_pc = ALUGadget::i32_add(
+      &mut cs,
+      &pre_pc,
+      &branch_offset,
+      self.vm.pc as u64,
+      self.vm.I,
+      switch,
+    )?;
+    switchboard_vars.push_sp(pre_sp);
+    switchboard_vars.push_pc(branch_pc);
     Ok(())
   }
 
@@ -708,53 +713,48 @@ impl WASMTransitionCircuit {
   fn visit_br_if_eqz<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::BrIfEqz(BranchOffset::uninit()) }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
-
-    let one = alloc_one(cs.namespace(|| "one"));
-
-    let pc = Self::alloc_num(&mut cs, || "pc", || Ok(F::from(self.vm.pc as u64)), switch)?;
-    let next_pc = add(cs.namespace(|| "pc + 1"), &pc, &one)?;
-
+    let (switch, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let (condition, condition_addr) = pre_sp.pop(
+      cs.namespace(|| "pop condition"),
+      switch,
+      &minus_one,
+      &self.RS[0],
+    )?;
+    let next_pc = pre_pc.add(cs.namespace(|| "pc + 1"), &one)?;
     let branch_offset = Self::alloc_num(
       &mut cs,
       || "branch_offset",
       || Ok(F::from(self.vm.I)),
       switch,
     )?;
-
-    let branch_pc = add(cs.namespace(|| "pc + branch_offset"), &pc, &branch_offset)?;
-
-    // addr of last value on stack
-    let last = Self::alloc_num(
+    let branch_pc = ALUGadget::i32_add(
       &mut cs,
-      || "last",
-      || Ok(F::from((self.vm.pre_sp - 1) as u64)),
+      &pre_pc,
+      &branch_offset,
+      self.vm.pc as u64,
+      self.vm.I,
       switch,
     )?;
+    let reversed_condition = eqz_bit(cs.namespace(|| "condition == 0"), &condition, switch)?;
 
-    // let condition = Self::read(cs.namespace(|| "condition"), &last, &self.RS[0], switch)?;
-    // let condition_eqz = eqz_bit(cs.namespace(|| "condition == 0"), &condition)?;
-
-    // // if condtion == 0 then new_pc = branch_pc else new_pc = next_pc
-    // //
-    // // In other words if condition_eqz is true then new_pc = branch_pc else new_pc = next_pc
-    // let _new_pc = conditionally_select(
-    //   cs.namespace(|| "new_pc"),
-    //   &branch_pc,
-    //   &next_pc,
-    //   &condition_eqz,
-    // )?; // TODO: constrain pc
-
+    let new_pc = conditionally_select(
+      cs.namespace(|| "new_pc"),
+      &branch_pc,
+      &next_pc,
+      &reversed_condition,
+    )?;
+    switchboard_vars.push_sp(condition_addr);
+    switchboard_vars.push_pc(new_pc);
     Ok(())
   }
-
   /// # Instr::BrIfNez
   fn visit_br_if_nez<CS, F>(
     &self,
@@ -835,20 +835,43 @@ impl WASMTransitionCircuit {
     Ok(())
   }
 
+  /// # drop.set
+  fn visit_drop<CS, F>(
+    &self,
+    mut cs: CS,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
+  ) -> Result<(), SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+  {
+    let J: u64 = { Instr::Drop }.index_j();
+    let (_, pre_pc, pre_sp, one, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let new_sp = pre_sp.dec_by(cs.namespace(|| "drop sp"), &minus_one)?;
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      new_sp,
+      switchboard_vars,
+      &one,
+    )
+  }
+
   /// # drop_keep
   ///
   /// Read the keep value at `pre_sp - keep` and write it to `pre_sp - drop - keep`
   fn drop_keep<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::DropKeep }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, _, _) = self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
 
     let drop = self.vm.I;
     let keep = self.vm.P;
@@ -886,28 +909,39 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
+    switchboard_vars.push_pc(pre_pc);
+    switchboard_vars.push_sp(pre_sp);
     Ok(())
   }
 
   /// # Return instruction
   ///
   /// # Note
-  ///   
-  /// - The main proving done for the return instruction is done via the drop keep instruction,
-  ///   hench this circuit is effectively a no-op.
   ///
   /// - wasmi ensures that each return instruction is preceded by a drop keep instruction.
   fn visit_ret<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Return(DropKeep::new(0, 0).unwrap()) }.index_j();
-    let _ = self.switch(&mut cs, J, switches)?;
+    let (switch, _, pre_sp, _, minus_one) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
+    let drop = Self::alloc_num(&mut cs, || "drop", || Ok(F::from(self.vm.I)), switch)?;
+    let neg_drop = drop.mul(cs.namespace(|| "drop * -1"), &minus_one)?;
+    let new_sp = pre_sp.dec_by(cs.namespace(|| "ret sp"), &neg_drop)?;
+    let new_pc = Self::alloc_num(
+      &mut cs,
+      || "new_pc",
+      || Ok(F::from(self.vm.post_pc as u64)),
+      switch,
+    )?;
+    switchboard_vars.push_pc(new_pc);
+    switchboard_vars.push_sp(new_sp);
     Ok(())
   }
 
@@ -1048,12 +1082,17 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::Select }.index_j();
-    let (switch, pre_pc, pre_sp, one, _) =
+    let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (condition, condition_addr) =
-      pre_sp.pop(cs.namespace(|| "pop condition"), switch, &one, &self.RS[0])?;
-    let (Y, Y_addr) = condition_addr.pop(cs.namespace(|| "pop Y"), switch, &one, &self.RS[1])?;
-    let (X, X_addr) = Y_addr.pop(cs.namespace(|| "pop X"), switch, &one, &self.RS[2])?;
+    let (condition, condition_addr) = pre_sp.pop(
+      cs.namespace(|| "pop condition"),
+      switch,
+      &minus_one,
+      &self.RS[0],
+    )?;
+    let (Y, Y_addr) =
+      condition_addr.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[1])?;
+    let (X, X_addr) = Y_addr.pop(cs.namespace(|| "pop X"), switch, &minus_one, &self.RS[2])?;
     let condition_bit_const = condition.get_value().map(|c| c != F::ZERO);
     let condition_bit = Self::alloc_bit(&mut cs, || "condition_bit", condition_bit_const, switch)?;
 
@@ -1341,14 +1380,15 @@ impl WASMTransitionCircuit {
   fn visit_memory_grow<CS, F>(
     &self,
     mut cs: CS,
-    switches: &mut Vec<AllocatedNum<F>>,
+    switchboard_vars: &mut SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryGrow }.index_j();
-    let switch = self.switch(&mut cs, J, switches)?;
+    let (switch, pre_pc, pre_sp, one, _) =
+      self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
 
     // pop value from stack
     let last_addr = Self::alloc_num(
@@ -1368,7 +1408,13 @@ impl WASMTransitionCircuit {
       &self.WS[1],
       switch,
     )?;
-    Ok(())
+    self.next_instr(
+      cs.namespace(|| "next instr"),
+      &pre_pc,
+      pre_sp,
+      switchboard_vars,
+      &one,
+    )
   }
 
   /// # memory.fill

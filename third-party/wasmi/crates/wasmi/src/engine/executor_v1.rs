@@ -259,6 +259,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                                     .execution_trace
                                     .extend(self.trace_memory_fill(vm.clone()));
                             }
+                            Instr::Return(drop_keep) => {
+                                tracer
+                                    .execution_trace
+                                    .extend(self.trace_drop_keep(vm.clone(), drop_keep));
+                            }
                             Instr::MemoryGrow => {
                                 let last = self.sp.last().to_bits() as i32;
                                 if last != -1 {
@@ -1726,17 +1731,17 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::ConstRef(..)
             | Instr::I64Const32(..)
             | Instr::F64Const32(..) => {}
-            // Instr::BrIfEqz(branch_offset) => {
-            //     vm.Y = self.sp.nth_back(1).to_bits(); // condition value
-            //     vm.I = branch_offset.to_i32() as u64;
-            // }
+            Instr::BrIfEqz(branch_offset) => {
+                vm.Y = self.sp.nth_back(1).to_bits(); // condition value
+                vm.I = branch_offset.to_i32() as u32 as u64;
+            }
             Instr::BrIfNez(branch_offset) => {
                 vm.Y = self.sp.nth_back(1).to_bits(); // condition value
                 vm.I = branch_offset.to_i32() as u32 as u64;
             }
-            // Instr::Br(branch_offset) => {
-            //     vm.I = branch_offset.to_i32() as u64;
-            // }
+            Instr::Br(branch_offset) => {
+                vm.I = branch_offset.to_i32() as u32 as u64;
+            }
             Instr::I64Add
             | Instr::I64Mul
             | Instr::I64And
@@ -1755,10 +1760,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
-            Instr::Return(..) => {}
+            Instr::Return(dk) => {
+                vm.I = dk.drop() as u64;
+            }
             Instr::CallInternal(..) => {}
 
-            // Instr::Drop => {}
+            Instr::Drop => {}
             Instr::I32Store(offset)
             | Instr::I32Store8(offset)
             | Instr::I32Store16(offset)
@@ -1959,9 +1966,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             // Instr::Call(..) => {}
             // Instr::CallIndirect(..) => {}
             // Instr::MemorySize => {}
-            // Instr::MemoryGrow => {
-            //     vm.Y = self.sp.last().to_bits();
-            // }
+            Instr::MemoryGrow => {
+                vm.Y = self.sp.last().to_bits();
+            }
             _ => {
                 println!("Instruction not supported: {:?}", instruction);
                 unimplemented!();
