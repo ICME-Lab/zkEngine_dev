@@ -1,6 +1,6 @@
 use super::{
   error::ZKWASMError,
-  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+  wasm_ctx::{wasi::WasiWASMCtx, TraceSliceValues, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
   wasm_snark::{StepSize, WasmSNARK},
 };
 use crate::utils::{

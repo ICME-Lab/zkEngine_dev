@@ -4,11 +4,9 @@ use crate::utils::{
   tracing::unwrap_rc_refcell,
   wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat},
 };
-use rand::{rngs::StdRng, RngCore, SeedableRng};
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, cmp, num::NonZeroUsize, path::PathBuf, rc::Rc};
 use wasmi::{Tracer, WitnessVM};
-use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
 /// Builder for [`WASMArgs`]. Constructs the arguments needed to construct a WASM execution context
 /// that will be used for proving.
@@ -290,41 +288,51 @@ impl ZKWASMCtx for WASMCtx {
   }
 }
 
-/// Wasm execution context
-#[derive(Debug, Clone)]
-pub struct WasiWASMCtx {
-  args: WASMArgs,
-}
+#[cfg(not(target_arch = "wasm32"))]
+/// Implementation of WASM execution context for zkVM using wasmi-wasi
+pub mod wasi {
+  use crate::error::ZKWASMError;
 
-impl WasiWASMCtx {
-  /// Create a new instance of [`WasiWASMCtx`]
-  pub fn new(args: WASMArgs) -> Self {
-    Self { args }
-  }
-}
+  use super::{WASMArgs, ZKWASMCtx};
+  use rand::{rngs::StdRng, RngCore, SeedableRng};
+  use wasmi_wasi::{clocks_ctx, sched_ctx, Table, WasiCtx};
 
-impl ZKWASMCtx for WasiWASMCtx {
-  type T = WasiCtx;
-
-  fn args(&self) -> &WASMArgs {
-    &self.args
+  /// Wasm execution context
+  #[derive(Debug, Clone)]
+  pub struct WasiWASMCtx {
+    args: WASMArgs,
   }
 
-  fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
-    let wasi = WasiCtx::new(zkvm_random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
-    wasmi::Store::new(engine, wasi)
+  impl WasiWASMCtx {
+    /// Create a new instance of [`WasiWASMCtx`]
+    pub fn new(args: WASMArgs) -> Self {
+      Self { args }
+    }
   }
 
-  fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
-    let mut linker = <wasmi::Linker<WasiCtx>>::new(engine);
-    wasmi_wasi::add_to_linker(&mut linker, |ctx| ctx)?;
-    Ok(linker)
-  }
-}
+  impl ZKWASMCtx for WasiWASMCtx {
+    type T = WasiCtx;
 
-/// zkvm uses a seed to generate random numbers.
-pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
-  Box::new(StdRng::from_seed([0; 32]))
+    fn args(&self) -> &WASMArgs {
+      &self.args
+    }
+
+    fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
+      let wasi = WasiCtx::new(zkvm_random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
+      wasmi::Store::new(engine, wasi)
+    }
+
+    fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+      let mut linker = <wasmi::Linker<WasiCtx>>::new(engine);
+      wasmi_wasi::add_to_linker(&mut linker, |ctx| ctx)?;
+      Ok(linker)
+    }
+  }
+
+  /// zkvm uses a seed to generate random numbers.
+  pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
+    Box::new(StdRng::from_seed([0; 32]))
+  }
 }
 
 /// # Initial Set (IS) Memory Sizes.

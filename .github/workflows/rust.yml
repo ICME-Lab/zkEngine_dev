@@ -28,3 +28,6 @@ jobs:
 
       - name: Run cargo clippy
         run: cargo clippy --verbose --all-targets --all-features -- -D warnings
+
+      - name: WASM build
+        run: cargo build --target wasm32-unknown-unknown
