@@ -28,3 +28,9 @@ jobs:
 
       - name: Run cargo clippy
         run: cargo clippy --verbose --all-targets --all-features -- -D warnings
+
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Build for WASM
+        run: cargo build --target wasm32-unknown-unknown

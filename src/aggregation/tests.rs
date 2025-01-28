@@ -4,7 +4,7 @@ use crate::{
     logging::init_logger,
     macros::{start_timer, stop_timer},
   },
-  wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+  wasm_ctx::{wasi::WasiWASMCtx, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
   wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
 };
 use nova::{

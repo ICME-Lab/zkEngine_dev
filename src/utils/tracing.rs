@@ -33,7 +33,7 @@ pub(crate) fn split_vector<T>(mut vec: Vec<T>, split_index: usize) -> (Vec<T>, V
 mod test {
   use wasmi::{BCGlobalIdx, WitnessVM};
 
-  use crate::wasm_ctx::{WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx};
+  use crate::wasm_ctx::{wasi::WasiWASMCtx, WASMArgsBuilder, WASMCtx, ZKWASMCtx};
   use std::{collections::HashMap, path::PathBuf};
 
   /// Count how many time an opcode gets used. Uses the J index of the opcode

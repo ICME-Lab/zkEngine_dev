@@ -5,7 +5,7 @@ use crate::{
     macros::{start_timer, stop_timer},
     tracing::estimate_wasm,
   },
-  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WasiWASMCtx, ZKWASMCtx},
+  wasm_ctx::{wasi::WasiWASMCtx, TraceSliceValues, WASMArgsBuilder, ZKWASMCtx},
   wasm_snark::{StepSize, WASMPublicParams, WasmSNARK, ZKWASMInstance},
 };
 use nova::{
