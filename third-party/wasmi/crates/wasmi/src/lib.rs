@@ -96,6 +96,7 @@ mod tracer;
 mod tracer_v0;
 mod value;
 
+pub use engine::CompiledFunc;
 /// Definitions from the `wasmi_core` crate.
 #[doc(inline)]
 pub use wasmi_core as core;
@@ -116,37 +117,17 @@ pub mod errors {
 pub use self::{
     engine::{
         bytecode::{
-            AddressOffset,
-            BranchOffset,
-            BranchTableTargets,
-            DropKeep,
-            GlobalIdx as BCGlobalIdx,
+            AddressOffset, BranchOffset, BranchTableTargets, DropKeep, GlobalIdx as BCGlobalIdx,
             Instruction,
         },
-        Config,
-        Engine,
-        EngineBackend,
-        FuelConsumptionMode,
-        ResumableCall,
-        ResumableInvocation,
-        StackLimits,
-        TypedResumableCall,
-        TypedResumableInvocation,
+        Config, Engine, EngineBackend, FuelConsumptionMode, ResumableCall, ResumableInvocation,
+        StackLimits, TypedResumableCall, TypedResumableInvocation,
     },
     error::Error,
     externref::ExternRef,
     func::{
-        Caller,
-        Func,
-        FuncRef,
-        FuncType,
-        IntoFunc,
-        TypedFunc,
-        WasmParams,
-        WasmResults,
-        WasmRet,
-        WasmType,
-        WasmTypeList,
+        Caller, Func, FuncRef, FuncType, IntoFunc, TypedFunc, WasmParams, WasmResults, WasmRet,
+        WasmType, WasmTypeList,
     },
     global::{Global, GlobalType, Mutability},
     instance::{Export, ExportsIter, Extern, ExternType, Instance},
@@ -154,13 +135,7 @@ pub use self::{
     linker::Linker,
     memory::{Memory, MemoryType},
     module::{
-        ExportType,
-        ImportType,
-        InstancePre,
-        Module,
-        ModuleExportsIter,
-        ModuleImportsIter,
-        Read,
+        ExportType, ImportType, InstancePre, Module, ModuleExportsIter, ModuleImportsIter, Read,
     },
     store::{AsContext, AsContextMut, Store, StoreContext, StoreContextMut},
     table::{Table, TableType},

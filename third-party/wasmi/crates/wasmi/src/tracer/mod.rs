@@ -149,4 +149,8 @@ pub struct WitnessVM {
     pub P: u64,
     /// This can hold a read, write or immediate value
     pub Q: u64,
+    /// post stack pointer
+    pub post_sp: usize,
+    /// post program counter
+    pub post_pc: usize,
 }

@@ -2,44 +2,27 @@ use super::{
     bytecode::{BranchOffset, F64Const32},
     const_pool::ConstRef,
     executor::{CallKind, CallOutcome, ReturnOutcome, WasmOutcome},
-    CompiledFunc,
-    ConstPoolView,
+    CompiledFunc, ConstPoolView,
 };
 use crate::{
     core::TrapCode,
     engine::{
         bytecode::{
-            AddressOffset,
-            BlockFuel,
-            BranchTableTargets,
-            DataSegmentIdx,
-            ElementSegmentIdx,
-            FuncIdx,
-            GlobalIdx,
-            Instruction,
-            LocalDepth,
-            SignatureIdx,
-            TableIdx,
+            AddressOffset, BlockFuel, BranchTableTargets, DataSegmentIdx, ElementSegmentIdx,
+            FuncIdx, GlobalIdx, Instruction, LocalDepth, SignatureIdx, TableIdx,
         },
         cache::InstanceCache,
         code_map::{CodeMap, InstructionPtr},
         config::FuelCosts,
         stack::{CallStack, ValueStackPtr},
-        DropKeep,
-        FuncFrame,
-        ValueStack,
+        DropKeep, FuncFrame, ValueStack,
     },
     error::EntityGrowError,
     func::FuncEntity,
     store::ResourceLimiterRef,
     table::TableEntity,
     tracer::WitnessVM,
-    FuelConsumptionMode,
-    Func,
-    FuncRef,
-    StoreInner,
-    Table,
-    Tracer,
+    FuelConsumptionMode, Func, FuncRef, StoreInner, Table, Tracer,
 };
 use alloc::rc::Rc;
 use core::{
@@ -271,15 +254,15 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                                     .execution_trace
                                     .extend(self.trace_call_internal(vm.clone(), compiled_func));
                             }
-                            Instr::Return(drop_keep) => {
-                                tracer
-                                    .execution_trace
-                                    .extend(self.trace_drop_keep(vm.clone(), drop_keep));
-                            }
                             Instr::MemoryFill => {
                                 tracer
                                     .execution_trace
                                     .extend(self.trace_memory_fill(vm.clone()));
+                            }
+                            Instr::Return(drop_keep) => {
+                                tracer
+                                    .execution_trace
+                                    .extend(self.trace_drop_keep(vm.clone(), drop_keep));
                             }
                             Instr::MemoryGrow => {
                                 let last = self.sp.last().to_bits() as i32;
@@ -1727,6 +1710,15 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         let instruction = unsafe { &*self.ip.ptr };
         vm.pre_sp = pre_sp;
         vm.pc = pc;
+
+        // Keep these as post values incase we use virtual instructions that don't have a post trace
+        //
+        // # Note
+        //
+        // - Post trace will correctly capture the post values
+        vm.post_sp = pre_sp;
+        vm.post_pc = pc;
+
         vm.instr = *instruction;
         vm.J = instruction.index_j();
         match *instruction {
@@ -1739,12 +1731,16 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             | Instr::ConstRef(..)
             | Instr::I64Const32(..)
             | Instr::F64Const32(..) => {}
-            Instr::BrIfEqz(branch_offset) | Instr::BrIfNez(branch_offset) => {
+            Instr::BrIfEqz(branch_offset) => {
                 vm.Y = self.sp.nth_back(1).to_bits(); // condition value
-                vm.I = branch_offset.to_i32() as u64;
+                vm.I = branch_offset.to_i32() as u32 as u64;
+            }
+            Instr::BrIfNez(branch_offset) => {
+                vm.Y = self.sp.nth_back(1).to_bits(); // condition value
+                vm.I = branch_offset.to_i32() as u32 as u64;
             }
             Instr::Br(branch_offset) => {
-                vm.I = branch_offset.to_i32() as u64;
+                vm.I = branch_offset.to_i32() as u32 as u64;
             }
             Instr::I64Add
             | Instr::I64Mul
@@ -1764,8 +1760,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = self.sp.nth_back(2).to_bits();
                 vm.Y = self.sp.nth_back(1).to_bits();
             }
-            Instr::Return(..) => {}
+            Instr::Return(dk) => {
+                vm.I = dk.drop() as u64;
+            }
             Instr::CallInternal(..) => {}
+
             Instr::Drop => {}
             Instr::I32Store(offset)
             | Instr::I32Store8(offset)
@@ -1947,7 +1946,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.Y = value;
             }
             Instr::BrTable(..) => {}
-            Instr::BrAdjust(..) => {}
+            Instr::BrAdjust(offset) => {
+                let drop_keep = self.fetch_drop_keep(1);
+                vm.P = drop_keep.drop() as u64;
+                vm.I = offset.to_i32() as u32 as u64;
+            }
             Instr::MemoryCopy => {
                 let num_bytes_to_copy = self.sp.nth_back(1).to_bits();
                 let src = self.sp.nth_back(2).to_bits();
@@ -1982,6 +1985,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     /// execution
     fn execute_instr_post(&mut self, vm: &mut WitnessVM, instr: &Instruction) {
         use Instruction as Instr;
+        vm.post_pc = self.pc();
+        vm.post_sp = self.sp();
+
         match *instr {
             Instr::Const32(..)
             | Instr::ConstRef(..)
@@ -2215,6 +2221,9 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             Instr::MemoryGrow => {
                 vm.P = self.sp.last().to_bits();
             }
+            Instr::BrTable(..) => {
+                vm.I = (vm.post_pc - vm.pc) as u64;
+            }
             _ => {}
         }
     }
@@ -2340,6 +2349,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         for i in 0..len {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
+            vm.post_sp = vm.pre_sp + 1;
             vms.push(vm);
         }
         vms
@@ -2349,12 +2359,13 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     fn trace_call(&self, len: usize, pre_sp: usize) -> Vec<WitnessVM> {
         use Instruction as Instr;
         let mut init_vm = WitnessVM::default();
-        init_vm.instr = Instr::CallZeroWrite;
+        init_vm.instr = Instr::CallZeroWriteIndirect;
         init_vm.J = init_vm.instr.index_j();
         let mut vms = Vec::new();
         for i in 0..len {
             let mut vm = init_vm.clone();
             vm.pre_sp = pre_sp + i;
+            vm.post_sp = vm.pre_sp + 1;
             vms.push(vm);
         }
         vms
@@ -2384,6 +2395,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             vm.P = u64::from_le_bytes(buf);
             vms.push(vm);
         }
+        let mut new_vm = WitnessVM::default();
+        new_vm.instr = Instr::Call(FuncIdx::from(0));
+        new_vm.J = new_vm.instr.index_j();
+        new_vm.post_sp = self.sp();
+        new_vm.post_pc = self.pc();
+        vms.push(new_vm);
         vms
     }
 
@@ -2394,5 +2411,11 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         //         Wasm validation and `wasmi` codegen to never run out
         //         of valid bounds using this method.
         (unsafe { self.ip.ptr.offset_from(base_ptr) }) as usize
+    }
+
+    /// Get 'usize' value for the sp
+    fn sp(&mut self) -> usize {
+        self.sync_stack_ptr();
+        self.value_stack.stack_ptr
     }
 }

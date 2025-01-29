@@ -57,11 +57,13 @@ pub fn step_RS_WS(
 
     // branch opcodes
     Instr::Br(_) => {}
-    Instr::BrIfEqz(_) | Instr::BrIfNez(_) => {
+    Instr::BrIfNez(_) | Instr::BrIfEqz(_) => {
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
     }
     Instr::BrAdjust(_) => {}
-    Instr::BrTable(_) => {}
+    Instr::BrTable(_) => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // index
+    }
 
     // memory operations related to return instructions
     Instr::Drop => {}
@@ -85,6 +87,9 @@ pub fn step_RS_WS(
     Instr::CallZeroWrite => {
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
+    Instr::CallZeroWriteIndirect => {
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
     Instr::HostCallStep => {
       let write_addr = vm.Y as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
@@ -92,16 +97,17 @@ pub fn step_RS_WS(
     Instr::HostCallStackStep => {
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
-    // no-op call instructions
+
+    // call instructions
     Instr::Call(..) => {}
     Instr::CallIndirect(..) => {}
     Instr::CallInternal(..) => {}
 
     // select
     Instr::Select => {
-      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // X
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // Y
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // condition
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // Y
+      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // X
       write_op(vm.pre_sp - 3, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
 
@@ -128,17 +134,17 @@ pub fn step_RS_WS(
     | Instr::F32Store(..)
     | Instr::F64Store(..) => {
       // Stack ops
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // raw addr
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // value
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // raw addr
 
       // Linear mem ops
       let effective_addr = vm.I as usize;
-
       let write_addr_1 = effective_addr / 8 + IS_sizes.stack_len();
       let write_addr_2 = effective_addr / 8 + 1 + IS_sizes.stack_len();
       write_op(write_addr_1, vm.P, global_ts, FS, &mut RS, &mut WS);
       write_op(write_addr_2, vm.Q, global_ts, FS, &mut RS, &mut WS);
     }
+
     Instr::I32Load(..)
     | Instr::I32Load8U(..)
     | Instr::I32Load8S(..)
@@ -158,13 +164,10 @@ pub fn step_RS_WS(
 
       // linear mem ops
       let effective_addr = vm.I as usize;
-
       let read_addr_1 = effective_addr / 8 + IS_sizes.stack_len();
       let read_addr_2 = effective_addr / 8 + 1 + IS_sizes.stack_len();
-
       read_op(read_addr_1, global_ts, FS, &mut RS, &mut WS);
       read_op(read_addr_2, global_ts, FS, &mut RS, &mut WS);
-
       write_op(vm.pre_sp - 1, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
 
@@ -176,12 +179,20 @@ pub fn step_RS_WS(
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS);
       write_op(vm.pre_sp - 1, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
-    Instr::MemoryFill => {}
+    Instr::MemoryFill => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // size
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // value
+      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // offset
+    }
     Instr::MemoryFillStep => {
       let write_addr = vm.X as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
-    Instr::MemoryCopy => {}
+    Instr::MemoryCopy => {
+      read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // num_bytes
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // src
+      read_op(vm.pre_sp - 3, global_ts, FS, &mut RS, &mut WS); // dest
+    }
     Instr::MemoryCopyStep => {
       let write_addr = vm.X as usize + IS_sizes.stack_len();
       write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
@@ -207,9 +218,8 @@ pub fn step_RS_WS(
     | Instr::I64RemS
     | Instr::I64RemU
     | Instr::I64ShrS => {
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
-
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
     Instr::I64Clz | Instr::I64Ctz | Instr::I64Popcnt | Instr::I64Eqz | Instr::I32Eqz => {
@@ -335,9 +345,8 @@ pub fn step_RS_WS(
     | Instr::I32ShrU
     | Instr::I32Rotl
     | Instr::I32Rotr => {
-      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       read_op(vm.pre_sp - 1, global_ts, FS, &mut RS, &mut WS); // Y
-
+      read_op(vm.pre_sp - 2, global_ts, FS, &mut RS, &mut WS); // X
       write_op(vm.pre_sp - 2, vm.Z, global_ts, FS, &mut RS, &mut WS);
     }
 

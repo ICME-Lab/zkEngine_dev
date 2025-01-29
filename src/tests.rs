@@ -140,11 +140,8 @@ fn test_bulk_ops() -> Result<(), ZKWASMError> {
     .file_path(PathBuf::from("wasm/misc/bulk-ops.wat"))?
     .func_args(vec!["200".to_string()])
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size)?;
-
   Ok(())
 }
 
@@ -157,9 +154,7 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
     .func_args(vec!["250".to_string(), "15".to_string()])
     .invoke("kth_factor")
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size)?;
   Ok(())
 }
@@ -174,9 +169,7 @@ fn test_integer_hash() {
     .func_args(vec!["100".to_string()])
     .invoke("integer_hash")
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
@@ -189,7 +182,6 @@ fn test_gradient_boosting() {
     .unwrap()
     .invoke("_start")
     .build();
-
   let wasm_ctx = WasiWASMCtx::new(wasm_args);
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
@@ -198,7 +190,6 @@ fn test_gradient_boosting() {
 fn test_uni_poly_eval() {
   let x = "1";
   let size = "10";
-
   let step_size = StepSize::new(2_500).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
@@ -207,7 +198,6 @@ fn test_uni_poly_eval() {
     .invoke("eval")
     .func_args(vec![String::from(x), String::from(size)])
     .build();
-
   let wasm_ctx = WasiWASMCtx::new(wasm_args);
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
@@ -237,10 +227,8 @@ fn test_fib_large() -> Result<(), ZKWASMError> {
     .invoke("fib")
     .func_args(vec![String::from("1000")])
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
   test_wasm_snark_with(wasm_ctx, step_size)?;
-
   Ok(())
 }
 
@@ -253,10 +241,8 @@ fn test_fib_small() -> Result<(), ZKWASMError> {
     .invoke("fib")
     .func_args(vec![String::from("16")])
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
   test_wasm_snark_with(wasm_ctx, step_size)?;
-
   Ok(())
 }
 
@@ -283,9 +269,7 @@ fn test_defi_transaction() {
     ])
     .invoke("main")
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
@@ -311,9 +295,7 @@ fn test_energy_consumption() {
     ])
     .invoke("main")
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
@@ -342,7 +324,6 @@ fn test_toy_rsa() {
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
@@ -367,9 +348,7 @@ fn test_financial_protocol() {
     ])
     .invoke("main")
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
@@ -395,9 +374,7 @@ fn test_game_logic() {
     ])
     .invoke("main")
     .build();
-
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
@@ -425,7 +402,6 @@ fn test_data_provenance() {
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
@@ -453,7 +429,6 @@ fn test_regulatory_compliance() {
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
@@ -480,6 +455,5 @@ fn test_smart_contract_audit() {
     .build();
 
   let wasm_ctx = WASMCtx::new(wasm_args);
-
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }

@@ -189,7 +189,7 @@ where
     // the highest timestamp value in IS.
     let mut global_ts = 0;
 
-    // If this is a shard of a WASM program: calculate shard size & construct IS
+    // If we are proving a shard of a WASM program: calculate shard size & construct correct shard IS
     let is_sharded = program.args().is_sharded();
     let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
     construct_IS(
@@ -232,6 +232,11 @@ where
     let pad_len =
       (step_size.execution - (execution_trace.len() % step_size.execution)) % step_size.execution;
     execution_trace.extend((0..pad_len).map(|_| WitnessVM::default()));
+    let (pc, sp) = {
+      let pc = E::Scalar::from(execution_trace[0].pc as u64);
+      let sp = E::Scalar::from(execution_trace[0].pre_sp as u64);
+      (pc, sp)
+    };
 
     // Build the WASMTransitionCircuit from each traced execution frame and then batch them into
     // size `step_size`
@@ -257,7 +262,7 @@ where
     //
     // We use commitment-carrying IVC to prove the repeated execution of F
     let mut rs_option: Option<RecursiveSNARK<E>> = None;
-    let z0 = vec![E::Scalar::ZERO];
+    let z0 = vec![pc, sp];
     let mut IC_i = E::Scalar::ZERO;
     let execution_pp = pp.F();
     for (i, circuit) in circuits.iter().enumerate() {

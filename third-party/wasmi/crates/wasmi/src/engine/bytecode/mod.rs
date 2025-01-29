@@ -6,19 +6,8 @@ mod utils;
 mod tests;
 
 pub use self::utils::{
-    AddressOffset,
-    BlockFuel,
-    BranchOffset,
-    BranchTableTargets,
-    DataSegmentIdx,
-    DropKeep,
-    DropKeepError,
-    ElementSegmentIdx,
-    F64Const32,
-    FuncIdx,
-    GlobalIdx,
-    LocalDepth,
-    SignatureIdx,
+    AddressOffset, BlockFuel, BranchOffset, BranchTableTargets, DataSegmentIdx, DropKeep,
+    DropKeepError, ElementSegmentIdx, F64Const32, FuncIdx, GlobalIdx, LocalDepth, SignatureIdx,
     TableIdx,
 };
 use super::{const_pool::ConstRef, CompiledFunc, TranslationError};
@@ -395,6 +384,7 @@ pub enum Instruction {
     HostCallStackStep,
     // Special instruction to trace the zero writes to the stack when vm is preparing for a function call
     CallZeroWrite,
+    CallZeroWriteIndirect,
 }
 
 impl std::hash::Hash for Instruction {
@@ -464,7 +454,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 50;
+    pub const MAX_J: u64 = 53;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
@@ -641,10 +631,11 @@ impl Instruction {
 
             Self::I64LtS | Self::I64LtU | Self::I64GeS | Self::I64GeU => 48,
             Self::I64GtS | Self::I64GtU | Self::I64LeS | Self::I64LeU => 49,
-
-            Self::CallInternal(..) | Self::CallIndirect(..) | Self::Call(..) => 0, // TODO: all 0 J_indexes
-            Self::Drop => 0,
-            Self::Return(..) => Self::MAX_J, // TODO
+            Self::CallInternal(..) => 50,
+            Self::CallIndirect(..) | Self::Call(..) => 0, // TODO: all 0 J_indexes
+            Self::Drop => 51,
+            Self::CallZeroWriteIndirect => 52,
+            Self::Return(..) => Self::MAX_J,
             _ => {
                 println!("{:?}", self);
                 unimplemented!()

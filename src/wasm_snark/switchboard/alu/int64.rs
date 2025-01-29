@@ -103,33 +103,6 @@ where
   Ok(c)
 }
 
-pub fn sub64<F, CS>(
-  mut cs: CS,
-  a: &AllocatedNum<F>,
-  b: &AllocatedNum<F>,
-  a_bits: u64,
-  b_bits: u64,
-  switch: F,
-) -> Result<AllocatedNum<F>, SynthesisError>
-where
-  F: PrimeField,
-  CS: ConstraintSystem<F>,
-{
-  let range = F::from_u128(1_u128 << 64);
-  let (c, of) = a_bits.overflowing_sub(b_bits);
-  let c = SwitchBoardCircuit::alloc_num(&mut cs, || "c", || Ok(F::from(c)), switch)?;
-  let of = SwitchBoardCircuit::alloc_bit(&mut cs, || "of", Some(of), switch)?;
-
-  cs.enforce(
-    || "a - b + range*of = c",
-    |lc| lc + a.get_variable() - b.get_variable() + (range, of.get_variable()),
-    |lc| lc + CS::one(),
-    |lc| lc + c.get_variable(),
-  );
-
-  Ok(c)
-}
-
 /// Computes unsigned and signed lt and ge
 pub fn lt_ge_s<F, CS>(
   mut cs: CS,
@@ -923,7 +896,7 @@ mod tests {
   use super::{add64, mul64};
   use crate::{
     utils::logging::init_logger,
-    wasm_snark::switchboard::{alu::int64::sub64, WASMTransitionCircuit as SwitchBoardCircuit},
+    wasm_snark::switchboard::WASMTransitionCircuit as SwitchBoardCircuit,
   };
   use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
   use nova::{provider::Bn256EngineIPA, traits::Engine};
@@ -1226,99 +1199,6 @@ mod tests {
 
       let c = mul64(
         cs.namespace(|| "mul64"),
-        &alloc_a,
-        &alloc_b,
-        a.to_bits(),
-        b.to_bits(),
-        switch,
-      )
-      .unwrap();
-
-      cs.enforce(
-        || "expected ==  c",
-        |lc| lc + alloc_expected.get_variable(),
-        |lc| lc + one_var,
-        |lc| lc + c.get_variable(),
-      );
-
-      assert!(cs.is_satisfied());
-    }
-  }
-
-  #[test]
-  fn test_sub64() {
-    let mut rng = StdRng::from_seed([101u8; 32]);
-
-    let switch = F::one();
-
-    for _ in 0..1000 {
-      let a = UntypedValue::from(rng.gen::<i8>());
-      let b = UntypedValue::from(rng.gen::<i8>());
-      let expected = a.i64_sub(b);
-
-      let mut cs = TestConstraintSystem::<F>::new();
-
-      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
-      let alloc_expected = SwitchBoardCircuit::alloc_num(
-        &mut cs,
-        || "expected",
-        || Ok(F::from(expected.to_bits())),
-        switch,
-      )
-      .unwrap();
-
-      let alloc_a =
-        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
-          .unwrap();
-      let alloc_b =
-        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
-          .unwrap();
-
-      let c = sub64(
-        cs.namespace(|| "add64"),
-        &alloc_a,
-        &alloc_b,
-        a.to_bits(),
-        b.to_bits(),
-        switch,
-      )
-      .unwrap();
-
-      cs.enforce(
-        || "expected ==  c",
-        |lc| lc + alloc_expected.get_variable(),
-        |lc| lc + one_var,
-        |lc| lc + c.get_variable(),
-      );
-
-      assert!(cs.is_satisfied());
-    }
-
-    for _ in 0..1000 {
-      let a = UntypedValue::from(rng.gen::<i64>());
-      let b = UntypedValue::from(rng.gen::<i64>());
-      let expected = a.i64_sub(b);
-
-      let mut cs = TestConstraintSystem::<F>::new();
-
-      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
-      let alloc_expected = SwitchBoardCircuit::alloc_num(
-        &mut cs,
-        || "expected",
-        || Ok(F::from(expected.to_bits())),
-        switch,
-      )
-      .unwrap();
-
-      let alloc_a =
-        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
-          .unwrap();
-      let alloc_b =
-        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
-          .unwrap();
-
-      let c = sub64(
-        cs.namespace(|| "add64"),
         &alloc_a,
         &alloc_b,
         a.to_bits(),
