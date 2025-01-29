@@ -29,6 +29,7 @@ use wasmi::{
 };
 
 mod alu;
+
 #[cfg(test)]
 mod tests;
 use crate::wasm_snark::switchboard::alu::IntegerOps;

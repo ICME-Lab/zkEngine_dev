@@ -90,7 +90,7 @@ where
 }
 
 #[test]
-fn test_basic() {
+fn test_sb_basic() {
   init_logger();
   let step_size = StepSize::new(1);
   let wasm_args = WASMArgsBuilder::default()
@@ -103,7 +103,7 @@ fn test_basic() {
 }
 
 #[test]
-fn test_basic_i64() {
+fn test_sb_basic_i64() {
   init_logger();
   let step_size = StepSize::new(1);
   let wasm_args = WASMArgsBuilder::default()
@@ -116,7 +116,7 @@ fn test_basic_i64() {
 }
 
 #[test]
-fn test_bit_check() {
+fn test_sb_bit_check() {
   init_logger();
   let step_size = StepSize::new(1);
   let wasm_args = WASMArgsBuilder::default()
@@ -131,7 +131,7 @@ fn test_bit_check() {
 }
 
 #[test]
-fn test_eq_func() {
+fn test_sb_eq_func() {
   init_logger();
   let step_size = StepSize::new(600);
   let wasm_args = WASMArgsBuilder::default()
@@ -146,7 +146,7 @@ fn test_eq_func() {
 }
 
 #[test]
-fn test_factorial() {
+fn test_sb_factorial() {
   init_logger();
   let step_size = StepSize::new(500);
   let wasm_args = WASMArgsBuilder::default()
@@ -161,7 +161,7 @@ fn test_factorial() {
 }
 
 #[test]
-fn test_poly_transform() {
+fn test_sb_poly_transform() {
   init_logger();
   let step_size = StepSize::new(10);
   let wasm_args = WASMArgsBuilder::default()
@@ -180,7 +180,7 @@ fn test_poly_transform() {
 }
 
 #[test]
-fn test_small_funcs() {
+fn test_sb_small_funcs() {
   init_logger();
   let step_size = StepSize::new(1000);
   let wasm_args = WASMArgsBuilder::default()
@@ -195,7 +195,7 @@ fn test_small_funcs() {
 }
 
 #[test]
-fn test_rotl() {
+fn test_sb_rotl() {
   init_logger();
   let step_size = StepSize::new(100);
   let wasm_args = WASMArgsBuilder::default()
@@ -210,7 +210,7 @@ fn test_rotl() {
 }
 
 #[test]
-fn test_small_ml() {
+fn test_sb_small_ml() {
   init_logger();
   let step_size = StepSize::new(1000);
   let wasm_args = WASMArgsBuilder::default()
@@ -230,7 +230,7 @@ fn test_small_ml() {
 }
 
 #[test]
-fn test_bulk_ops() -> Result<(), ZKWASMError> {
+fn test_sb_bulk_ops() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(1000).set_memory_step_size(10_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
@@ -244,7 +244,7 @@ fn test_bulk_ops() -> Result<(), ZKWASMError> {
 }
 
 #[test]
-fn test_memsize() -> Result<(), ZKWASMError> {
+fn test_sb_memsize() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(1);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
@@ -257,7 +257,7 @@ fn test_memsize() -> Result<(), ZKWASMError> {
 }
 
 #[test]
-fn test_bradjust0() -> Result<(), ZKWASMError> {
+fn test_sb_bradjust0() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(1);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
@@ -270,7 +270,7 @@ fn test_bradjust0() -> Result<(), ZKWASMError> {
 }
 
 #[test]
-fn test_integer_hash() {
+fn test_sb_integer_hash() {
   let step_size = StepSize::new(500).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
@@ -285,7 +285,7 @@ fn test_integer_hash() {
 }
 
 #[test]
-fn test_gradient_boosting() {
+fn test_sb_gradient_boosting() {
   let step_size = StepSize::new(1000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
@@ -300,7 +300,7 @@ fn test_gradient_boosting() {
 }
 
 #[test]
-fn test_call_indirect() {
+fn test_sb_call_indirect() {
   let step_size = StepSize::new(10);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
@@ -315,7 +315,7 @@ fn test_call_indirect() {
 }
 
 #[test]
-fn test_dk() {
+fn test_sb_dk() {
   init_logger();
   let step_size = StepSize::new(1);
   let wasm_args = WASMArgsBuilder::default()
