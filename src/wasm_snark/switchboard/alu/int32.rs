@@ -99,33 +99,6 @@ where
   Ok(c)
 }
 
-pub fn sub32<F, CS>(
-  mut cs: CS,
-  a: &AllocatedNum<F>,
-  b: &AllocatedNum<F>,
-  a_bits: u32,
-  b_bits: u32,
-  switch: F,
-) -> Result<AllocatedNum<F>, SynthesisError>
-where
-  F: PrimeField,
-  CS: ConstraintSystem<F>,
-{
-  let range = F::from(1_u64 << 32);
-  let (c, of) = a_bits.overflowing_sub(b_bits);
-  let c = SwitchBoardCircuit::alloc_num(&mut cs, || "c", || Ok(F::from(c as u64)), switch)?;
-  let of = SwitchBoardCircuit::alloc_bit(&mut cs, || "of", Some(of), switch)?;
-
-  cs.enforce(
-    || "a - b + range*of = c",
-    |lc| lc + a.get_variable() - b.get_variable() + (range, of.get_variable()),
-    |lc| lc + CS::one(),
-    |lc| lc + c.get_variable(),
-  );
-
-  Ok(c)
-}
-
 /// Computes unsigned and signed lt and ge for 32 bit signed integers
 ///
 /// i32.lt_u, i32.ge_u, i32.lt_s, i32.ge_s
@@ -1223,99 +1196,6 @@ mod tests {
 
       let c = super::mul32(
         cs.namespace(|| "mul64"),
-        &alloc_a,
-        &alloc_b,
-        a.to_bits() as u32,
-        b.to_bits() as u32,
-        switch,
-      )
-      .unwrap();
-
-      cs.enforce(
-        || "expected ==  c",
-        |lc| lc + alloc_expected.get_variable(),
-        |lc| lc + one_var,
-        |lc| lc + c.get_variable(),
-      );
-
-      assert!(cs.is_satisfied());
-    }
-  }
-
-  #[test]
-  fn test_sub32() {
-    let mut rng = StdRng::from_seed([101u8; 32]);
-
-    let switch = F::one();
-
-    for _ in 0..1000 {
-      let a = UntypedValue::from(rng.gen::<i8>());
-      let b = UntypedValue::from(rng.gen::<i8>());
-      let expected = a.i32_sub(b);
-
-      let mut cs = TestConstraintSystem::<F>::new();
-
-      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
-      let alloc_expected = SwitchBoardCircuit::alloc_num(
-        &mut cs,
-        || "expected",
-        || Ok(F::from(expected.to_bits())),
-        switch,
-      )
-      .unwrap();
-
-      let alloc_a =
-        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
-          .unwrap();
-      let alloc_b =
-        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
-          .unwrap();
-
-      let c = super::sub32(
-        cs.namespace(|| "add64"),
-        &alloc_a,
-        &alloc_b,
-        a.to_bits() as u32,
-        b.to_bits() as u32,
-        switch,
-      )
-      .unwrap();
-
-      cs.enforce(
-        || "expected ==  c",
-        |lc| lc + alloc_expected.get_variable(),
-        |lc| lc + one_var,
-        |lc| lc + c.get_variable(),
-      );
-
-      assert!(cs.is_satisfied());
-    }
-
-    for _ in 0..1000 {
-      let a = UntypedValue::from(rng.gen::<i32>());
-      let b = UntypedValue::from(rng.gen::<i32>());
-      let expected = a.i32_sub(b);
-
-      let mut cs = TestConstraintSystem::<F>::new();
-
-      let one_var = <TestConstraintSystem<F> as ConstraintSystem<F>>::one();
-      let alloc_expected = SwitchBoardCircuit::alloc_num(
-        &mut cs,
-        || "expected",
-        || Ok(F::from(expected.to_bits())),
-        switch,
-      )
-      .unwrap();
-
-      let alloc_a =
-        SwitchBoardCircuit::alloc_num(&mut cs, || "a", || Ok(F::from(a.to_bits())), switch)
-          .unwrap();
-      let alloc_b =
-        SwitchBoardCircuit::alloc_num(&mut cs, || "b", || Ok(F::from(b.to_bits())), switch)
-          .unwrap();
-
-      let c = super::sub32(
-        cs.namespace(|| "add64"),
         &alloc_a,
         &alloc_b,
         a.to_bits() as u32,

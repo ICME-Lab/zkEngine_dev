@@ -31,7 +31,7 @@ pub(crate) fn split_vector<T>(mut vec: Vec<T>, split_index: usize) -> (Vec<T>, V
 
 #[cfg(test)]
 mod test {
-  use wasmi::{BCGlobalIdx, BranchTableTargets, WitnessVM};
+  use wasmi::{BCGlobalIdx, WitnessVM};
 
   use crate::wasm_ctx::{wasi::WasiWASMCtx, WASMArgsBuilder, WASMCtx, ZKWASMCtx};
   use std::{collections::HashMap, path::PathBuf};

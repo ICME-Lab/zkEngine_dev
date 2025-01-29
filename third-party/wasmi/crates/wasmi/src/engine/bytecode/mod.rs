@@ -384,6 +384,7 @@ pub enum Instruction {
     HostCallStackStep,
     // Special instruction to trace the zero writes to the stack when vm is preparing for a function call
     CallZeroWrite,
+    CallZeroWriteIndirect,
 }
 
 impl std::hash::Hash for Instruction {
@@ -453,7 +454,7 @@ impl Instruction {
 }
 
 impl Instruction {
-    pub const MAX_J: u64 = 52;
+    pub const MAX_J: u64 = 53;
 
     /// Get an index for each instruction to constrain the zkVM's computation result at the end of each zkVM cycle.
     /// To elaborate the zkVM multiplexer circuit has to perform all computation instructions and at then end of the circuit
@@ -633,6 +634,7 @@ impl Instruction {
             Self::CallInternal(..) => 50,
             Self::CallIndirect(..) | Self::Call(..) => 0, // TODO: all 0 J_indexes
             Self::Drop => 51,
+            Self::CallZeroWriteIndirect => 52,
             Self::Return(..) => Self::MAX_J,
             _ => {
                 println!("{:?}", self);

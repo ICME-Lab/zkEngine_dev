@@ -87,16 +87,20 @@ pub fn step_RS_WS(
     Instr::CallZeroWrite => {
       write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
     }
-    // Instr::HostCallStep => {
-    //   let write_addr = vm.Y as usize + IS_sizes.stack_len();
-    //   write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
-    // }
-    // Instr::HostCallStackStep => {
-    //   write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
-    // }
-    // // no-op call instructions
-    // Instr::Call(..) => {}
-    // Instr::CallIndirect(..) => {}
+    Instr::CallZeroWriteIndirect => {
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::HostCallStep => {
+      let write_addr = vm.Y as usize + IS_sizes.stack_len();
+      write_op(write_addr, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+    Instr::HostCallStackStep => {
+      write_op(vm.pre_sp, vm.P, global_ts, FS, &mut RS, &mut WS);
+    }
+
+    // call instructions
+    Instr::Call(..) => {}
+    Instr::CallIndirect(..) => {}
     Instr::CallInternal(..) => {}
 
     // select

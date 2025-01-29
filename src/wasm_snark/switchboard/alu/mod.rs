@@ -199,9 +199,6 @@ where
   F: PrimeField,
   CS: ConstraintSystem<F>,
 {
-  let zero = F::ZERO;
-  let one = F::ONE;
-
   let a_val = a.get_value();
   let is_zero = a_val.map(|val| val == F::ZERO);
 

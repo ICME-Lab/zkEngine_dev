@@ -1,45 +1,49 @@
-use std::{num::NonZeroUsize, path::PathBuf};
-
 use super::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
 use crate::{
   error::ZKWASMError,
-  utils::{logging::init_logger, tracing::estimate_wasm},
-  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
-  wasm_snark::{mcc::multiset_ops::step_RS_WS, StepSize},
+  utils::logging::init_logger,
+  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+  wasm_snark::{construct_IS, mcc::multiset_ops::step_RS_WS, split_vector, StepSize},
 };
-use ff::Field;
-use nova::{
-  nebula::rs::{PublicParams, RecursiveSNARK},
-  provider::Bn256EngineIPA,
-  traits::{snark::default_ck_hint, CurveCycleEquipped},
-};
+use bellpepper_core::ConstraintSystem;
+use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem};
+use nova::nebula::rs::StepCircuit;
+use nova::{provider::Bn256EngineIPA, traits::CurveCycleEquipped};
+use std::path::PathBuf;
 use wasmi::WitnessVM;
 
 pub type E = Bn256EngineIPA;
-
-fn gen_pp<E>(step_size: StepSize) -> PublicParams<E>
-where
-  E: CurveCycleEquipped,
-{
-  PublicParams::<E>::setup(
-    &BatchedWasmTransitionCircuit::empty(step_size.execution),
-    &*default_ck_hint(),
-    &*default_ck_hint(),
-  )
-}
 
 fn test_wasm_ctx_with<E>(program: &impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError>
 where
   E: CurveCycleEquipped,
 {
-  let pp = &gen_pp::<E>(step_size);
-  let (mut execution_trace, IS, IS_sizes) = program.execution_trace()?;
+  let (start_execution_trace, mut IS, IS_sizes) = program.execution_trace()?;
+  let start = program.args().start();
+  let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
+  // We maintain a timestamp counter `globa_ts` that is initialized to
+  // the highest timestamp value in IS.
+  let mut global_ts = 0;
+
+  // If we are proving a shard of a WASM program: calculate shard size & construct correct shard IS
+  let is_sharded = program.args().is_sharded();
+  let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
+  construct_IS(
+    shard_size,
+    step_size,
+    is_sharded,
+    IS_execution_trace,
+    &mut IS,
+    &mut global_ts,
+    &IS_sizes,
+  );
+
+  // Get the highest timestamp in the IS
   tracing::debug!("execution trace: {:#?}", execution_trace);
   tracing::info!("execution trace len: {:#?}", execution_trace.len());
   let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
   let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
   let mut FS = IS.clone();
-  let mut global_ts = 0;
   let pad_len =
     (step_size.execution - (execution_trace.len() % step_size.execution)) % step_size.execution;
   execution_trace.extend((0..pad_len).map(|_| WitnessVM::default()));
@@ -61,15 +65,27 @@ where
     .chunks(step_size.execution)
     .map(|chunk| BatchedWasmTransitionCircuit::new(chunk.to_vec()))
     .collect::<Vec<_>>();
-  let z0 = vec![pc, sp];
-  let mut IC_i = E::Scalar::ZERO;
-  let mut rs = RecursiveSNARK::new(pp, &circuits[0], &z0)?;
-  for circuit in circuits.iter() {
-    rs.prove_step(pp, circuit, IC_i)?;
-    IC_i = rs.increment_commitment(pp, circuit);
+
+  let mut zi = vec![pc, sp];
+  for (i, circuit) in circuits.iter().enumerate() {
+    tracing::info!("prove step: {:#?}", i);
+    let mut cs = TestConstraintSystem::<E::Scalar>::new();
+    let zi_allocated: Vec<_> = zi
+      .iter()
+      .enumerate()
+      .map(|(i, x)| AllocatedNum::alloc(cs.namespace(|| format!("z{i}_1")), || Ok(*x)))
+      .collect::<Result<_, _>>()
+      .map_err(|err| ZKWASMError::NovaError(err.into()))?;
+    let new_zi_allocated = circuit
+      .synthesize(&mut cs, &zi_allocated)
+      .map_err(|err| ZKWASMError::NovaError(err.into()))?;
+    zi = new_zi_allocated
+      .iter()
+      .map(|x| x.get_value().unwrap())
+      .collect::<Vec<_>>();
+    assert!(cs.is_satisfied());
   }
-  let num_steps = rs.num_steps();
-  rs.verify(pp, num_steps, &z0, IC_i)?;
+
   Ok(())
 }
 
@@ -248,8 +264,6 @@ fn test_bradjust0() -> Result<(), ZKWASMError> {
     .file_path(PathBuf::from("wasm/sb/br_adjust/br_adjust_0.wat"))?
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
-  // let (execution_trace, _, _) = wasm_ctx.execution_trace()?;
-  // println!("execution trace: {:#?}", execution_trace);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
   Ok(())
@@ -257,7 +271,7 @@ fn test_bradjust0() -> Result<(), ZKWASMError> {
 
 #[test]
 fn test_integer_hash() {
-  let step_size = StepSize::new(2_500).set_memory_step_size(50_000);
+  let step_size = StepSize::new(500).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
@@ -266,6 +280,36 @@ fn test_integer_hash() {
     .invoke("integer_hash")
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_gradient_boosting() {
+  let step_size = StepSize::new(1000);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
+    .unwrap()
+    .trace_slice(TraceSliceValues::new(184_000, None))
+    .invoke("_start")
+    .build();
+  let wasm_ctx = WasiWASMCtx::new(wasm_args);
+  tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
+    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+}
+
+#[test]
+fn test_call_indirect() {
+  let step_size = StepSize::new(10);
+  init_logger();
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/sb/call_indirect.wasm"))
+    .unwrap()
+    .func_args(vec!["2".to_string(), "10".to_string(), "10".to_string()])
+    .invoke("main")
+    .build();
+  let wasm_ctx = WasiWASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
     .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
 }

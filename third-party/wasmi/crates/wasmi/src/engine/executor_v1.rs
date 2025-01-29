@@ -1968,7 +1968,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 vm.X = offset;
             }
             Instr::Call(..) => {}
-            // Instr::CallIndirect(..) => {}
+            Instr::CallIndirect(..) => {}
             Instr::MemorySize => {}
             Instr::MemoryGrow => {
                 vm.Y = self.sp.last().to_bits();
@@ -2359,7 +2359,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     fn trace_call(&self, len: usize, pre_sp: usize) -> Vec<WitnessVM> {
         use Instruction as Instr;
         let mut init_vm = WitnessVM::default();
-        init_vm.instr = Instr::CallZeroWrite;
+        init_vm.instr = Instr::CallZeroWriteIndirect;
         init_vm.J = init_vm.instr.index_j();
         let mut vms = Vec::new();
         for i in 0..len {
@@ -2395,6 +2395,12 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
             vm.P = u64::from_le_bytes(buf);
             vms.push(vm);
         }
+        let mut new_vm = WitnessVM::default();
+        new_vm.instr = Instr::Call(FuncIdx::from(0));
+        new_vm.J = new_vm.instr.index_j();
+        new_vm.post_sp = self.sp();
+        new_vm.post_pc = self.pc();
+        vms.push(new_vm);
         vms
     }
 
