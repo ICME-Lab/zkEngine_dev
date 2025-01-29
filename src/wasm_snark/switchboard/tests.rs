@@ -2,7 +2,7 @@ use super::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
 use crate::{
   error::ZKWASMError,
   utils::logging::init_logger,
-  wasm_ctx::{TraceSliceValues, WASMArgsBuilder, WASMCtx, WasiWASMCtx, ZKWASMCtx},
+  wasm_ctx::{wasi::WasiWASMCtx, TraceSliceValues, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
   wasm_snark::{construct_IS, mcc::multiset_ops::step_RS_WS, split_vector, StepSize},
 };
 use bellpepper_core::ConstraintSystem;
