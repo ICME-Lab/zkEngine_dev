@@ -3,7 +3,7 @@ use super::{
   gadgets::{
     int::{add, enforce_equal, mul},
     mcc::{alloc_avt_tuple, randomized_hash_func},
-    utils::alloc_one,
+    utils::{alloc_one, alloc_zero},
   },
   MEMORY_OPS_PER_STEP,
 };
@@ -49,13 +49,10 @@ where
     let one = alloc_one(cs.namespace(|| "one"));
 
     // 1. assert |RS| = |WS|
-    let RS_len = AllocatedNum::alloc(cs.namespace(|| "RS.len()"), || {
-      Ok(F::from(self.RS.len() as u64))
-    })?;
-    let WS_len = AllocatedNum::alloc(cs.namespace(|| "WS.len()"), || {
+    let mut count_up = alloc_zero(cs.namespace(|| "count_up"));
+    let length = AllocatedNum::alloc(cs.namespace(|| "WS.len()"), || {
       Ok(F::from(self.WS.len() as u64))
     })?;
-    enforce_equal(cs, || " assert |RS| = |WS|", &RS_len, &WS_len);
 
     // 2. for i in 0..|RS|
     for (i, (rs, ws)) in self.RS.iter().zip_eq(self.WS.iter()).enumerate() {
@@ -106,7 +103,17 @@ where
         &h_ws,
         &hash_ws,
       )?;
+
+      // Count up
+      count_up = add(
+        cs.namespace(|| format!("{i}, update count_up")),
+        &count_up,
+        &one,
+      )?;
     }
+
+    // assert |RS| = |WS| = batch size
+    enforce_equal(cs, || " assert |RS| = |WS|", &length, &count_up);
 
     Ok(vec![gamma, alpha, gts, h_rs, h_ws])
   }
@@ -165,14 +172,14 @@ where
     let (gamma, alpha, mut h_is, mut h_fs) =
       { (z[0].clone(), z[1].clone(), z[2].clone(), z[3].clone()) };
 
+    let one = alloc_one(cs.namespace(|| "one"));
+
     // 1. assert |IS| = |FS|
-    let IS_len = AllocatedNum::alloc(cs.namespace(|| "IS.len()"), || {
+    let mut count_up = alloc_zero(cs.namespace(|| "count_up"));
+    let length = AllocatedNum::alloc(cs.namespace(|| "IS.len()"), || {
       Ok(F::from(self.IS.len() as u64))
     })?;
-    let FS_len = AllocatedNum::alloc(cs.namespace(|| "FS.len()"), || {
-      Ok(F::from(self.FS.len() as u64))
-    })?;
-    enforce_equal(cs, || " assert |IS| = |FS|", &IS_len, &FS_len);
+
 
     // 2. for i in 0..|IS|
     for (i, (is, fs)) in self.IS.iter().zip_eq(self.FS.iter()).enumerate() {
@@ -222,6 +229,13 @@ where
         cs.namespace(|| format!("{i}, update h_fs")),
         &h_fs,
         &hash_fs,
+      )?;
+
+      // Count up
+      count_up = add(
+        cs.namespace(|| format!("{i}, update count_up")),
+        &count_up,
+        &one,
       )?;
     }
 
