@@ -10,8 +10,8 @@ pub enum ZKWASMError {
   #[error("NovaError")]
   NovaError(#[from] NovaError),
   /// returned RecursiveSNARK is badly formed
-  #[error("MalformedRS")]
-  MalformedRS,
+  #[error("NoCircuit")]
+  NoCircuit,
   /// Anyhow Error
   #[error("AnyhowError")]
   AnyhowError(#[from] anyhow::Error),
