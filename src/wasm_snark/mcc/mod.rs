@@ -180,7 +180,6 @@ where
       Ok(F::from(self.IS.len() as u64))
     })?;
 
-
     // 2. for i in 0..|IS|
     for (i, (is, fs)) in self.IS.iter().zip_eq(self.FS.iter()).enumerate() {
       // (a) (a,v,it)←IS[i]
@@ -238,6 +237,9 @@ where
         &one,
       )?;
     }
+
+    // assert |IS| = |FS| = batch size
+    enforce_equal(cs, || " assert |IS| = |FS|", &length, &count_up);
 
     Ok(vec![gamma, alpha, h_is, h_fs])
   }
