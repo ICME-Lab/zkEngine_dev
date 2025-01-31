@@ -1,3 +1,6 @@
+> [!WARNING]
+> THIS HAS NOT BEEN AUDITED YET AND SHOULD BE USED ONLY FOR TESTING PURPOSES AND NOT IN PRODUCTION.
+
 The zkEngine is an (NIVC) zkWASM implementation based on the [Nebula](https://eprint.iacr.org/2024/1605) proving scheme.
 It aims to be memory efficient and highly portable for constrained enviroments. With these traits it can be used for
 local verifiable compute and privacy on a large array of devices.
