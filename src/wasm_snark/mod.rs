@@ -264,13 +264,12 @@ where
     let z0 = vec![pc, sp];
     let mut IC_i = E::Scalar::ZERO;
     let execution_pp = pp.F();
-    let mut rs = circuits
-      .first()
-      .map(|circuit| {
-        RecursiveSNARK::new(execution_pp, circuit, &z0)
-          .expect("failed to construct initial recursive SNARK")
-      })
-      .ok_or(ZKWASMError::MalformedRS)?;
+    let mut rs = RecursiveSNARK::new(
+      execution_pp,
+      circuits.first().ok_or(ZKWASMError::MalformedRS)?,
+      &z0,
+    )
+    .expect("failed to construct initial recursive SNARK");
     for (i, circuit) in circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, circuits.len());
       rs.prove_step(execution_pp, circuit, IC_i)?;
@@ -369,13 +368,12 @@ where
     ];
     let mut ops_IC_i = E::Scalar::ZERO;
     tracing::debug!("Proving MCC ops circuits");
-    let mut ops_rs = ops_circuits
-      .first()
-      .map(|ops_circuit| {
-        RecursiveSNARK::new(ops_pp, ops_circuit, &ops_z0)
-          .expect("failed to construct initial recursive SNARK")
-      })
-      .ok_or(ZKWASMError::MalformedRS)?;
+    let mut ops_rs = RecursiveSNARK::new(
+      ops_pp,
+      ops_circuits.first().ok_or(ZKWASMError::MalformedRS)?,
+      &ops_z0,
+    )
+    .expect("failed to construct initial recursive SNARK");
     for (i, ops_circuit) in ops_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, ops_circuits.len());
       ops_rs.prove_step(ops_pp, ops_circuit, ops_IC_i)?;
@@ -391,13 +389,12 @@ where
 
     // z0 <- [gamma, alpha, h_IS=1, h_FS=1]
     let scan_z0 = vec![gamma, alpha, E::Scalar::ONE, E::Scalar::ONE];
-    let mut scan_rs = scan_circuits
-      .first()
-      .map(|scan_circuit| {
-        AuditRecursiveSNARK::new(scan_pp, scan_circuit, &scan_z0)
-          .expect("failed to construct initial recursive SNARK")
-      })
-      .ok_or(ZKWASMError::MalformedRS)?;
+    let mut scan_rs = AuditRecursiveSNARK::new(
+      scan_pp,
+      scan_circuits.first().ok_or(ZKWASMError::MalformedRS)?,
+      &scan_z0,
+    )
+    .expect("failed to construct initial recursive SNARK");
     tracing::debug!("Proving MCC audit circuits");
     for (i, scan_circuit) in scan_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, scan_circuits.len());
