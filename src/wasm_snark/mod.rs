@@ -261,24 +261,21 @@ where
     // F represents the transition function of the WASM VM.
     //
     // We use commitment-carrying IVC to prove the repeated execution of F
-    let mut rs_option: Option<RecursiveSNARK<E>> = None;
     let z0 = vec![pc, sp];
     let mut IC_i = E::Scalar::ZERO;
     let execution_pp = pp.F();
+    let mut rs = RecursiveSNARK::new(
+      execution_pp,
+      circuits.first().ok_or(ZKWASMError::NoCircuit)?,
+      &z0,
+    )?;
     for (i, circuit) in circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, circuits.len());
-      let mut rs = rs_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(execution_pp, circuit, &z0)
-          .expect("failed to construct initial recursive SNARK")
-      });
       rs.prove_step(execution_pp, circuit, IC_i)?;
       IC_i = rs.increment_commitment(execution_pp, circuit);
-      rs_option = Some(rs)
     }
 
     // Do an internal check on the final recursive SNARK
-    debug_assert!(rs_option.is_some());
-    let rs = rs_option.ok_or(ZKWASMError::MalformedRS)?;
     let num_steps = rs.num_steps();
     rs.verify(execution_pp, num_steps, &z0, IC_i)?;
 
@@ -369,21 +366,19 @@ where
       E::Scalar::ONE,
     ];
     let mut ops_IC_i = E::Scalar::ZERO;
-    let mut ops_rs_option: Option<RecursiveSNARK<E>> = None;
     tracing::debug!("Proving MCC ops circuits");
+    let mut ops_rs = RecursiveSNARK::new(
+      ops_pp,
+      ops_circuits.first().ok_or(ZKWASMError::NoCircuit)?,
+      &ops_z0,
+    )?;
     for (i, ops_circuit) in ops_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, ops_circuits.len());
-      let mut ops_rs = ops_rs_option.unwrap_or_else(|| {
-        RecursiveSNARK::new(ops_pp, ops_circuit, &ops_z0)
-          .expect("failed to construct initial recursive SNARK")
-      });
       ops_rs.prove_step(ops_pp, ops_circuit, ops_IC_i)?;
       ops_IC_i = ops_rs.increment_commitment(ops_pp, ops_circuit);
-      ops_rs_option = Some(ops_rs)
     }
 
     // internal check
-    let ops_rs = ops_rs_option.ok_or(ZKWASMError::MalformedRS)?;
     ops_rs.verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
 
     /*
@@ -392,21 +387,19 @@ where
 
     // z0 <- [gamma, alpha, h_IS=1, h_FS=1]
     let scan_z0 = vec![gamma, alpha, E::Scalar::ONE, E::Scalar::ONE];
-    let mut scan_rs_option: Option<AuditRecursiveSNARK<E>> = None;
+    let mut scan_rs = AuditRecursiveSNARK::new(
+      scan_pp,
+      scan_circuits.first().ok_or(ZKWASMError::NoCircuit)?,
+      &scan_z0,
+    )?;
     tracing::debug!("Proving MCC audit circuits");
     for (i, scan_circuit) in scan_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, scan_circuits.len());
-      let mut scan_rs = scan_rs_option.unwrap_or_else(|| {
-        AuditRecursiveSNARK::new(scan_pp, scan_circuit, &scan_z0)
-          .expect("failed to construct initial recursive SNARK")
-      });
       scan_rs.prove_step(scan_pp, scan_circuit, scan_IC_i)?;
       scan_IC_i = scan_rs.increment_commitment(scan_pp, scan_circuit);
-      scan_rs_option = Some(scan_rs)
     }
 
     // internal check
-    let scan_rs = scan_rs_option.ok_or(ZKWASMError::MalformedRS)?;
     scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
     debug_assert_eq!(scan_IC_i, (IC_IS, IC_FS));
 
