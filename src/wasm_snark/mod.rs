@@ -128,6 +128,7 @@ where
 impl<E, S1, S2> WasmSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
+  <E as Engine>::Scalar: PartialOrd,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
   S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {

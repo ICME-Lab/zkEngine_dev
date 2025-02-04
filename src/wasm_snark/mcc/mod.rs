@@ -1,7 +1,7 @@
 use super::{
   avt_tuple_to_scalar_vec,
   gadgets::{
-    int::{add, enforce_equal, mul},
+    int::{add, enforce_equal, enforce_lt_32, mul},
     mcc::{alloc_avt_tuple, randomized_hash_func},
     utils::alloc_one,
   },
@@ -26,7 +26,7 @@ pub struct OpsCircuit {
 
 impl<F> StepCircuit<F> for OpsCircuit
 where
-  F: PrimeField,
+  F: PrimeField + PartialOrd,
 {
   fn arity(&self) -> usize {
     5
@@ -68,13 +68,14 @@ where
       // (c) gts ← gts + 1
       gts = add(cs.namespace(|| format!("{i},  gts ← gts + 1")), &gts, &one)?;
 
-      // TODO: (d) assert rt < ts
+      // (d) assert rt < ts
+      enforce_lt_32(cs.namespace(|| "enforce_lt_32"), &r_ts, &gts)?;
 
       // (e) assert wt = ts
       enforce_equal(cs, || format!("{i} assert wt = ts"), &w_ts, &gts);
 
       // (f) h_RS ← h_RS · Hash(gamma, alpha, a, v, rt)
-
+      //
       // Get Hash(gamma, alpha, a, v, rt)
       let hash_rs = randomized_hash_func(
         cs.namespace(|| format!("{i}, Hash(gamma, alpha, a, v, rt)")),
@@ -84,7 +85,6 @@ where
         &gamma,
         &alpha,
       )?;
-
       h_rs = mul(
         cs.namespace(|| format!("{i}, update h_rs")),
         &h_rs,
@@ -271,7 +271,7 @@ pub struct BatchedOpsCircuit {
 
 impl<F> StepCircuit<F> for BatchedOpsCircuit
 where
-  F: PrimeField,
+  F: PrimeField + PartialOrd,
 {
   fn arity(&self) -> usize {
     5
