@@ -102,7 +102,7 @@ where
 }
 
 #[test]
-fn test_integer_hash() {
+fn test_mcc_integer_hash() {
   let mut rng = StdRng::from_seed([1; 32]);
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/integer_hash.wasm"))
@@ -116,7 +116,7 @@ fn test_integer_hash() {
 }
 
 #[test]
-fn test_gradient_boosting() {
+fn test_mcc_gradient_boosting() {
   init_logger();
   let mut rng = StdRng::from_seed([1; 32]);
   let wasm_args = WASMArgsBuilder::default()
