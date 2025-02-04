@@ -1,5 +1,5 @@
 use bellpepper::gadgets::Assignment;
-use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
+use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 
 use crate::wasm_snark::gadgets::num::Num;
@@ -12,7 +12,6 @@ pub fn add<F: PrimeField, CS: ConstraintSystem<F>>(
   let res = AllocatedNum::alloc(cs.namespace(|| "add_num"), || {
     let mut tmp = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
     tmp.add_assign(&b.get_value().ok_or(SynthesisError::AssignmentMissing)?);
-
     Ok(tmp)
   })?;
 
@@ -150,21 +149,6 @@ pub fn enforce_equal<F: PrimeField, A, AR, CS: ConstraintSystem<F>>(
     |lc| lc + CS::one(),
     |lc| lc + b.get_variable(),
   );
-}
-
-/// alloc a field as a constant
-pub fn alloc_const<F: PrimeField, CS: ConstraintSystem<F>>(mut cs: CS, val: F) -> AllocatedNum<F> {
-  let allocated = AllocatedNum::<F>::alloc_infallible(cs.namespace(|| "allocate const"), || val);
-
-  // allocated * 1 = val
-  cs.enforce(
-    || "enforce constant",
-    |lc| lc + allocated.get_variable(),
-    |lc| lc + CS::one(),
-    |_| Boolean::Constant(true).lc(CS::one(), val),
-  );
-
-  allocated
 }
 
 /// Check if a < b

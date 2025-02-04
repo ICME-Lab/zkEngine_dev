@@ -1,7 +1,7 @@
+use crate::wasm_snark::gadgets::int::{add, mul, sub};
+use bellpepper::gadgets::Assignment;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
-
-use crate::wasm_snark::gadgets::int::{add, mul, sub};
 
 /// Does a read-solomon fingerprint on the (a,v,t) tuple and then subtracts's it
 /// by alpha to compute a polynomials roots
@@ -56,4 +56,37 @@ where
   let ts = AllocatedNum::alloc(cs.namespace(|| "ts"), || Ok(F::from(ts)))?;
 
   Ok((addr, val, ts))
+}
+
+/// Calculate the inverse of an allocated number
+///
+/// We are guaranteed (by some  neglible soundness error) to have the hash != 0
+pub fn countable_hash<F, CS>(
+  mut cs: CS,
+  hash: &AllocatedNum<F>,
+) -> Result<AllocatedNum<F>, SynthesisError>
+where
+  F: PrimeField,
+  CS: ConstraintSystem<F>,
+{
+  let inverse = AllocatedNum::alloc(cs.namespace(|| "inverse"), || {
+    let tmp = hash.get_value().get()?.invert();
+    if tmp.is_some().into() {
+      Ok(tmp.unwrap())
+    } else {
+      Ok(F::ONE)
+    }
+  })?;
+
+  // Produce counting_element
+  let counting_element = mul(cs.namespace(|| "count"), hash, &inverse)?;
+
+  // Check counting_element = 1
+  cs.enforce(
+    || "counting_element = 1",
+    |lc| lc + counting_element.get_variable(),
+    |lc| lc + CS::one(),
+    |lc| lc + CS::one(),
+  );
+  Ok(counting_element)
 }
