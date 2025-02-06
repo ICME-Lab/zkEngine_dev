@@ -1,9 +1,9 @@
 use super::{
   avt_tuple_to_scalar_vec,
   gadgets::{
-    int::{add, enforce_equal, mul},
-    mcc::{alloc_avt_tuple, randomized_hash_func},
-    utils::alloc_one,
+    int::{add, enforce_equal, enforce_lt_32, mul},
+    mcc::{alloc_avt_tuple, countable_hash, randomized_hash_func},
+    utils::{alloc_one, alloc_zero},
   },
   MEMORY_OPS_PER_STEP,
 };
@@ -26,10 +26,10 @@ pub struct OpsCircuit {
 
 impl<F> StepCircuit<F> for OpsCircuit
 where
-  F: PrimeField,
+  F: PrimeField + PartialOrd,
 {
   fn arity(&self) -> usize {
-    5
+    6
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
@@ -37,25 +37,20 @@ where
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    let (gamma, alpha, mut gts, mut h_rs, mut h_ws) = {
+    let (gamma, alpha, mut gts, mut h_rs, mut h_ws, size) = {
       (
         z[0].clone(),
         z[1].clone(),
         z[2].clone(),
         z[3].clone(),
         z[4].clone(),
+        z[5].clone(),
       )
     };
     let one = alloc_one(cs.namespace(|| "one"));
-
-    // 1. assert |RS| = |WS|
-    let RS_len = AllocatedNum::alloc(cs.namespace(|| "RS.len()"), || {
-      Ok(F::from(self.RS.len() as u64))
-    })?;
-    let WS_len = AllocatedNum::alloc(cs.namespace(|| "WS.len()"), || {
-      Ok(F::from(self.WS.len() as u64))
-    })?;
-    enforce_equal(cs, || " assert |RS| = |WS|", &RS_len, &WS_len);
+    // Used to assert |RS| = |WS|
+    let mut RS_size_count = alloc_zero(cs.namespace(|| "RS_size_count"));
+    let mut WS_size_count = alloc_zero(cs.namespace(|| "WS_size_count"));
 
     // 2. for i in 0..|RS|
     for (i, (rs, ws)) in self.RS.iter().zip_eq(self.WS.iter()).enumerate() {
@@ -68,12 +63,11 @@ where
       // (c) gts ← gts + 1
       gts = add(cs.namespace(|| format!("{i},  gts ← gts + 1")), &gts, &one)?;
 
-      // TODO: (d) assert rt < ts
+      // (d) assert rt < ts
+      enforce_lt_32(cs.namespace(|| "enforce_lt_32"), &r_ts, &gts)?;
 
       // (e) assert wt = ts
       enforce_equal(cs, || format!("{i} assert wt = ts"), &w_ts, &gts);
-
-      // (f) h_RS ← h_RS · Hash(gamma, alpha, a, v, rt)
 
       // Get Hash(gamma, alpha, a, v, rt)
       let hash_rs = randomized_hash_func(
@@ -85,6 +79,16 @@ where
         &alpha,
       )?;
 
+      // Add to RS size count
+      let RS_counting_el =
+        countable_hash(cs.namespace(|| format!("RS_counting_el_{i}")), &hash_rs)?;
+      RS_size_count = add(
+        cs.namespace(|| format!("{i}, RS_size_count ← RS_size_count + RS_counting_el")),
+        &RS_size_count,
+        &RS_counting_el,
+      )?;
+
+      // (f) h_RS ← h_RS · Hash(gamma, alpha, a, v, rt)
       h_rs = mul(
         cs.namespace(|| format!("{i}, update h_rs")),
         &h_rs,
@@ -101,6 +105,15 @@ where
         &alpha,
       )?;
 
+      // Add to count for WS
+      let WS_counting_el =
+        countable_hash(cs.namespace(|| format!("WS_counting_el_{i}")), &hash_ws)?;
+      WS_size_count = add(
+        cs.namespace(|| format!("{i}, WS_size_count ← WS_size_count + WS_counting_el")),
+        &WS_size_count,
+        &WS_counting_el,
+      )?;
+
       h_ws = mul(
         cs.namespace(|| format!("{i}, update h_ws")),
         &h_ws,
@@ -108,7 +121,11 @@ where
       )?;
     }
 
-    Ok(vec![gamma, alpha, gts, h_rs, h_ws])
+    // assert |RS| = |WS|
+    enforce_equal(cs, || "assert |RS| = |WS|", &RS_size_count, &WS_size_count);
+    enforce_equal(cs, || "|RS| == size", &RS_size_count, &size);
+
+    Ok(vec![gamma, alpha, gts, h_rs, h_ws, size])
   }
 
   fn non_deterministic_advice(&self) -> Vec<F> {
@@ -154,7 +171,7 @@ where
   F: PrimeField,
 {
   fn arity(&self) -> usize {
-    4
+    5
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(
@@ -162,17 +179,17 @@ where
     cs: &mut CS,
     z: &[AllocatedNum<F>],
   ) -> Result<Vec<AllocatedNum<F>>, SynthesisError> {
-    let (gamma, alpha, mut h_is, mut h_fs) =
-      { (z[0].clone(), z[1].clone(), z[2].clone(), z[3].clone()) };
+    let (gamma, alpha, mut h_is, mut h_fs, size) = (
+      z[0].clone(),
+      z[1].clone(),
+      z[2].clone(),
+      z[3].clone(),
+      z[4].clone(),
+    );
 
-    // 1. assert |IS| = |FS|
-    let IS_len = AllocatedNum::alloc(cs.namespace(|| "IS.len()"), || {
-      Ok(F::from(self.IS.len() as u64))
-    })?;
-    let FS_len = AllocatedNum::alloc(cs.namespace(|| "FS.len()"), || {
-      Ok(F::from(self.FS.len() as u64))
-    })?;
-    enforce_equal(cs, || " assert |IS| = |FS|", &IS_len, &FS_len);
+    // used to assert |IS| = |FS|
+    let mut IS_size_count = alloc_zero(cs.namespace(|| "IS_size_count"));
+    let mut FS_size_count = alloc_zero(cs.namespace(|| "FS_size_count"));
 
     // 2. for i in 0..|IS|
     for (i, (is, fs)) in self.IS.iter().zip_eq(self.FS.iter()).enumerate() {
@@ -191,7 +208,7 @@ where
       );
 
       // (d) h_IS ← h_IS · Hash(gamma, alpha, a, v, it)
-
+      //
       // Get Hash(gamma, alpha, a, v, it)
       let hash_is = randomized_hash_func(
         cs.namespace(|| format!("{i}, Hash(gamma, alpha, a, v, it)")),
@@ -200,6 +217,15 @@ where
         &i_ts,
         &gamma,
         &alpha,
+      )?;
+
+      // Add to IS size count
+      let IS_counting_el =
+        countable_hash(cs.namespace(|| format!("IS_counting_el_{i}")), &hash_is)?;
+      IS_size_count = add(
+        cs.namespace(|| format!("{i}, IS_size_count ← IS_size_count + IS_counting_el")),
+        &IS_size_count,
+        &IS_counting_el,
       )?;
 
       h_is = mul(
@@ -217,6 +243,13 @@ where
         &gamma,
         &alpha,
       )?;
+      let FS_counting_el =
+        countable_hash(cs.namespace(|| format!("FS_counting_el_{i}")), &hash_fs)?;
+      FS_size_count = add(
+        cs.namespace(|| format!("{i}, FS_size_count ← FS_size_count + FS_counting_el")),
+        &FS_size_count,
+        &FS_counting_el,
+      )?;
 
       h_fs = mul(
         cs.namespace(|| format!("{i}, update h_fs")),
@@ -224,8 +257,11 @@ where
         &hash_fs,
       )?;
     }
+    // assert |IS| = |FS|
+    enforce_equal(cs, || "assert |IS| = |FS|", &IS_size_count, &FS_size_count);
+    enforce_equal(cs, || "|IS| == size", &IS_size_count, &size);
 
-    Ok(vec![gamma, alpha, h_is, h_fs])
+    Ok(vec![gamma, alpha, h_is, h_fs, size])
   }
 
   fn IS_advice(&self) -> Vec<F> {
@@ -271,10 +307,10 @@ pub struct BatchedOpsCircuit {
 
 impl<F> StepCircuit<F> for BatchedOpsCircuit
 where
-  F: PrimeField,
+  F: PrimeField + PartialOrd,
 {
   fn arity(&self) -> usize {
-    5
+    6
   }
 
   fn synthesize<CS: ConstraintSystem<F>>(

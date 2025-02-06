@@ -128,6 +128,7 @@ where
 impl<E, S1, S2> WasmSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
+  <E as Engine>::Scalar: PartialOrd,
   S1: BatchedRelaxedR1CSSNARKTrait<E>,
   S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
@@ -364,6 +365,7 @@ where
       E::Scalar::from(IS_gts),
       E::Scalar::ONE,
       E::Scalar::ONE,
+      E::Scalar::from((MEMORY_OPS_PER_STEP / 2) as u64),
     ];
     let mut ops_IC_i = E::Scalar::ZERO;
     tracing::debug!("Proving MCC ops circuits");
@@ -386,7 +388,13 @@ where
      */
 
     // z0 <- [gamma, alpha, h_IS=1, h_FS=1]
-    let scan_z0 = vec![gamma, alpha, E::Scalar::ONE, E::Scalar::ONE];
+    let scan_z0 = vec![
+      gamma,
+      alpha,
+      E::Scalar::ONE,
+      E::Scalar::ONE,
+      E::Scalar::from(step_size.memory as u64),
+    ];
     let mut scan_rs = AuditRecursiveSNARK::new(
       scan_pp,
       scan_circuits.first().ok_or(ZKWASMError::NoCircuit)?,

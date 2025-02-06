@@ -2,6 +2,8 @@ use bellpepper::gadgets::Assignment;
 use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 
+use crate::wasm_snark::gadgets::num::Num;
+
 pub fn add<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   a: &AllocatedNum<F>,
@@ -10,7 +12,6 @@ pub fn add<F: PrimeField, CS: ConstraintSystem<F>>(
   let res = AllocatedNum::alloc(cs.namespace(|| "add_num"), || {
     let mut tmp = a.get_value().ok_or(SynthesisError::AssignmentMissing)?;
     tmp.add_assign(&b.get_value().ok_or(SynthesisError::AssignmentMissing)?);
-
     Ok(tmp)
   })?;
 
@@ -150,14 +151,34 @@ pub fn enforce_equal<F: PrimeField, A, AR, CS: ConstraintSystem<F>>(
   );
 }
 
-#[allow(unused)]
 /// Check if a < b
-pub(crate) fn lt<F: PrimeField, CS: ConstraintSystem<F>>(
+pub(crate) fn enforce_lt_32<F: PrimeField + PartialOrd, CS: ConstraintSystem<F>>(
   mut cs: CS,
   a: &AllocatedNum<F>,
   b: &AllocatedNum<F>,
-) -> Result<AllocatedNum<F>, SynthesisError> {
-  todo!()
+) -> Result<(), SynthesisError> {
+  let n_bits = 32;
+  let range = F::from(1u64 << n_bits);
+
+  // diff = (lhs - rhs) + (if lt { range } else { 0 });
+  let diff = Num::alloc(cs.namespace(|| "diff"), || {
+    a.get_value()
+      .zip(b.get_value())
+      .map(|(a, b)| {
+        let lt = a < b;
+        (a - b) + (if lt { range } else { F::ZERO })
+      })
+      .ok_or(SynthesisError::AssignmentMissing)
+  })?;
+  diff.fits_in_bits(cs.namespace(|| "diff fit in bits"), n_bits)?;
+  let diff = diff.as_allocated_num(cs.namespace(|| "diff_alloc"))?;
+  cs.enforce(
+    || "range == diff - lhs + rhs",
+    |lc| lc + (range, CS::one()),
+    |lc| lc + CS::one(),
+    |lc| lc + diff.get_variable() - a.get_variable() + b.get_variable(),
+  );
+  Ok(())
 }
 
 #[allow(dead_code)]
