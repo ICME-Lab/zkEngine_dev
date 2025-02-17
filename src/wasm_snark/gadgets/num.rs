@@ -1,8 +1,8 @@
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{
+use ff::PrimeField;
+use nova::frontend::gadgets::Assignment;
+use nova::frontend::{
   num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError, Variable,
 };
-use ff::PrimeField;
 
 pub struct Num<F>
 where

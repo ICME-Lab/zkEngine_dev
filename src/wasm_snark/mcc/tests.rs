@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
+use nova::frontend::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use nova::{provider::Bn256EngineIPA, traits::Engine};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 

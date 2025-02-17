@@ -8,9 +8,9 @@ use super::{
   MEMORY_OPS_PER_STEP,
 };
 
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
 use itertools::Itertools;
+use nova::frontend::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use nova::nebula::{audit_rs::AuditStepCircuit, rs::StepCircuit};
 
 pub mod multiset_ops;

@@ -1,6 +1,6 @@
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
+use nova::frontend::gadgets::Assignment;
+use nova::frontend::{num::AllocatedNum, Boolean, ConstraintSystem, SynthesisError};
 
 #[allow(dead_code)]
 /// Allocate a variable that is set to zero

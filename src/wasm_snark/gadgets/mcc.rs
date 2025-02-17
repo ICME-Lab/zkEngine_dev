@@ -1,7 +1,7 @@
 use crate::wasm_snark::gadgets::int::{add, mul, sub};
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
+use nova::frontend::gadgets::Assignment;
+use nova::frontend::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 
 /// Does a read-solomon fingerprint on the (a,v,t) tuple and then subtracts's it
 /// by alpha to compute a polynomials roots
