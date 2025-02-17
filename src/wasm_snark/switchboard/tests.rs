@@ -5,8 +5,8 @@ use crate::{
   wasm_ctx::{wasi::WasiWASMCtx, TraceSliceValues, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
   wasm_snark::{construct_IS, mcc::multiset_ops::step_RS_WS, split_vector, StepSize},
 };
-use bellpepper_core::ConstraintSystem;
-use bellpepper_core::{num::AllocatedNum, test_cs::TestConstraintSystem};
+use nova::frontend::ConstraintSystem;
+use nova::frontend::{num::AllocatedNum, test_cs::TestConstraintSystem};
 use nova::nebula::rs::StepCircuit;
 use nova::{provider::Bn256EngineIPA, traits::CurveCycleEquipped};
 use std::path::PathBuf;

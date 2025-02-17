@@ -1,11 +1,10 @@
 use crate::wasm_snark::switchboard::WASMTransitionCircuit as SwitchBoardCircuit;
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{
-  boolean::{AllocatedBit, Boolean},
-  num::AllocatedNum,
-  ConstraintSystem, LinearCombination, SynthesisError, Variable,
-};
 use ff::{PrimeField, PrimeFieldBits};
+use nova::frontend::gadgets::Assignment;
+use nova::frontend::{
+  num::AllocatedNum,
+  ConstraintSystem, LinearCombination, SynthesisError, Variable, {AllocatedBit, Boolean},
+};
 use wasmi::core::UntypedValue;
 
 pub fn add64<F, CS>(
@@ -898,7 +897,7 @@ mod tests {
     utils::logging::init_logger,
     wasm_snark::switchboard::WASMTransitionCircuit as SwitchBoardCircuit,
   };
-  use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
+  use nova::frontend::{test_cs::TestConstraintSystem, ConstraintSystem};
   use nova::{provider::Bn256EngineIPA, traits::Engine};
   use rand::{rngs::StdRng, Rng, SeedableRng};
   use wasmi::core::UntypedValue;

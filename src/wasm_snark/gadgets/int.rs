@@ -1,6 +1,6 @@
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
+use nova::frontend::gadgets::Assignment;
+use nova::frontend::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 
 use crate::wasm_snark::gadgets::num::Num;
 

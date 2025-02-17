@@ -13,15 +13,13 @@ use alu::{
   int64::{bitops_64, div_rem_s_64, div_rem_u_64, le_gt_s, lt_ge_s, shift_rotate_64, unary_ops_64},
   ALUGadget,
 };
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{
-  self,
-  boolean::{AllocatedBit, Boolean},
-  num::AllocatedNum,
-  ConstraintSystem, SynthesisError,
-};
 use ff::{PrimeField, PrimeFieldBits};
 use itertools::Itertools;
+use nova::frontend::gadgets::Assignment;
+use nova::frontend::{
+  num::AllocatedNum,
+  ConstraintSystem, SynthesisError, {AllocatedBit, Boolean},
+};
 use nova::nebula::rs::StepCircuit;
 use wasmi::{
   AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, CompiledFunc, DropKeep,

@@ -1,6 +1,6 @@
 use super::WASMTransitionCircuit as SwitchBoardCircuit;
-use bellpepper_core::{boolean::Boolean, num::AllocatedNum, ConstraintSystem, SynthesisError};
 use ff::PrimeField;
+use nova::frontend::{num::AllocatedNum, Boolean, ConstraintSystem, SynthesisError};
 
 pub mod int32;
 pub mod int64;
@@ -559,7 +559,7 @@ where
 
 #[cfg(test)]
 mod tests {
-  use bellpepper_core::{test_cs::TestConstraintSystem, ConstraintSystem};
+  use nova::frontend::{test_cs::TestConstraintSystem, ConstraintSystem};
   use nova::{provider::Bn256EngineIPA, traits::Engine};
   use rand::{rngs::StdRng, Rng, SeedableRng};
   use wasmi::core::UntypedValue;

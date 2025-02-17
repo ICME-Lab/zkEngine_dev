@@ -1,5 +1,5 @@
-use bellpepper::gadgets::Assignment;
-use bellpepper_core::{
+use nova::frontend::gadgets::Assignment;
+use nova::frontend::{
   num::AllocatedNum, ConstraintSystem, LinearCombination, SynthesisError, Variable,
 };
 use ff::PrimeField;
