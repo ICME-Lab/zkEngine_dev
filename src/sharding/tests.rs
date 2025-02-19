@@ -106,8 +106,19 @@ fn test_sharding_gradient_boosting() {
     .file_path(PathBuf::from("wasm/gradient_boosting.wasm"))
     .unwrap()
     .invoke("_start");
-
   let shard_opcode_size = 10_000;
+  sim_nodes_and_orchestrator_node(&wasm_args_builder, step_size, shard_opcode_size);
+}
+
+#[test]
+fn test_sharding_bls() {
+  init_logger();
+  let step_size = StepSize::new(100).set_memory_step_size(50_000);
+  let wasm_args_builder = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/bls.wasm"))
+    .unwrap()
+    .trace_slice(TraceSliceValues::new(0, NonZeroUsize::new(1000)));
+  let shard_opcode_size = 333;
   sim_nodes_and_orchestrator_node(&wasm_args_builder, step_size, shard_opcode_size);
 }
 
