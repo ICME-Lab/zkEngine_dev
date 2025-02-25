@@ -1,8 +1,11 @@
 //! Implementation of WASM execution context for zkVM
 use super::error::ZKWASMError;
-use crate::utils::{
-  tracing::unwrap_rc_refcell,
-  wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat},
+use crate::{
+  utils::{
+    tracing::{split_vector, unwrap_rc_refcell},
+    wasm::{decode_func_args, prepare_func_results, read_wasm_or_wat},
+  },
+  wasm_snark::StepSize,
 };
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, cmp, num::NonZeroUsize, path::PathBuf, rc::Rc};
@@ -174,7 +177,48 @@ impl TraceSliceValues {
 }
 
 /// Execution trace, Initial memory trace, Initial stack trace length, Initial linear memory length
-pub type ExecutionTrace = (Vec<WitnessVM>, Vec<(usize, u64, u64)>, ISMemSizes);
+pub type ExecutionTrace = (Vec<WitnessVM>, InitMemData);
+
+impl MemorySetupTrait for ExecutionTrace {
+  fn setup_init_memory(self, args: &WASMArgs, step_size: StepSize) -> Result<Self, ZKWASMError> {
+    let (init_execution_trace, init_memory_data) = self;
+    let InitMemData {
+      mut init_memory,
+      memory_size,
+      mut global_ts,
+    } = init_memory_data;
+    //  --- Construct IS multiset ---
+    //
+    // Split the execution trace at `TraceSliceValues` `start` value. Use the first split to
+    // construct IS and use the second split for the actual proving of the shard
+    let (init_execution_trace, execution_trace) = split_vector(init_execution_trace, args.start());
+    // If we are proving a shard of a WASM program: calculate shard size & construct correct shard IS
+    utils::shard_init_memory(
+      &mut init_memory,
+      memory_size,
+      args.is_sharded(),
+      args.shard_size().unwrap_or(execution_trace.len()),
+      step_size,
+      init_execution_trace,
+      &mut global_ts,
+    );
+    Ok((
+      execution_trace,
+      InitMemData {
+        init_memory,
+        memory_size,
+        global_ts,
+      },
+    ))
+  }
+}
+
+pub(crate) trait MemorySetupTrait
+where
+  Self: Sized,
+{
+  fn setup_init_memory(self, ctx: &WASMArgs, step_size: StepSize) -> Result<Self, ZKWASMError>;
+}
 
 /// Definition for WASM execution context
 pub trait ZKWASMCtx {
@@ -182,10 +226,10 @@ pub trait ZKWASMCtx {
   type T;
 
   /// create store
-  fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T>;
+  fn store(engine: &wasmi::Engine) -> wasmi::Store<Self::T>;
 
   /// create linker
-  fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError>;
+  fn linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError>;
 
   /// Getter for WASM args
   fn args(&self) -> &WASMArgs;
@@ -200,8 +244,8 @@ pub trait ZKWASMCtx {
     let module = wasmi::Module::new(&engine, &self.args().program[..])?;
 
     // Create a new store and linker
-    let mut store = Self::create_store(&engine);
-    let linker = Self::create_linker(&engine)?;
+    let mut store = Self::store(&engine);
+    let linker = Self::linker(&engine)?;
 
     // Instantiate the module and trace WASM linear memory and global memory initializations
     let instance = linker
@@ -233,9 +277,9 @@ pub trait ZKWASMCtx {
     let tracer = unwrap_rc_refcell(tracer);
 
     // Get the MCC values used to construct the initial memory state of the zkWASM.
-    let IS_stack_len = tracer.IS_stack_len();
-    let IS_mem_len = tracer.IS_mem_len();
-    let IS = tracer.IS();
+    let init_stack_len = tracer.IS_stack_len();
+    let init_mem_len = tracer.IS_mem_len();
+    let init_memory = tracer.init_memory();
 
     // Take ownership of the execution trace of type [`Vec<WitnessVM>`] because the zkWASM needs
     // this type to execute.
@@ -253,8 +297,11 @@ pub trait ZKWASMCtx {
 
     Ok((
       execution_trace,
-      IS,
-      ISMemSizes::new(IS_stack_len, IS_mem_len),
+      InitMemData {
+        init_memory,
+        memory_size: ISMemSizes::new(init_stack_len, init_mem_len),
+        global_ts: 0,
+      },
     ))
   }
 }
@@ -275,11 +322,11 @@ impl WASMCtx {
 impl ZKWASMCtx for WASMCtx {
   type T = ();
 
-  fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
+  fn store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
     wasmi::Store::new(engine, ())
   }
 
-  fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+  fn linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
     Ok(<wasmi::Linker<()>>::new(engine))
   }
 
@@ -317,12 +364,12 @@ pub mod wasi {
       &self.args
     }
 
-    fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
+    fn store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
       let wasi = WasiCtx::new(zkvm_random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
       wasmi::Store::new(engine, wasi)
     }
 
-    fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+    fn linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
       let mut linker = <wasmi::Linker<WasiCtx>>::new(engine);
       wasmi_wasi::add_to_linker(&mut linker, |ctx| ctx)?;
       Ok(linker)
@@ -333,6 +380,14 @@ pub mod wasi {
   pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
     Box::new(StdRng::from_seed([0; 32]))
   }
+}
+
+/// Holds the initial memory data from vm execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InitMemData {
+  pub(crate) init_memory: Vec<(usize, u64, u64)>,
+  pub(crate) memory_size: ISMemSizes,
+  pub(crate) global_ts: u64,
 }
 
 /// # Initial Set (IS) Memory Sizes.
@@ -363,5 +418,53 @@ impl ISMemSizes {
   /// Get the memory length
   pub fn mem_len(&self) -> usize {
     self.IS_mem_len
+  }
+}
+
+mod utils {
+  use wasmi::WitnessVM;
+
+  use crate::wasm_snark::{memory_ops_trace, StepSize};
+
+  use super::ISMemSizes;
+
+  /// Helper function to construct initial zkvm memory when WASM program is being sharded
+  pub fn shard_init_memory(
+    init_memory: &mut [(usize, u64, u64)],
+    memory_sizes: ISMemSizes,
+    is_sharded: bool,
+    shard_size: usize,
+    step_size: StepSize,
+    init_execution_trace: Vec<WitnessVM>,
+    global_ts: &mut u64,
+  ) {
+    // Calculate shard size
+    let sharding_pad_len = if shard_size % step_size.execution != 0 && is_sharded {
+      step_size.execution - (shard_size % step_size.execution)
+    } else {
+      0
+    };
+
+    init_execution_trace.iter().enumerate().for_each(|(i, vm)| {
+      if i != 0 && i % shard_size == 0 {
+        init_memory_ts_padding(sharding_pad_len, init_memory, global_ts, memory_sizes);
+      }
+      let _ = memory_ops_trace(vm, init_memory, global_ts, memory_sizes);
+    });
+    if !init_execution_trace.is_empty() && is_sharded {
+      init_memory_ts_padding(sharding_pad_len, init_memory, global_ts, memory_sizes);
+    }
+  }
+
+  // Add the timestamp padding to the IS multiset
+  fn init_memory_ts_padding(
+    sharding_pad_len: usize,
+    init_memory: &mut [(usize, u64, u64)],
+    global_ts: &mut u64,
+    mem_sizes: ISMemSizes,
+  ) {
+    for _ in 0..sharding_pad_len {
+      let _ = memory_ops_trace(&WitnessVM::default(), init_memory, global_ts, mem_sizes);
+    }
   }
 }
