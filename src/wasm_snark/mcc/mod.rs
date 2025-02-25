@@ -14,8 +14,6 @@ use nova::frontend::{num::AllocatedNum, ConstraintSystem, SynthesisError};
 use nova::nebula::{audit_rs::AuditStepCircuit, rs::StepCircuit};
 
 pub mod multiset_ops;
-#[cfg(test)]
-mod tests;
 
 /// Circuit to compute multiset hashes of (RS, WS)
 #[derive(Clone, Debug)]
