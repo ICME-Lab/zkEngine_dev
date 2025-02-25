@@ -131,95 +131,6 @@ impl Default for WASMArgsBuilder {
   }
 }
 
-/// Used to set start and end values to slice execution trace. Used in sharding/continuations
-#[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
-pub struct TraceSliceValues {
-  /// Start opcode
-  pub(crate) start: usize,
-  /// End opcode
-  pub(crate) end: Option<NonZeroUsize>,
-}
-
-impl TraceSliceValues {
-  /// Build new [`TraceSliceValues`]
-  ///
-  /// # Note:
-  ///
-  /// if end does not equal 0 start value cannot be greater than or equal to end value
-  pub fn new(start: usize, end: Option<NonZeroUsize>) -> Self {
-    TraceSliceValues { start, end }
-  }
-
-  /// Get start value
-  pub fn start(&self) -> usize {
-    self.start
-  }
-
-  /// Get end value
-  pub fn end(&self) -> Option<NonZeroUsize> {
-    self.end
-  }
-
-  /// Setter for start value
-  pub fn set_start(&mut self, start: usize) {
-    self.start = start;
-  }
-
-  /// Setter for end value
-  pub fn set_end(&mut self, end: Option<NonZeroUsize>) {
-    self.end = end;
-  }
-
-  /// Calculate the shard_size
-  pub fn shard_size(&self) -> Option<usize> {
-    self.end.and_then(|end| end.get().checked_sub(self.start))
-  }
-}
-
-/// Execution trace, Initial memory trace, Initial stack trace length, Initial linear memory length
-pub type ExecutionTrace = (Vec<WitnessVM>, InitMemData);
-
-impl MemorySetupTrait for ExecutionTrace {
-  fn setup_init_memory(self, args: &WASMArgs, step_size: StepSize) -> Result<Self, ZKWASMError> {
-    let (init_execution_trace, init_memory_data) = self;
-    let InitMemData {
-      mut init_memory,
-      memory_size,
-      mut global_ts,
-    } = init_memory_data;
-    //  --- Construct IS multiset ---
-    //
-    // Split the execution trace at `TraceSliceValues` `start` value. Use the first split to
-    // construct IS and use the second split for the actual proving of the shard
-    let (init_execution_trace, execution_trace) = split_vector(init_execution_trace, args.start());
-    // If we are proving a shard of a WASM program: calculate shard size & construct correct shard IS
-    utils::shard_init_memory(
-      &mut init_memory,
-      memory_size,
-      args.is_sharded(),
-      args.shard_size().unwrap_or(execution_trace.len()),
-      step_size,
-      init_execution_trace,
-      &mut global_ts,
-    );
-    Ok((
-      execution_trace,
-      InitMemData {
-        init_memory,
-        memory_size,
-        global_ts,
-      },
-    ))
-  }
-}
-
-pub(crate) trait MemorySetupTrait
-where
-  Self: Sized,
-{
-  fn setup_init_memory(self, ctx: &WASMArgs, step_size: StepSize) -> Result<Self, ZKWASMError>;
-}
-
 /// Definition for WASM execution context
 pub trait ZKWASMCtx {
   /// Data type used in wasmi::Store
@@ -306,6 +217,50 @@ pub trait ZKWASMCtx {
   }
 }
 
+/// Execution trace, Initial memory trace, Initial stack trace length, Initial linear memory length
+pub type ExecutionTrace = (Vec<WitnessVM>, InitMemData);
+
+impl MemorySetupTrait for ExecutionTrace {
+  fn setup_init_memory(self, args: &WASMArgs, step_size: StepSize) -> Result<Self, ZKWASMError> {
+    let (init_execution_trace, init_memory_data) = self;
+    let InitMemData {
+      mut init_memory,
+      memory_size,
+      mut global_ts,
+    } = init_memory_data;
+    //  --- Construct IS multiset ---
+    //
+    // Split the execution trace at `TraceSliceValues` `start` value. Use the first split to
+    // construct IS and use the second split for the actual proving of the shard
+    let (init_execution_trace, execution_trace) = split_vector(init_execution_trace, args.start());
+    // If we are proving a shard of a WASM program: calculate shard size & construct correct shard IS
+    utils::shard_init_memory(
+      &mut init_memory,
+      memory_size,
+      args.is_sharded(),
+      args.shard_size().unwrap_or(execution_trace.len()),
+      step_size,
+      init_execution_trace,
+      &mut global_ts,
+    );
+    Ok((
+      execution_trace,
+      InitMemData {
+        init_memory,
+        memory_size,
+        global_ts,
+      },
+    ))
+  }
+}
+
+pub(crate) trait MemorySetupTrait
+where
+  Self: Sized,
+{
+  fn setup_init_memory(self, args: &WASMArgs, step_size: StepSize) -> Result<Self, ZKWASMError>;
+}
+
 #[derive(Debug, Clone)]
 /// A type used to construct a WASM execution context used for proving.
 pub struct WASMCtx {
@@ -379,6 +334,51 @@ pub mod wasi {
   /// zkvm uses a seed to generate random numbers.
   pub fn zkvm_random_ctx() -> Box<dyn RngCore + Send + Sync> {
     Box::new(StdRng::from_seed([0; 32]))
+  }
+}
+
+/// Used to set start and end values to slice execution trace. Used in sharding/continuations
+#[derive(Debug, Clone, Default, Copy, Serialize, Deserialize)]
+pub struct TraceSliceValues {
+  /// Start opcode
+  pub(crate) start: usize,
+  /// End opcode
+  pub(crate) end: Option<NonZeroUsize>,
+}
+
+impl TraceSliceValues {
+  /// Build new [`TraceSliceValues`]
+  ///
+  /// # Note:
+  ///
+  /// if end does not equal 0 start value cannot be greater than or equal to end value
+  pub fn new(start: usize, end: Option<NonZeroUsize>) -> Self {
+    TraceSliceValues { start, end }
+  }
+
+  /// Get start value
+  pub fn start(&self) -> usize {
+    self.start
+  }
+
+  /// Get end value
+  pub fn end(&self) -> Option<NonZeroUsize> {
+    self.end
+  }
+
+  /// Setter for start value
+  pub fn set_start(&mut self, start: usize) {
+    self.start = start;
+  }
+
+  /// Setter for end value
+  pub fn set_end(&mut self, end: Option<NonZeroUsize>) {
+    self.end = end;
+  }
+
+  /// Calculate the shard_size
+  pub fn shard_size(&self) -> Option<usize> {
+    self.end.and_then(|end| end.get().checked_sub(self.start))
   }
 }
 
