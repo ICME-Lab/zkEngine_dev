@@ -1,9 +1,6 @@
 //! Utility code
 
-use crate::{
-  error::ZKWASMError,
-  wasm_ctx::{ExecutionTrace, ZKWASMCtx},
-};
+use crate::{error::ZKWASMError, wasm_ctx::ZKWASMCtx};
 use std::{cell::RefCell, rc::Rc};
 
 /// Get inner value of [`Rc<RefCell<T>>`]
@@ -18,9 +15,15 @@ pub(crate) fn unwrap_rc_refcell<T>(last_elem: Rc<RefCell<T>>) -> T {
 }
 
 #[tracing::instrument(skip_all, name = "estimate_wasm")]
-/// Get estimations of the WASM execution trace size
-pub fn estimate_wasm(program: &impl ZKWASMCtx) -> Result<ExecutionTrace, ZKWASMError> {
-  program.execution_trace()
+/// Get estimations of the WASM execution trace size.
+///
+/// # Returns
+/// * length of execution trace
+/// * memory size
+pub fn estimate_wasm(program: &impl ZKWASMCtx) -> Result<(usize, usize), ZKWASMError> {
+  let (execution_trace, mem_data) = program.execution_trace()?;
+  let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
+  Ok((shard_size, mem_data.init_memory.len()))
 }
 
 /// Split vector and return Vec's
@@ -55,7 +58,7 @@ mod test {
   }
 
   fn test_count_with(program: &impl ZKWASMCtx) {
-    let (vms, _, _) = program.execution_trace().unwrap();
+    let (vms, _) = program.execution_trace().unwrap();
     println!("vms.len(): {:#?}", vms.len());
 
     let opcodes_count = count_opcodes(&vms);
