@@ -83,8 +83,8 @@ impl Tracer {
         self.IS_mem.len()
     }
 
-    /// Getter for IS
-    pub fn IS(&self) -> Vec<(usize, u64, u64)> {
+    /// Getter for initial zkvm memory
+    pub fn init_memory(&self) -> Vec<(usize, u64, u64)> {
         let mut IS = self.IS_stack();
         let stack_len = IS.len();
         let linear_mem_len = self.IS_mem.len();
