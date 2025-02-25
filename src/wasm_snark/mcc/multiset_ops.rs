@@ -9,11 +9,11 @@ use wasmi::{Instruction as Instr, WitnessVM};
 ///
 /// It is ok to have `FS` and `global_ts` as mutable references since they are used to represent an
 /// untrusted memory which inherently is mutable.
-pub fn step_RS_WS(
+pub fn memory_ops_trace(
   vm: &WitnessVM,
   FS: &mut [(usize, u64, u64)],
   global_ts: &mut u64,
-  IS_sizes: &ISMemSizes,
+  IS_sizes: ISMemSizes,
 ) -> (
   Vec<(usize, u64, u64)>, // RS
   Vec<(usize, u64, u64)>, // WS
