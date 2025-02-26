@@ -210,7 +210,7 @@ pub trait ZKWASMCtx {
       execution_trace,
       InitMemData {
         init_memory,
-        memory_size: ISMemSizes::new(init_stack_len, init_mem_len),
+        memory_size: MemorySize::new(init_stack_len, init_mem_len),
         global_ts: 0,
       },
     ))
@@ -386,7 +386,7 @@ impl TraceSliceValues {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitMemData {
   pub(crate) init_memory: Vec<(usize, u64, u64)>,
-  pub(crate) memory_size: ISMemSizes,
+  pub(crate) memory_size: MemorySize,
   pub(crate) global_ts: u64,
 }
 
@@ -396,13 +396,13 @@ pub struct InitMemData {
 /// We need to know the sizes of the stack and linear
 /// memory of the WASM module to initialize the initial memory state of the zkVM.
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
-pub struct ISMemSizes {
+pub struct MemorySize {
   IS_stack_len: usize,
   IS_mem_len: usize,
 }
 
-impl ISMemSizes {
-  /// Create a new instance of [`ISMemSizes`]
+impl MemorySize {
+  /// Create a new instance of [`MemorySize`]
   pub fn new(IS_stack_len: usize, IS_mem_len: usize) -> Self {
     Self {
       IS_stack_len,
@@ -424,14 +424,14 @@ impl ISMemSizes {
 mod utils {
   use wasmi::WitnessVM;
 
-  use crate::wasm_snark::{memory_ops_trace, StepSize};
+  use crate::wasm_snark::{memory_trace::memory_ops_trace, StepSize};
 
-  use super::ISMemSizes;
+  use super::MemorySize;
 
   /// Helper function to construct initial zkvm memory when WASM program is being sharded
   pub fn shard_init_memory(
     init_memory: &mut [(usize, u64, u64)],
-    memory_sizes: ISMemSizes,
+    memory_sizes: MemorySize,
     is_sharded: bool,
     shard_size: usize,
     step_size: StepSize,
@@ -461,7 +461,7 @@ mod utils {
     sharding_pad_len: usize,
     init_memory: &mut [(usize, u64, u64)],
     global_ts: &mut u64,
-    mem_sizes: ISMemSizes,
+    mem_sizes: MemorySize,
   ) {
     for _ in 0..sharding_pad_len {
       let _ = memory_ops_trace(&WitnessVM::default(), init_memory, global_ts, mem_sizes);

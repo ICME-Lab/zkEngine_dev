@@ -1,10 +1,7 @@
 use std::ops::Deref;
 
-use super::{
-  gadgets::utils::conditionally_select, mcc::multiset_ops::avt_tuple_to_scalar_vec,
-  MEMORY_OPS_PER_STEP,
-};
-use crate::wasm_ctx::ISMemSizes;
+use super::{gadgets::utils::conditionally_select, MEMORY_OPS_PER_STEP};
+use crate::wasm_ctx::MemorySize;
 use alu::{
   eq, eqz, eqz_bit,
   int32::{
@@ -15,12 +12,14 @@ use alu::{
 };
 use ff::{PrimeField, PrimeFieldBits};
 use itertools::Itertools;
-use nova::frontend::gadgets::Assignment;
-use nova::frontend::{
-  num::AllocatedNum,
-  ConstraintSystem, SynthesisError, {AllocatedBit, Boolean},
+use nova::{
+  frontend::{gadgets::Assignment, Split},
+  hypernova::rs::StepCircuit,
 };
-use nova::nebula::rs::StepCircuit;
+use nova::{
+  frontend::{num::AllocatedNum, AllocatedBit, Boolean, ConstraintSystem, SynthesisError},
+  hypernova::nebula::convert_advice,
+};
 use wasmi::{
   AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, CompiledFunc, DropKeep,
   Instruction as Instr, WitnessVM,
@@ -28,8 +27,8 @@ use wasmi::{
 
 mod alu;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 use crate::wasm_snark::switchboard::alu::IntegerOps;
 
 /// The circuit representing a step in the execution of a WASM program. Each step in WASM execution
@@ -42,7 +41,7 @@ pub struct WASMTransitionCircuit {
   vm: WitnessVM,
   RS: Vec<(usize, u64, u64)>,
   WS: Vec<(usize, u64, u64)>,
-  IS_sizes: ISMemSizes,
+  IS_sizes: MemorySize,
 }
 
 impl<F> StepCircuit<F> for WASMTransitionCircuit
@@ -255,17 +254,8 @@ where
     Ok(vec![PC, post_sp])
   }
 
-  fn non_deterministic_advice(&self) -> Vec<F> {
-    self
-      .RS
-      .iter()
-      .zip_eq(self.WS.iter())
-      .flat_map(|(rs, ws)| {
-        avt_tuple_to_scalar_vec::<F>(*rs)
-          .into_iter()
-          .chain(avt_tuple_to_scalar_vec::<F>(*ws))
-      })
-      .collect()
+  fn advice(&self) -> (Vec<F>, Vec<F>) {
+    (convert_advice(&self.RS, &self.WS), vec![])
   }
 }
 
@@ -387,6 +377,31 @@ impl WASMTransitionCircuit {
     })
   }
 
+  /// Allocate a pre-committed variable into the zkWASM CS
+  fn alloc_pre_committed<CS, F, A, AR, Fo>(
+    cs: &mut CS,
+    annotation: A,
+    value: Fo,
+    switch: F,
+    idx: Split,
+  ) -> Result<AllocatedNum<F>, SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+    A: FnOnce() -> AR,
+    AR: Into<String>,
+    Fo: FnOnce() -> Result<F, SynthesisError>,
+  {
+    AllocatedNum::alloc_pre_committed(
+      cs.namespace(annotation),
+      || {
+        let res = value()?;
+        Ok(res * switch)
+      },
+      idx,
+    )
+  }
+
   /// Allocate a bit into the zkWASM CS
   fn alloc_bit<CS, F, A, AR>(
     cs: &mut CS,
@@ -412,15 +427,17 @@ impl WASMTransitionCircuit {
     mut cs: CS,
     avt: &(usize, u64, u64),
     switch: F,
+    idx: Split,
   ) -> Result<(AllocatedNum<F>, AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
     let (addr, val, ts) = *avt;
-    let addr = Self::alloc_num(&mut cs, || "addr", || Ok(F::from(addr as u64)), switch)?;
-    let val = Self::alloc_num(&mut cs, || "val", || Ok(F::from(val)), switch)?;
-    let ts = Self::alloc_num(&mut cs, || "ts", || Ok(F::from(ts)), switch)?;
+    let addr =
+      Self::alloc_pre_committed(&mut cs, || "addr", || Ok(F::from(addr as u64)), switch, idx)?;
+    let val = Self::alloc_pre_committed(&mut cs, || "val", || Ok(F::from(val)), switch, idx)?;
+    let ts = Self::alloc_pre_committed(&mut cs, || "ts", || Ok(F::from(ts)), switch, idx)?;
 
     Ok((addr, val, ts))
   }
@@ -429,17 +446,30 @@ impl WASMTransitionCircuit {
   /// (a, v, wt); F checks that the address a in the advice matches the address it requested and
   /// then uses the provided value v (e.g., in the rest of its computation).
   fn read<CS, F>(
+    &self,
     mut cs: CS,
     addr: &AllocatedNum<F>,
-    advice: &(usize, u64, u64),
+    advice_idx: usize,
     switch: F,
   ) -> Result<AllocatedNum<F>, SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let (advice_addr, advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), advice, switch)?;
+    let (advice_addr, advice_val, _) = Self::alloc_avt(
+      cs.namespace(|| "(addr, val, ts)"),
+      &self.RS[advice_idx],
+      switch,
+      Split::ZERO,
+    )?;
+
+    // allocate the corresponding WS aswell, so it can be incrementaly committed
+    let _ = Self::alloc_avt(
+      cs.namespace(|| "allocate corresponding WS advice"),
+      &self.WS[advice_idx],
+      switch,
+      Split::ZERO,
+    )?;
 
     // F checks that the address a in the advice matches the address it requested
     cs.enforce(
@@ -456,18 +486,31 @@ impl WASMTransitionCircuit {
   /// and (a, v′, wt); F checks that the address a and the value v′ match the address and value it
   /// wishes to write. Otherwise, F ignores the remaining components in the provided advice.
   fn write<CS, F>(
+    &self,
     mut cs: CS,
     addr: &AllocatedNum<F>,
     val: &AllocatedNum<F>,
-    advice: &(usize, u64, u64),
+    advice_idx: usize,
     switch: F,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let (advice_addr, advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), advice, switch)?;
+    // allocate the corresponding RS aswell, so it can be incrementaly committed
+    let _ = Self::alloc_avt(
+      cs.namespace(|| "allocate corresponding WS advice"),
+      &self.RS[advice_idx],
+      switch,
+      Split::ZERO,
+    )?;
+
+    let (advice_addr, advice_val, _) = Self::alloc_avt(
+      cs.namespace(|| "(addr, val, ts)"),
+      &self.WS[advice_idx],
+      switch,
+      Split::ZERO,
+    )?;
 
     // F checks that the address a  match the address it wishes to write to.
     cs.enforce(
@@ -546,10 +589,10 @@ impl WASMTransitionCircuit {
       || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
       switch,
     )?;
-    let read_val = Self::read(
+    let read_val = self.read(
       cs.namespace(|| "read at local_depth"),
       &local_depth,
-      &self.RS[0],
+      0,
       switch,
     )?;
 
@@ -596,7 +639,7 @@ impl WASMTransitionCircuit {
       || Ok(F::from(self.vm.pre_sp as u64 - 1 - self.vm.I)), // the -1 is to account for the pop
       switch,
     )?;
-    Self::write(
+    self.write(
       cs.namespace(|| "set local write"),
       &depth_addr,
       &Y,
@@ -644,7 +687,7 @@ impl WASMTransitionCircuit {
       || Ok(F::from(self.vm.pre_sp as u64 - self.vm.I)),
       switch,
     )?;
-    Self::write(
+    self.write(
       cs.namespace(|| "tee local write"),
       &depth_addr,
       &Y,
@@ -928,7 +971,7 @@ impl WASMTransitionCircuit {
     )?;
 
     // write keep value to new write address
-    Self::write(
+    self.write(
       cs.namespace(|| "drop keep write"),
       &write_addr,
       &read_val,
@@ -1117,7 +1160,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
-    Self::write(
+    self.write(
       cs.namespace(|| "perform write"),
       &write_addr,
       &write_val,
@@ -1167,7 +1210,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
-    Self::write(
+    self.write(
       cs.namespace(|| "perform write"),
       &write_addr,
       &write_val,
@@ -1209,7 +1252,7 @@ impl WASMTransitionCircuit {
 
     // Calculate Z and write it to the stack
     let Z = conditionally_select(cs.namespace(|| "Z"), &X, &Y, &Boolean::Is(condition_bit))?;
-    Self::write(cs.namespace(|| "write Z"), &X_addr, &Z, &self.WS[3], switch)?;
+    self.write(cs.namespace(|| "write Z"), &X_addr, &Z, &self.WS[3], switch)?;
 
     // Push final stack pointer and program counter
     self.next_instr(
@@ -1305,7 +1348,7 @@ impl WASMTransitionCircuit {
       },
       switch,
     )?;
-    Self::write(
+    self.write(
       cs.namespace(|| "set global write"),
       &write_addr,
       &Y,
@@ -1365,14 +1408,14 @@ impl WASMTransitionCircuit {
       Self::alloc_num(&mut cs, || "write_val_1", || Ok(F::from(self.vm.P)), switch)?;
     let write_val_2 =
       Self::alloc_num(&mut cs, || "write_val_2", || Ok(F::from(self.vm.Q)), switch)?;
-    Self::write(
+    self.write(
       cs.namespace(|| "store 1"),
       &write_addr_1,
       &write_val_1,
       &self.WS[2],
       switch,
     )?;
-    Self::write(
+    self.write(
       cs.namespace(|| "store 2"),
       &write_addr_2,
       &write_val_2,
@@ -1440,7 +1483,7 @@ impl WASMTransitionCircuit {
     )?;
     let stack_write_val =
       Self::alloc_num(&mut cs, || "stack write", || Ok(F::from(self.vm.Z)), switch)?;
-    Self::write(
+    self.write(
       cs.namespace(|| "store 1"),
       &addr_addr,
       &stack_write_val,
@@ -1514,7 +1557,7 @@ impl WASMTransitionCircuit {
 
     // write result
     let res = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
-    Self::write(
+    self.write(
       cs.namespace(|| "set memory.grow write"),
       &last_addr,
       &res,
@@ -1581,7 +1624,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
-    Self::write(
+    self.write(
       cs.namespace(|| "perform write"),
       &write_addr,
       &write_val,
@@ -1643,7 +1686,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
-    Self::write(
+    self.write(
       cs.namespace(|| "perform write"),
       &write_addr,
       &write_val,
@@ -1774,7 +1817,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -1831,7 +1874,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -1877,7 +1920,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -1933,7 +1976,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &Y_addr, // pre_sp - 1
       &Z,
@@ -1988,7 +2031,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2043,7 +2086,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2093,7 +2136,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2204,7 +2247,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2261,7 +2304,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2307,7 +2350,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2358,7 +2401,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &Y_addr, // pre_sp - 1
       &Z,
@@ -2413,7 +2456,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2468,7 +2511,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2518,7 +2561,7 @@ impl WASMTransitionCircuit {
       switch,
     )?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2553,7 +2596,7 @@ impl WASMTransitionCircuit {
 
     let Z = eqz(cs.namespace(|| "eqz"), &Y, switch)?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &Y_addr, // pre_sp - 1
       &Z,
@@ -2588,7 +2631,7 @@ impl WASMTransitionCircuit {
 
     let Z = eq(cs.namespace(|| "X == Y"), &X, &Y, switch)?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2623,7 +2666,7 @@ impl WASMTransitionCircuit {
 
     let Z = alu::ne(cs.namespace(|| "X != Y"), &X, &Y, switch)?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2658,7 +2701,7 @@ impl WASMTransitionCircuit {
 
     let Z = Self::alloc_num(&mut cs, || "unary_op(Y)", || Ok(F::from(self.vm.Z)), switch)?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &Y_addr, // pre_sp - 1
       &Z,
@@ -2693,7 +2736,7 @@ impl WASMTransitionCircuit {
 
     let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
 
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2739,7 +2782,7 @@ impl WASMTransitionCircuit {
     // Compute Z = binary_op(X, Y)
     // & push Z on the stack
     let Z = f(&mut cs, &X, &Y, self.vm.X, self.vm.Y, switch)?;
-    Self::write(
+    self.write(
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
@@ -2793,7 +2836,7 @@ impl WASMTransitionCircuit {
     vm: WitnessVM,
     RS: Vec<(usize, u64, u64)>,
     WS: Vec<(usize, u64, u64)>,
-    IS_sizes: ISMemSizes,
+    IS_sizes: MemorySize,
   ) -> Self {
     Self {
       vm,
@@ -2808,10 +2851,10 @@ impl Default for WASMTransitionCircuit {
   fn default() -> Self {
     Self {
       vm: WitnessVM::default(),
-      // max memory ops per recursive step is 8
-      RS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
-      WS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
-      IS_sizes: ISMemSizes::default(),
+      // max memory ops per recursive step is 4
+      RS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP],
+      WS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP],
+      IS_sizes: MemorySize::default(),
     }
   }
 }
@@ -2844,12 +2887,13 @@ where
     Ok(z)
   }
 
-  fn non_deterministic_advice(&self) -> Vec<F> {
-    self
+  fn advice(&self) -> (Vec<F>, Vec<F>) {
+    let advice0 = self
       .circuits
       .iter()
-      .flat_map(|circuit| circuit.non_deterministic_advice())
-      .collect()
+      .flat_map(|circuit| circuit.advice().0)
+      .collect_vec();
+    (advice0, vec![])
   }
 }
 

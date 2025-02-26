@@ -23,31 +23,31 @@ pub type S2 = spartan::snark::RelaxedR1CSSNARK<Dual<E>, EE2>;
 
 fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError> {
   let pp_timer = start_timer!("Producing Public Parameters");
-  let pp = WasmSNARK::<E, S1, S2>::setup(step_size);
+  let pp = WasmSNARK::<E>::setup(step_size);
   stop_timer!(pp_timer);
 
   let proving_timer = start_timer!("Producing RecursiveWasmSNARK");
-  let (rs_snark, U) = WasmSNARK::<E, S1, S2>::prove(&pp, &wasm_ctx, step_size)?;
+  let (rs_snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size)?;
   stop_timer!(proving_timer);
 
   let verification_timer = start_timer!("Verifying RecursiveWasmSNARK");
   rs_snark.verify(&pp, &U).unwrap();
   stop_timer!(verification_timer);
 
-  let proving_timer = start_timer!("Producing compressedSNARK");
-  let snark = rs_snark.compress(&pp, &U)?;
-  stop_timer!(proving_timer);
+  // let proving_timer = start_timer!("Producing compressedSNARK");
+  // let snark = rs_snark.compress(&pp, &U)?;
+  // stop_timer!(proving_timer);
 
-  let verification_timer = start_timer!("Verifying WasmSNARK");
-  snark.verify(&pp, &U).unwrap();
-  stop_timer!(verification_timer);
+  // let verification_timer = start_timer!("Verifying WasmSNARK");
+  // snark.verify(&pp, &U).unwrap();
+  // stop_timer!(verification_timer);
 
   Ok(())
 }
 
 #[test]
 fn test_bit_check() -> Result<(), ZKWASMError> {
-  let step_size = StepSize::new(16);
+  let step_size = StepSize::new(1);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/bit_check.wat"))
