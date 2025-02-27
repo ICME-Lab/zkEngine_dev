@@ -9,7 +9,7 @@ use crate::utils::{
 };
 use nova::{
   provider::{ipa_pc, Bn256EngineIPA},
-  spartan,
+  spartan::{self, lin_snark::LinearizedR1CSSNARK},
   traits::Dual,
 };
 use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
@@ -18,16 +18,16 @@ use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
 pub type E = Bn256EngineIPA;
 pub type EE1 = ipa_pc::EvaluationEngine<E>;
 pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
-pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
+pub type S1 = LinearizedR1CSSNARK<E, EE1>;
 pub type S2 = spartan::snark::RelaxedR1CSSNARK<Dual<E>, EE2>;
 
 fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError> {
   let pp_timer = start_timer!("Producing Public Parameters");
-  let pp = WasmSNARK::<E>::setup(step_size);
+  let pp = WasmSNARK::<E, S1, S2>::setup(step_size);
   stop_timer!(pp_timer);
 
   let proving_timer = start_timer!("Producing RecursiveWasmSNARK");
-  let (rs_snark, U) = WasmSNARK::<E>::prove(&pp, &wasm_ctx, step_size)?;
+  let (rs_snark, U) = WasmSNARK::<E, S1, S2>::prove(&pp, &wasm_ctx, step_size)?;
   stop_timer!(proving_timer);
 
   let verification_timer = start_timer!("Verifying RecursiveWasmSNARK");
@@ -47,7 +47,7 @@ fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result
 
 #[test]
 fn test_bit_check() -> Result<(), ZKWASMError> {
-  let step_size = StepSize::new(1);
+  let step_size = StepSize::new(16);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
     .file_path(PathBuf::from("wasm/nebula/bit_check.wat"))

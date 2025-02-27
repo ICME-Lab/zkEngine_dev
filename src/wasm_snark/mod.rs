@@ -14,7 +14,10 @@ use nova::{
     NebulaInstance, NebulaPublicParams, NebulaSNARK, RecursiveSNARKEngine,
     StepSize as NebulaStepSize,
   },
-  traits::{CurveCycleEquipped, Engine},
+  traits::{
+    snark::{LinearizedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
+    CurveCycleEquipped, Dual, Engine,
+  },
   NovaError,
 };
 use serde::{Deserialize, Serialize};
@@ -31,21 +34,25 @@ pub const MEMORY_OPS_PER_STEP: usize = 4;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 /// A SNARK that proves the correct execution of a WASM modules execution
-pub struct WasmSNARK<E>
+pub struct WasmSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
+  S1: LinearizedR1CSSNARKTrait<E>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
-  nebula_snark: NebulaSNARK<E, MEMORY_OPS_PER_STEP>,
+  nebula_snark: NebulaSNARK<E, S1, S2, MEMORY_OPS_PER_STEP>,
 }
 
-impl<E> WasmSNARK<E>
+impl<E, S1, S2> WasmSNARK<E, S1, S2>
 where
   E: CurveCycleEquipped,
   <E as Engine>::Scalar: PartialOrd,
+  S1: LinearizedR1CSSNARKTrait<E>,
+  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
-  pub fn setup(step_size: StepSize) -> NebulaPublicParams<E, MEMORY_OPS_PER_STEP> {
+  pub fn setup(step_size: StepSize) -> NebulaPublicParams<E, S1, S2, MEMORY_OPS_PER_STEP> {
     NebulaSNARK::setup(
       &BatchedWasmTransitionCircuit::empty(step_size.execution),
       step_size.into(),
@@ -55,7 +62,7 @@ where
   #[tracing::instrument(skip_all, name = "WasmSNARK::prove")]
   /// Produce a SNARK for WASM execution context
   pub fn prove(
-    pp: &NebulaPublicParams<E, MEMORY_OPS_PER_STEP>,
+    pp: &NebulaPublicParams<E, S1, S2, MEMORY_OPS_PER_STEP>,
     program: &impl ZKWASMCtx,
     step_size: StepSize,
   ) -> Result<(Self, NebulaInstance<E>), ZKWASMError> {
@@ -87,7 +94,7 @@ where
   /// Verify a SNARK for WASM execution context
   pub fn verify(
     &self,
-    pp: &NebulaPublicParams<E, MEMORY_OPS_PER_STEP>,
+    pp: &NebulaPublicParams<E, S1, S2, MEMORY_OPS_PER_STEP>,
     U: &NebulaInstance<E>,
   ) -> Result<(), ZKWASMError> {
     self.nebula_snark.verify(pp, U).map_err(Into::into)
