@@ -230,9 +230,10 @@ pub trait ZKWASMCtx {
     //
     // [`unwrap_rc_refcell`] is safe to use here since this parent function ensures that the [`Rc`]
     // is the sole owner of the execution trace.
-    let tracer = unwrap_rc_refcell(tracer);
+    let mut tracer = unwrap_rc_refcell(tracer);
 
     // Get the MCC values used to construct the initial memory state of the zkWASM.
+    tracer.truncate_unuesed_mem();
     let IS_stack_len = tracer.IS_stack_len();
     let IS_mem_len = tracer.IS_mem_len();
     let IS = tracer.IS();

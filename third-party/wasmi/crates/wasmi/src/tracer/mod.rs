@@ -98,6 +98,44 @@ impl Tracer {
         IS
     }
 
+    /// Truncate unused linear memory address
+    pub fn truncate_unuesed_mem(&mut self) {
+        let highest_address = self
+            .execution_trace
+            .iter()
+            .filter_map(|vm| match vm.instr {
+                Instruction::I32Load(_offset)
+                | Instruction::I64Load(_offset)
+                | Instruction::F32Load(_offset)
+                | Instruction::F64Load(_offset)
+                | Instruction::I32Load8S(_offset)
+                | Instruction::I32Load8U(_offset)
+                | Instruction::I32Load16S(_offset)
+                | Instruction::I32Load16U(_offset)
+                | Instruction::I64Load8S(_offset)
+                | Instruction::I64Load8U(_offset)
+                | Instruction::I64Load16S(_offset)
+                | Instruction::I64Load16U(_offset)
+                | Instruction::I64Load32S(_offset)
+                | Instruction::I64Load32U(_offset)
+                | Instruction::I32Store(_offset)
+                | Instruction::I64Store(_offset)
+                | Instruction::F32Store(_offset)
+                | Instruction::F64Store(_offset)
+                | Instruction::I32Store8(_offset)
+                | Instruction::I32Store16(_offset)
+                | Instruction::I64Store8(_offset)
+                | Instruction::I64Store16(_offset)
+                | Instruction::I64Store32(_offset) => Some(vm.I),
+                _ => None,
+            })
+            .max();
+
+        // Truncate to the largest 8-byte chunk that can accommodate the used highest address.
+        let new_len = highest_address.map_or(0, |addr| (addr / 7) + 1);
+        self.IS_mem.truncate(new_len as usize);
+    }
+
     /// Push initial heap/linear WASM memory to tracer for MCC
     pub fn push_init_memory(&mut self, memref: Memory, context: impl AsContext) {
         let pages: u32 = memref.ty(&context).initial_pages().into();
