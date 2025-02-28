@@ -104,7 +104,7 @@ impl Tracer {
             .execution_trace
             .iter()
             .filter_map(|vm| match vm.instr {
-                Instruction::I32Load(_offset)
+                | Instruction::I32Load(_offset)
                 | Instruction::I64Load(_offset)
                 | Instruction::F32Load(_offset)
                 | Instruction::F64Load(_offset)
@@ -127,6 +127,19 @@ impl Tracer {
                 | Instruction::I64Store8(_offset)
                 | Instruction::I64Store16(_offset)
                 | Instruction::I64Store32(_offset) => Some(vm.I),
+
+                | Instruction::MemoryFill
+                | Instruction::MemoryCopy => {
+                    let size = vm.I;
+                    let offset = vm.X;
+                    Some(offset + size)
+                },
+                | Instruction::MemoryInit(data_segment_index)
+                | Instruction::DataDrop(data_segment_index) => {
+                    println!("memory.init or datadrop: {:?}, data_segment_index: {:?}", vm.I, data_segment_index);
+                    None
+                }
+
                 _ => None,
             })
             .max();
