@@ -136,10 +136,10 @@ impl Tracer {
                 },
                 | Instruction::MemoryInit(data_segment_index)
                 | Instruction::DataDrop(data_segment_index) => {
+                    println!("MemoryInit and DataDrop are not supported");
                     println!("memory.init or datadrop: {:?}, data_segment_index: {:?}", vm.I, data_segment_index);
-                    None
+                    unimplemented!();
                 }
-
                 _ => None,
             })
             .max();
