@@ -6,9 +6,6 @@ use crate::{
 };
 use nova::frontend::ConstraintSystem;
 use nova::frontend::{num::AllocatedNum, test_cs::TestConstraintSystem};
-use nova::hypernova::nebula::api::RecursiveSNARKEngine;
-use nova::hypernova::rs::StepCircuit;
-use nova::{provider::Bn256EngineIPA, traits::CurveCycleEquipped};
 use std::path::PathBuf;
 
 pub type E = Bn256EngineIPA;

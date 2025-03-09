@@ -10,15 +10,12 @@ use itertools::Itertools;
 
 use memory_trace::memory_ops_trace;
 use nova::{
-  hypernova::nebula::api::{
+  errors::NovaError,
+  nova::nebula::api::{
     NebulaInstance, NebulaPublicParams, NebulaSNARK, RecursiveSNARKEngine,
     StepSize as NebulaStepSize,
   },
-  traits::{
-    snark::{LinearizedR1CSSNARKTrait, RelaxedR1CSSNARKTrait},
-    CurveCycleEquipped, Dual, Engine,
-  },
-  NovaError,
+  traits::{snark::RelaxedR1CSSNARKTrait, Engine},
 };
 use serde::{Deserialize, Serialize};
 use switchboard::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
@@ -34,38 +31,43 @@ pub const MEMORY_OPS_PER_STEP: usize = 4;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(bound = "")]
 /// A SNARK that proves the correct execution of a WASM modules execution
-pub struct WasmSNARK<E, S1, S2>
+pub struct WasmSNARK<E1, E2, S1, S2>
 where
-  E: CurveCycleEquipped,
-  S1: LinearizedR1CSSNARKTrait<E>,
-  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
 {
-  nebula_snark: NebulaSNARK<E, S1, S2, MEMORY_OPS_PER_STEP>,
+  nebula_snark: NebulaSNARK<E1, E2, S1, S2, MEMORY_OPS_PER_STEP>,
 }
 
-impl<E, S1, S2> WasmSNARK<E, S1, S2>
+impl<E1, E2, S1, S2> WasmSNARK<E1, E2, S1, S2>
 where
-  E: CurveCycleEquipped,
-  <E as Engine>::Scalar: PartialOrd,
-  S1: LinearizedR1CSSNARKTrait<E>,
-  S2: RelaxedR1CSSNARKTrait<Dual<E>>,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
+  S1: RelaxedR1CSSNARKTrait<E1>,
+  S2: RelaxedR1CSSNARKTrait<E2>,
+  <E1 as Engine>::Scalar: PartialOrd,
 {
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
-  pub fn setup(step_size: StepSize) -> NebulaPublicParams<E, S1, S2, MEMORY_OPS_PER_STEP> {
+  pub fn setup(
+    step_size: StepSize,
+  ) -> Result<NebulaPublicParams<E1, E2, S1, S2, MEMORY_OPS_PER_STEP>, ZKWASMError> {
     NebulaSNARK::setup(
       &BatchedWasmTransitionCircuit::empty(step_size.execution),
       step_size.into(),
     )
+    .map_err(Into::into)
   }
 
   #[tracing::instrument(skip_all, name = "WasmSNARK::prove")]
   /// Produce a SNARK for WASM execution context
   pub fn prove(
-    pp: &NebulaPublicParams<E, S1, S2, MEMORY_OPS_PER_STEP>,
+    pp: &NebulaPublicParams<E1, E2, S1, S2, MEMORY_OPS_PER_STEP>,
     program: &impl ZKWASMCtx,
     step_size: StepSize,
-  ) -> Result<(Self, NebulaInstance<E>), ZKWASMError> {
+  ) -> Result<(Self, NebulaInstance<E1>), ZKWASMError> {
     let (execution_trace, (init_memory, final_memory, read_ops, write_ops), memory_size) =
       WASMVirtualMachine::execution_and_memory_trace(program, step_size)?;
 
@@ -94,8 +96,8 @@ where
   /// Verify a SNARK for WASM execution context
   pub fn verify(
     &self,
-    pp: &NebulaPublicParams<E, S1, S2, MEMORY_OPS_PER_STEP>,
-    U: &NebulaInstance<E>,
+    pp: &NebulaPublicParams<E1, E2, S1, S2, MEMORY_OPS_PER_STEP>,
+    U: &NebulaInstance<E1>,
   ) -> Result<(), ZKWASMError> {
     self.nebula_snark.verify(pp, U).map_err(Into::into)
   }
@@ -211,9 +213,10 @@ impl FetchDecodeExecuteEngine {
   }
 }
 
-impl<E> RecursiveSNARKEngine<E> for FetchDecodeExecuteEngine
+impl<E1, E2> RecursiveSNARKEngine<E1, E2> for FetchDecodeExecuteEngine
 where
-  E: CurveCycleEquipped,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
   type Circuit = BatchedWasmTransitionCircuit;
 
@@ -233,11 +236,11 @@ where
     )
   }
 
-  fn z0(&self) -> Vec<E::Scalar> {
+  fn z0(&self) -> Vec<E1::Scalar> {
     // The F initial input is [pc, pre_sp]
     vec![
-      E::Scalar::from(self.execution_trace[0].pc as u64),
-      E::Scalar::from(self.execution_trace[0].pre_sp as u64),
+      E1::Scalar::from(self.execution_trace[0].pc as u64),
+      E1::Scalar::from(self.execution_trace[0].pre_sp as u64),
     ]
   }
 }

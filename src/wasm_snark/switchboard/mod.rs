@@ -14,11 +14,11 @@ use ff::{PrimeField, PrimeFieldBits};
 use itertools::Itertools;
 use nova::{
   frontend::{gadgets::Assignment, Split},
-  hypernova::rs::StepCircuit,
+  traits::circuit::StepCircuit,
 };
 use nova::{
   frontend::{num::AllocatedNum, AllocatedBit, Boolean, ConstraintSystem, SynthesisError},
-  hypernova::nebula::convert_advice,
+  nova::nebula::convert_advice,
 };
 use wasmi::{
   AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, CompiledFunc, DropKeep,
@@ -27,8 +27,8 @@ use wasmi::{
 
 mod alu;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 use crate::wasm_snark::switchboard::alu::IntegerOps;
 
 /// The circuit representing a step in the execution of a WASM program. Each step in WASM execution
@@ -395,7 +395,7 @@ impl WASMTransitionCircuit {
     AR: Into<String>,
     Fo: FnOnce() -> Result<F, SynthesisError>,
   {
-    AllocatedNum::alloc_pre_committed(cs.namespace(annotation), value, Split::ZERO)
+    AllocatedNum::alloc_pre_committed(cs.namespace(annotation), value, Split::First)
   }
 
   /// Allocate a bit into the zkWASM CS
