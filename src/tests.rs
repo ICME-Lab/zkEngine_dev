@@ -9,7 +9,7 @@ use crate::utils::{
 };
 use nova::{
   provider::{ipa_pc, Bn256EngineIPA, GrumpkinEngine},
-  spartan::{self, snark::RelaxedR1CSSNARK},
+  spartan::snark::RelaxedR1CSSNARK,
 };
 use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
 
