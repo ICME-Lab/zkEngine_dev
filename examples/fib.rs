@@ -1,10 +1,10 @@
-use nova::{
-  provider::{hyperkzg, Bn256EngineKZG, GrumpkinEngine},
-  spartan::ppsnark::RelaxedR1CSSNARK,
-};
 use std::path::PathBuf;
 use zk_engine::{
-  nova::provider::ipa_pc,
+  nova::{
+    provider::ipa_pc,
+    provider::{hyperkzg, Bn256EngineKZG, GrumpkinEngine},
+    spartan::ppsnark::RelaxedR1CSSNARK,
+  },
   {
     error::ZKWASMError,
     utils::logging::init_logger,

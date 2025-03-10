@@ -1,11 +1,11 @@
-use nova::{
-  provider::{hyperkzg, Bn256EngineKZG, GrumpkinEngine},
-  spartan::ppsnark::RelaxedR1CSSNARK,
-};
 use std::path::PathBuf;
 use zk_engine::{
   error::ZKWASMError,
-  nova::provider::ipa_pc,
+  nova::{
+    provider::ipa_pc,
+    provider::{hyperkzg, Bn256EngineKZG, GrumpkinEngine},
+    spartan::ppsnark::RelaxedR1CSSNARK,
+  },
   utils::logging::init_logger,
   wasm_ctx::{WASMArgsBuilder, WASMCtx},
   wasm_snark::{StepSize, WasmSNARK},
