@@ -101,6 +101,18 @@ where
   ) -> Result<(), ZKWASMError> {
     self.nebula_snark.verify(pp, U).map_err(Into::into)
   }
+
+  #[tracing::instrument(skip_all, name = "WasmSNARK::compress")]
+  /// Use Spartan to prove knowledge of a valid IVC proof
+  pub fn compress(
+    &self,
+    pp: &NebulaPublicParams<E1, E2, S1, S2, MEMORY_OPS_PER_STEP>,
+    U: &NebulaInstance<E1>,
+  ) -> Result<Self, ZKWASMError> {
+    Ok(Self {
+      nebula_snark: self.nebula_snark.compress(pp, U)?,
+    })
+  }
 }
 
 // IS, FS, RS, WS

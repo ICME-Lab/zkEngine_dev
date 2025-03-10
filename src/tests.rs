@@ -8,15 +8,15 @@ use crate::utils::{
   macros::{start_timer, stop_timer},
 };
 use nova::{
-  provider::{ipa_pc, Bn256EngineIPA, GrumpkinEngine},
+  provider::{hyperkzg, ipa_pc, Bn256EngineKZG, GrumpkinEngine},
   spartan::snark::RelaxedR1CSSNARK,
 };
 use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
-type E1 = Bn256EngineIPA;
+type E1 = Bn256EngineKZG;
 type E2 = GrumpkinEngine;
-type EE1 = ipa_pc::EvaluationEngine<E1>;
+type EE1 = hyperkzg::EvaluationEngine<E1>;
 type EE2 = ipa_pc::EvaluationEngine<E2>;
 type S1 = RelaxedR1CSSNARK<E1, EE1>;
 type S2 = RelaxedR1CSSNARK<E2, EE2>;
@@ -34,13 +34,13 @@ fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result
   rs_snark.verify(&pp, &U).unwrap();
   stop_timer!(verification_timer);
 
-  // let proving_timer = start_timer!("Producing compressedSNARK");
-  // let snark = rs_snark.compress(&pp, &U)?;
-  // stop_timer!(proving_timer);
+  let proving_timer = start_timer!("Producing compressedSNARK");
+  let snark = rs_snark.compress(&pp, &U)?;
+  stop_timer!(proving_timer);
 
-  // let verification_timer = start_timer!("Verifying WasmSNARK");
-  // snark.verify(&pp, &U).unwrap();
-  // stop_timer!(verification_timer);
+  let verification_timer = start_timer!("Verifying WasmSNARK");
+  snark.verify(&pp, &U).unwrap();
+  stop_timer!(verification_timer);
 
   Ok(())
 }
