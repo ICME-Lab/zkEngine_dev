@@ -1,75 +1,51 @@
-use super::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
 use crate::{
   error::ZKWASMError,
   utils::logging::init_logger,
   wasm_ctx::{wasi::WasiWASMCtx, TraceSliceValues, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
-  wasm_snark::{construct_IS, mcc::multiset_ops::step_RS_WS, split_vector, StepSize},
+  wasm_snark::{FetchDecodeExecuteEngine, StepSize, WASMVirtualMachine},
 };
-use nova::frontend::ConstraintSystem;
-use nova::frontend::{num::AllocatedNum, test_cs::TestConstraintSystem};
-use nova::nebula::rs::StepCircuit;
-use nova::{provider::Bn256EngineIPA, traits::CurveCycleEquipped};
+use nova::{
+  frontend::ConstraintSystem, nova::nebula::api::RecursiveSNARKEngine, provider::Bn256EngineIPA,
+};
+use nova::{
+  frontend::{num::AllocatedNum, test_cs::TestConstraintSystem},
+  traits::Engine,
+};
+use nova::{provider::GrumpkinEngine, traits::circuit::StepCircuit};
 use std::path::PathBuf;
-use wasmi::WitnessVM;
 
-pub type E = Bn256EngineIPA;
+pub type E1 = Bn256EngineIPA;
+pub type E2 = GrumpkinEngine;
 
-fn test_wasm_ctx_with<E>(program: &impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError>
+fn test_wasm_ctx_with<E1, E2>(
+  program: &impl ZKWASMCtx,
+  step_size: StepSize,
+) -> Result<(), ZKWASMError>
 where
-  E: CurveCycleEquipped,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
-  let (start_execution_trace, mut IS, IS_sizes) = program.execution_trace()?;
-  let start = program.args().start();
-  let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
-  // We maintain a timestamp counter `globa_ts` that is initialized to
-  // the highest timestamp value in IS.
-  let mut global_ts = 0;
+  let (execution_trace, (_, _, read_ops, write_ops), memory_size) =
+    WASMVirtualMachine::execution_and_memory_trace(program, step_size)?;
 
-  // If we are proving a shard of a WASM program: calculate shard size & construct correct shard IS
-  let is_sharded = program.args().is_sharded();
-  let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
-  construct_IS(
-    shard_size,
+  // --- Run the F (transition) circuit ---
+  //
+  // We use commitment-carrying IVC to prove the repeated execution of F
+  let mut F_engine = FetchDecodeExecuteEngine::new(
+    read_ops.clone(),
+    write_ops.clone(),
+    execution_trace,
+    memory_size,
     step_size,
-    is_sharded,
-    IS_execution_trace,
-    &mut IS,
-    &mut global_ts,
-    &IS_sizes,
   );
 
-  // Get the highest timestamp in the IS
-  tracing::debug!("execution trace: {:#?}", execution_trace);
-  tracing::info!("execution trace len: {:#?}", execution_trace.len());
-  let mut RS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
-  let mut WS: Vec<Vec<(usize, u64, u64)>> = Vec::new();
-  let mut FS = IS.clone();
-  let pad_len =
-    (step_size.execution - (execution_trace.len() % step_size.execution)) % step_size.execution;
-  execution_trace.extend((0..pad_len).map(|_| WitnessVM::default()));
-  let (pc, sp) = {
-    let pc = E::Scalar::from(execution_trace[0].pc as u64);
-    let sp = E::Scalar::from(execution_trace[0].pre_sp as u64);
-    (pc, sp)
-  };
-  let circuits: Vec<WASMTransitionCircuit> = execution_trace
-    .into_iter()
-    .map(|vm| {
-      let (step_rs, step_ws) = step_RS_WS(&vm, &mut FS, &mut global_ts, &IS_sizes);
-      RS.push(step_rs.clone());
-      WS.push(step_ws.clone());
-      WASMTransitionCircuit::new(vm, step_rs, step_ws, IS_sizes)
-    })
-    .collect();
-  let circuits = circuits
-    .chunks(step_size.execution)
-    .map(|chunk| BatchedWasmTransitionCircuit::new(chunk.to_vec()))
-    .collect::<Vec<_>>();
-
-  let mut zi = vec![pc, sp];
+  let circuits =
+    <FetchDecodeExecuteEngine as RecursiveSNARKEngine<E1, E2>>::circuits(&mut F_engine)
+      .expect("circuits should be constructed");
+  let mut zi = <FetchDecodeExecuteEngine as RecursiveSNARKEngine<E1, E2>>::z0(&F_engine);
   for (i, circuit) in circuits.iter().enumerate() {
     tracing::info!("prove step: {:#?}", i);
-    let mut cs = TestConstraintSystem::<E::Scalar>::new();
+    let mut cs = TestConstraintSystem::<E1::Scalar>::new();
     let zi_allocated: Vec<_> = zi
       .iter()
       .enumerate()
@@ -99,7 +75,7 @@ fn test_sb_basic() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -112,7 +88,7 @@ fn test_sb_basic_i64() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -127,7 +103,7 @@ fn test_sb_bit_check() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -142,7 +118,7 @@ fn test_sb_eq_func() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -157,7 +133,7 @@ fn test_sb_factorial() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -176,7 +152,7 @@ fn test_sb_poly_transform() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -191,7 +167,7 @@ fn test_sb_small_funcs() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -206,7 +182,7 @@ fn test_sb_rotl() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -226,7 +202,7 @@ fn test_sb_small_ml() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -239,7 +215,7 @@ fn test_sb_bulk_ops() -> Result<(), ZKWASMError> {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
   Ok(())
 }
 
@@ -252,7 +228,7 @@ fn test_sb_memsize() -> Result<(), ZKWASMError> {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
   Ok(())
 }
 
@@ -265,7 +241,7 @@ fn test_sb_bradjust0() -> Result<(), ZKWASMError> {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
   Ok(())
 }
 
@@ -281,7 +257,7 @@ fn test_sb_integer_hash() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -296,7 +272,7 @@ fn test_sb_gradient_boosting() {
     .build();
   let wasm_ctx = WasiWASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -311,7 +287,7 @@ fn test_sb_call_indirect() {
     .build();
   let wasm_ctx = WasiWASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -324,5 +300,5 @@ fn test_sb_dk() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }

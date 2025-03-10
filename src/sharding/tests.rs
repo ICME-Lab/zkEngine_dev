@@ -187,9 +187,7 @@ fn sim_nodes_and_orchestrator_node(
 }
 
 fn num_shards(program: &impl ZKWASMCtx, shard_opcode_size: usize) -> usize {
-  let (trace, _, _) = estimate_wasm(program).unwrap();
-  let trace_len = trace.len();
-
+  let (trace_len, _) = estimate_wasm(program).unwrap();
   let mut num_shards = trace_len / shard_opcode_size;
   // if there are remainder opcodes, add one more shard
   if trace_len % shard_opcode_size != 0 {
