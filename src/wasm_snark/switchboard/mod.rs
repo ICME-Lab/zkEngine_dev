@@ -27,8 +27,9 @@ use wasmi::{
 
 mod alu;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
+
 use crate::wasm_snark::switchboard::alu::IntegerOps;
 
 /// The circuit representing a step in the execution of a WASM program. Each step in WASM execution

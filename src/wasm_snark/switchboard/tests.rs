@@ -4,15 +4,26 @@ use crate::{
   wasm_ctx::{wasi::WasiWASMCtx, TraceSliceValues, WASMArgsBuilder, WASMCtx, ZKWASMCtx},
   wasm_snark::{FetchDecodeExecuteEngine, StepSize, WASMVirtualMachine},
 };
-use nova::frontend::ConstraintSystem;
-use nova::frontend::{num::AllocatedNum, test_cs::TestConstraintSystem};
+use nova::{
+  frontend::ConstraintSystem, nova::nebula::api::RecursiveSNARKEngine, provider::Bn256EngineIPA,
+};
+use nova::{
+  frontend::{num::AllocatedNum, test_cs::TestConstraintSystem},
+  traits::Engine,
+};
+use nova::{provider::GrumpkinEngine, traits::circuit::StepCircuit};
 use std::path::PathBuf;
 
-pub type E = Bn256EngineIPA;
+pub type E1 = Bn256EngineIPA;
+pub type E2 = GrumpkinEngine;
 
-fn test_wasm_ctx_with<E>(program: &impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError>
+fn test_wasm_ctx_with<E1, E2>(
+  program: &impl ZKWASMCtx,
+  step_size: StepSize,
+) -> Result<(), ZKWASMError>
 where
-  E: CurveCycleEquipped,
+  E1: Engine<Base = <E2 as Engine>::Scalar>,
+  E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
   let (execution_trace, (init_memory, final_memory, read_ops, write_ops), memory_size) =
     WASMVirtualMachine::execution_and_memory_trace(program, step_size)?;
@@ -28,12 +39,13 @@ where
     step_size,
   );
 
-  let circuits = <FetchDecodeExecuteEngine as RecursiveSNARKEngine<E>>::circuits(&mut F_engine)
-    .expect("circuits should be constructed");
-  let mut zi = <FetchDecodeExecuteEngine as RecursiveSNARKEngine<E>>::z0(&F_engine);
+  let circuits =
+    <FetchDecodeExecuteEngine as RecursiveSNARKEngine<E1, E2>>::circuits(&mut F_engine)
+      .expect("circuits should be constructed");
+  let mut zi = <FetchDecodeExecuteEngine as RecursiveSNARKEngine<E1, E2>>::z0(&F_engine);
   for (i, circuit) in circuits.iter().enumerate() {
     tracing::info!("prove step: {:#?}", i);
-    let mut cs = TestConstraintSystem::<E::Scalar>::new();
+    let mut cs = TestConstraintSystem::<E1::Scalar>::new();
     let zi_allocated: Vec<_> = zi
       .iter()
       .enumerate()
@@ -63,7 +75,7 @@ fn test_sb_basic() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -76,7 +88,7 @@ fn test_sb_basic_i64() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -91,7 +103,7 @@ fn test_sb_bit_check() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -106,7 +118,7 @@ fn test_sb_eq_func() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -121,7 +133,7 @@ fn test_sb_factorial() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -140,7 +152,7 @@ fn test_sb_poly_transform() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -155,7 +167,7 @@ fn test_sb_small_funcs() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -170,7 +182,7 @@ fn test_sb_rotl() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -190,7 +202,7 @@ fn test_sb_small_ml() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -203,7 +215,7 @@ fn test_sb_bulk_ops() -> Result<(), ZKWASMError> {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
   Ok(())
 }
 
@@ -216,7 +228,7 @@ fn test_sb_memsize() -> Result<(), ZKWASMError> {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
   Ok(())
 }
 
@@ -229,7 +241,7 @@ fn test_sb_bradjust0() -> Result<(), ZKWASMError> {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
   Ok(())
 }
 
@@ -245,7 +257,7 @@ fn test_sb_integer_hash() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -260,7 +272,7 @@ fn test_sb_gradient_boosting() {
     .build();
   let wasm_ctx = WasiWASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -275,7 +287,7 @@ fn test_sb_call_indirect() {
     .build();
   let wasm_ctx = WasiWASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
 
 #[test]
@@ -288,5 +300,5 @@ fn test_sb_dk() {
     .build();
   let wasm_ctx = WASMCtx::new(wasm_args);
   tracing_texray::examine(tracing::info_span!("test_wasm_ctx_with"))
-    .in_scope(|| test_wasm_ctx_with::<E>(&wasm_ctx, step_size).unwrap());
+    .in_scope(|| test_wasm_ctx_with::<E1, E2>(&wasm_ctx, step_size).unwrap());
 }
