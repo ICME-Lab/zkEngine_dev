@@ -25,7 +25,7 @@ where
   E1: Engine<Base = <E2 as Engine>::Scalar>,
   E2: Engine<Base = <E1 as Engine>::Scalar>,
 {
-  let (execution_trace, (init_memory, final_memory, read_ops, write_ops), memory_size) =
+  let (execution_trace, (_, _, read_ops, write_ops), memory_size) =
     WASMVirtualMachine::execution_and_memory_trace(program, step_size)?;
 
   // --- Run the F (transition) circuit ---
