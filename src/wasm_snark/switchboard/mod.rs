@@ -1,10 +1,7 @@
 use std::ops::Deref;
 
-use super::{
-  gadgets::utils::conditionally_select, mcc::multiset_ops::avt_tuple_to_scalar_vec,
-  MEMORY_OPS_PER_STEP,
-};
-use crate::wasm_ctx::ISMemSizes;
+use super::{gadgets::utils::conditionally_select, MEMORY_OPS_PER_STEP};
+use crate::wasm_ctx::MemorySize;
 use alu::{
   eq, eqz, eqz_bit,
   int32::{
@@ -15,12 +12,14 @@ use alu::{
 };
 use ff::{PrimeField, PrimeFieldBits};
 use itertools::Itertools;
-use nova::frontend::gadgets::Assignment;
-use nova::frontend::{
-  num::AllocatedNum,
-  ConstraintSystem, SynthesisError, {AllocatedBit, Boolean},
+use nova::{
+  frontend::{gadgets::Assignment, Split},
+  traits::circuit::StepCircuit,
 };
-use nova::nebula::rs::StepCircuit;
+use nova::{
+  frontend::{num::AllocatedNum, AllocatedBit, Boolean, ConstraintSystem, SynthesisError},
+  nova::nebula::convert_advice,
+};
 use wasmi::{
   AddressOffset, BCGlobalIdx, BranchOffset, BranchTableTargets, CompiledFunc, DropKeep,
   Instruction as Instr, WitnessVM,
@@ -30,6 +29,7 @@ mod alu;
 
 #[cfg(test)]
 mod tests;
+
 use crate::wasm_snark::switchboard::alu::IntegerOps;
 
 /// The circuit representing a step in the execution of a WASM program. Each step in WASM execution
@@ -42,7 +42,7 @@ pub struct WASMTransitionCircuit {
   vm: WitnessVM,
   RS: Vec<(usize, u64, u64)>,
   WS: Vec<(usize, u64, u64)>,
-  IS_sizes: ISMemSizes,
+  IS_sizes: MemorySize,
 }
 
 impl<F> StepCircuit<F> for WASMTransitionCircuit
@@ -68,7 +68,13 @@ where
     // turn sub-circuits on or off.
     let pc = z[0].clone();
     let sp = AllocatedStackPtr { sp: z[1].clone() };
-    let mut switchboard_vars = SwitchBoardCircuitVars::new(pc, sp);
+    let mut switchboard_vars = SwitchBoardCircuitVars::new(
+      cs.namespace(|| "alloc switchboard vars"),
+      pc,
+      sp,
+      &self.RS,
+      &self.WS,
+    )?;
 
     // unreachable, i.e. nop
     self.visit_unreachable(cs.namespace(|| "unreachable"), &mut switchboard_vars)?;
@@ -255,17 +261,8 @@ where
     Ok(vec![PC, post_sp])
   }
 
-  fn non_deterministic_advice(&self) -> Vec<F> {
-    self
-      .RS
-      .iter()
-      .zip_eq(self.WS.iter())
-      .flat_map(|(rs, ws)| {
-        avt_tuple_to_scalar_vec::<F>(*rs)
-          .into_iter()
-          .chain(avt_tuple_to_scalar_vec::<F>(*ws))
-      })
-      .collect()
+  fn advice(&self) -> (Vec<F>, Vec<F>) {
+    (convert_advice(&self.RS, &self.WS), vec![])
   }
 }
 
@@ -293,6 +290,8 @@ impl WASMTransitionCircuit {
     // Check if instruction is on or off
     let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
     let alloc_switch = AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?;
+    // Push the allocated switch to the switches vector to be used in the switch constraints
+    switchboard_vars.push_switch(alloc_switch.clone());
 
     // Allocate pre_pc and check it is equal to z_i[0]
     let pre_pc =
@@ -318,9 +317,6 @@ impl WASMTransitionCircuit {
       |lc| lc + pre_sp.get_variable(),
     );
     let pre_sp = AllocatedStackPtr { sp: pre_sp };
-
-    // Push the allocated switch to the switches vector to be used in the switch constraints
-    switchboard_vars.push_switch(alloc_switch);
 
     // Used to calculate stack pointer and program counter
     let minus_one = WASMTransitionCircuit::alloc_minus_one(cs.namespace(|| "-one"), switch);
@@ -387,6 +383,22 @@ impl WASMTransitionCircuit {
     })
   }
 
+  /// Allocate a pre-committed variable into the zkWASM CS
+  fn alloc_pre_committed<CS, F, A, AR, Fo>(
+    cs: &mut CS,
+    annotation: A,
+    value: Fo,
+  ) -> Result<AllocatedNum<F>, SynthesisError>
+  where
+    F: PrimeField,
+    CS: ConstraintSystem<F>,
+    A: FnOnce() -> AR,
+    AR: Into<String>,
+    Fo: FnOnce() -> Result<F, SynthesisError>,
+  {
+    AllocatedNum::alloc_pre_committed(cs.namespace(annotation), value, Split::First)
+  }
+
   /// Allocate a bit into the zkWASM CS
   fn alloc_bit<CS, F, A, AR>(
     cs: &mut CS,
@@ -410,18 +422,16 @@ impl WASMTransitionCircuit {
   /// Allocate a (addr, val, timestamp) tuple into the CS
   fn alloc_avt<CS, F>(
     mut cs: CS,
-    avt: &(usize, u64, u64),
-    switch: F,
+    avt: (usize, u64, u64),
   ) -> Result<(AllocatedNum<F>, AllocatedNum<F>, AllocatedNum<F>), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let (addr, val, ts) = *avt;
-    let addr = Self::alloc_num(&mut cs, || "addr", || Ok(F::from(addr as u64)), switch)?;
-    let val = Self::alloc_num(&mut cs, || "val", || Ok(F::from(val)), switch)?;
-    let ts = Self::alloc_num(&mut cs, || "ts", || Ok(F::from(ts)), switch)?;
-
+    let (addr, val, ts) = avt;
+    let addr = Self::alloc_pre_committed(&mut cs, || "addr", || Ok(F::from(addr as u64)))?;
+    let val = Self::alloc_pre_committed(&mut cs, || "val", || Ok(F::from(val)))?;
+    let ts = Self::alloc_pre_committed(&mut cs, || "ts", || Ok(F::from(ts)))?;
     Ok((addr, val, ts))
   }
 
@@ -431,25 +441,44 @@ impl WASMTransitionCircuit {
   fn read<CS, F>(
     mut cs: CS,
     addr: &AllocatedNum<F>,
-    advice: &(usize, u64, u64),
-    switch: F,
+    advice_idx: usize,
+    switchboard_vars: &SwitchBoardCircuitVars<F>,
   ) -> Result<AllocatedNum<F>, SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let (advice_addr, advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), advice, switch)?;
+    let (advice_addr, advice_val, _) = &switchboard_vars.RS[advice_idx];
+    let switch = switchboard_vars
+      .switches()
+      .last()
+      .ok_or(SynthesisError::AssignmentMissing)?;
 
     // F checks that the address a in the advice matches the address it requested
     cs.enforce(
       || "addr == advice_addr",
-      |lc| lc + addr.get_variable(),
-      |lc| lc + CS::one(),
       |lc| lc + advice_addr.get_variable(),
+      |lc| lc + switch.get_variable(),
+      |lc| lc + addr.get_variable(),
     );
 
-    Ok(advice_val)
+    let val = Self::alloc_num(
+      &mut cs,
+      || "value",
+      || {
+        advice_val
+          .get_value()
+          .ok_or(SynthesisError::AssignmentMissing)
+      },
+      switch.get_value().unwrap_or(F::ZERO),
+    )?;
+    cs.enforce(
+      || "val * switch = read_val",
+      |lc| lc + advice_val.get_variable(),
+      |lc| lc + switch.get_variable(),
+      |lc| lc + val.get_variable(),
+    );
+    Ok(val)
   }
 
   /// Perform a write to zkVM read-write memory.  For a write operation, the advice is (a, v, rt)
@@ -459,30 +488,33 @@ impl WASMTransitionCircuit {
     mut cs: CS,
     addr: &AllocatedNum<F>,
     val: &AllocatedNum<F>,
-    advice: &(usize, u64, u64),
-    switch: F,
+    advice_idx: usize,
+    switchboard_vars: &SwitchBoardCircuitVars<F>,
   ) -> Result<(), SynthesisError>
   where
     F: PrimeField,
     CS: ConstraintSystem<F>,
   {
-    let (advice_addr, advice_val, _) =
-      Self::alloc_avt(cs.namespace(|| "(addr, val, ts)"), advice, switch)?;
+    let (advice_addr, advice_val, _) = &switchboard_vars.WS[advice_idx];
+    let switch = switchboard_vars
+      .switches()
+      .last()
+      .ok_or(SynthesisError::AssignmentMissing)?;
 
     // F checks that the address a  match the address it wishes to write to.
     cs.enforce(
       || "addr == advice_addr",
-      |lc| lc + addr.get_variable(),
-      |lc| lc + CS::one(),
       |lc| lc + advice_addr.get_variable(),
+      |lc| lc + switch.get_variable(),
+      |lc| lc + addr.get_variable(),
     );
 
     // F checks that the value v′ match value it wishes to write.
     cs.enforce(
       || "val == advice_val",
-      |lc| lc + val.get_variable(),
-      |lc| lc + CS::one(),
       |lc| lc + advice_val.get_variable(),
+      |lc| lc + switch.get_variable(),
+      |lc| lc + val.get_variable(),
     );
 
     Ok(())
@@ -505,6 +537,7 @@ impl WASMTransitionCircuit {
     // Check if instruction is on or off
     let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
     let alloc_switch = AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?;
+    switchboard_vars.push_switch(alloc_switch);
 
     // Allocate pre_pc and pre_sp
     let post_pc = WASMTransitionCircuit::alloc_num(
@@ -521,7 +554,7 @@ impl WASMTransitionCircuit {
     )?;
     switchboard_vars.push_pc(post_pc);
     switchboard_vars.push_sp(AllocatedStackPtr { sp: post_sp });
-    switchboard_vars.push_switch(alloc_switch);
+
     Ok(())
   }
 
@@ -549,17 +582,17 @@ impl WASMTransitionCircuit {
     let read_val = Self::read(
       cs.namespace(|| "read at local_depth"),
       &local_depth,
-      &self.RS[0],
-      switch,
+      0,
+      switchboard_vars,
     )?;
 
     // write that value to the top of the stack
     let sp = pre_sp.push(
       cs.namespace(|| "push local on stack"),
-      switch,
       &read_val,
       &one,
-      &self.WS[1],
+      1,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -587,7 +620,7 @@ impl WASMTransitionCircuit {
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
 
     // pop value from stack
-    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
+    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), &minus_one, 0, switchboard_vars)?;
 
     // write value to local depth
     let depth_addr = Self::alloc_num(
@@ -600,8 +633,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "set local write"),
       &depth_addr,
       &Y,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -635,7 +668,7 @@ impl WASMTransitionCircuit {
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
-    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let Y = Self::read(cs.namespace(|| "Y"), &last_addr, 0, switchboard_vars)?;
 
     // write value to local depth
     let depth_addr = Self::alloc_num(
@@ -648,8 +681,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "tee local write"),
       &depth_addr,
       &Y,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -708,9 +741,9 @@ impl WASMTransitionCircuit {
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let (condition, condition_addr) = pre_sp.pop(
       cs.namespace(|| "pop condition"),
-      switch,
       &minus_one,
-      &self.RS[0],
+      0,
+      switchboard_vars,
     )?;
     let next_pc = pre_pc.add(cs.namespace(|| "pc + 1"), &one)?;
     let branch_offset = Self::alloc_num(
@@ -754,9 +787,9 @@ impl WASMTransitionCircuit {
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let (condition, condition_addr) = pre_sp.pop(
       cs.namespace(|| "pop condition"),
-      switch,
       &minus_one,
-      &self.RS[0],
+      0,
+      switchboard_vars,
     )?;
     let next_pc = pre_pc.add(cs.namespace(|| "pc + 1"), &one)?;
     let branch_offset = Self::alloc_num(
@@ -839,9 +872,9 @@ impl WASMTransitionCircuit {
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let (_, index_addr) = pre_sp.pop(
       cs.namespace(|| "pop index"),
-      switch,
       &minus_one,
-      &self.RS[0],
+      0,
+      switchboard_vars,
     )?;
     let branch_offset = Self::alloc_num(
       &mut cs,
@@ -914,7 +947,7 @@ impl WASMTransitionCircuit {
       },
       switch,
     )?;
-    let read_val = Self::read(cs.namespace(|| "read val"), &read_addr, &self.RS[0], switch)?;
+    let read_val = Self::read(cs.namespace(|| "read val"), &read_addr, 0, switchboard_vars)?;
 
     // write value address for keep value
     let write_addr = Self::alloc_num(
@@ -932,8 +965,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "drop keep write"),
       &write_addr,
       &read_val,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
 
     switchboard_vars.push_pc(pre_pc);
@@ -990,10 +1023,10 @@ impl WASMTransitionCircuit {
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
     let sp = pre_sp.push(
       cs.namespace(|| "push zero"),
-      switch,
       &write_val,
       &one,
-      &self.WS[0],
+      0,
+      switchboard_vars,
     )?;
     switchboard_vars.push_sp(sp);
     switchboard_vars.push_pc(pre_pc);
@@ -1016,6 +1049,7 @@ impl WASMTransitionCircuit {
     // Check if instruction is on or off
     let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
     let alloc_switch = AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?;
+    switchboard_vars.push_switch(alloc_switch);
     let one = Self::alloc_one(cs.namespace(|| "one"), switch);
     let pre_sp = AllocatedStackPtr {
       sp: WASMTransitionCircuit::alloc_num(
@@ -1035,14 +1069,13 @@ impl WASMTransitionCircuit {
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
     let sp = pre_sp.push(
       cs.namespace(|| "push zero"),
-      switch,
       &write_val,
       &one,
-      &self.WS[0],
+      0,
+      switchboard_vars,
     )?;
     switchboard_vars.push_sp(sp);
     switchboard_vars.push_pc(post_pc);
-    switchboard_vars.push_switch(alloc_switch);
     Ok(())
   }
 
@@ -1095,6 +1128,8 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::HostCallStep }.index_j();
     let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
     let alloc_switch = AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?;
+    switchboard_vars.push_switch(alloc_switch);
+
     // Allocate pre_pc and pre_sp
     let post_pc = WASMTransitionCircuit::alloc_num(
       &mut cs,
@@ -1121,12 +1156,11 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "perform write"),
       &write_addr,
       &write_val,
-      &self.WS[0],
-      switch,
+      0,
+      switchboard_vars,
     )?;
     switchboard_vars.push_sp(post_sp);
     switchboard_vars.push_pc(post_pc);
-    switchboard_vars.push_switch(alloc_switch);
     Ok(())
   }
 
@@ -1145,6 +1179,8 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::HostCallStackStep }.index_j();
     let switch = if J == self.vm.J { F::ONE } else { F::ZERO };
     let alloc_switch = AllocatedNum::alloc(cs.namespace(|| "switch"), || Ok(switch))?;
+    switchboard_vars.push_switch(alloc_switch);
+
     // Allocate pre_pc and pre_sp
     let post_pc = WASMTransitionCircuit::alloc_num(
       &mut cs,
@@ -1171,12 +1207,11 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "perform write"),
       &write_addr,
       &write_val,
-      &self.WS[0],
-      switch,
+      0,
+      switchboard_vars,
     )?;
     switchboard_vars.push_sp(post_sp);
     switchboard_vars.push_pc(post_pc);
-    switchboard_vars.push_switch(alloc_switch);
     Ok(())
   }
 
@@ -1197,19 +1232,19 @@ impl WASMTransitionCircuit {
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let (condition, condition_addr) = pre_sp.pop(
       cs.namespace(|| "pop condition"),
-      switch,
       &minus_one,
-      &self.RS[0],
+      0,
+      switchboard_vars,
     )?;
     let (Y, Y_addr) =
-      condition_addr.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[1])?;
-    let (X, X_addr) = Y_addr.pop(cs.namespace(|| "pop X"), switch, &minus_one, &self.RS[2])?;
+      condition_addr.pop(cs.namespace(|| "pop Y"), &minus_one, 1, switchboard_vars)?;
+    let (X, X_addr) = Y_addr.pop(cs.namespace(|| "pop X"), &minus_one, 2, switchboard_vars)?;
     let condition_bit_const = condition.get_value().map(|c| c != F::ZERO);
     let condition_bit = Self::alloc_bit(&mut cs, || "condition_bit", condition_bit_const, switch)?;
 
     // Calculate Z and write it to the stack
     let Z = conditionally_select(cs.namespace(|| "Z"), &X, &Y, &Boolean::Is(condition_bit))?;
-    Self::write(cs.namespace(|| "write Z"), &X_addr, &Z, &self.WS[3], switch)?;
+    Self::write(cs.namespace(|| "write Z"), &X_addr, &Z, 3, switchboard_vars)?;
 
     // Push final stack pointer and program counter
     self.next_instr(
@@ -1249,17 +1284,17 @@ impl WASMTransitionCircuit {
     let read_val = Self::read(
       cs.namespace(|| "read at global"),
       &read_addr,
-      &self.RS[0],
-      switch,
+      0,
+      switchboard_vars,
     )?;
 
     // write that value to the top of the stack
     let sp = pre_sp.push(
       cs.namespace(|| "push global"),
-      switch,
       &read_val,
       &one,
-      &self.WS[1],
+      1,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -1289,9 +1324,9 @@ impl WASMTransitionCircuit {
     // pop value from stack
     let (Y, Y_addr) = pre_sp.pop(
       cs.namespace(|| "pop global"),
-      switch,
       &minus_one,
-      &self.RS[0],
+      0,
+      switchboard_vars,
     )?;
 
     // write value to global depth
@@ -1309,8 +1344,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "set global write"),
       &write_addr,
       &Y,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
 
     self.next_instr(
@@ -1337,9 +1372,9 @@ impl WASMTransitionCircuit {
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
 
     // stack ops
-    let (_, val_addr) = pre_sp.pop(cs.namespace(|| "pop val"), switch, &minus_one, &self.RS[0])?;
+    let (_, val_addr) = pre_sp.pop(cs.namespace(|| "pop val"), &minus_one, 0, switchboard_vars)?;
     let (_, addr_addr) =
-      val_addr.pop(cs.namespace(|| "pop addr"), switch, &minus_one, &self.RS[1])?;
+      val_addr.pop(cs.namespace(|| "pop addr"), &minus_one, 1, switchboard_vars)?;
 
     // linear mem ops
     let effective_addr = self.vm.I;
@@ -1369,15 +1404,15 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "store 1"),
       &write_addr_1,
       &write_val_1,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
     Self::write(
       cs.namespace(|| "store 2"),
       &write_addr_2,
       &write_val_2,
-      &self.WS[3],
-      switch,
+      3,
+      switchboard_vars,
     )?;
     self.next_instr(
       cs.namespace(|| "next instr"),
@@ -1404,7 +1439,7 @@ impl WASMTransitionCircuit {
 
     // Stack ops
     let (_, addr_addr) =
-      pre_sp.pop(cs.namespace(|| "pop addr"), switch, &minus_one, &self.RS[0])?;
+      pre_sp.pop(cs.namespace(|| "pop addr"), &minus_one, 0, switchboard_vars)?;
 
     // linear mem ops
     let effective_addr = self.vm.I;
@@ -1429,14 +1464,14 @@ impl WASMTransitionCircuit {
     let _ = Self::read(
       cs.namespace(|| "block_val_1"),
       &read_addr_1,
-      &self.RS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
     let _ = Self::read(
       cs.namespace(|| "block_val_2"),
       &read_addr_2,
-      &self.RS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
     let stack_write_val =
       Self::alloc_num(&mut cs, || "stack write", || Ok(F::from(self.vm.Z)), switch)?;
@@ -1444,8 +1479,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "store 1"),
       &addr_addr,
       &stack_write_val,
-      &self.WS[3],
-      switch,
+      3,
+      switchboard_vars,
     )?;
     self.next_instr(
       cs.namespace(|| "next instr"),
@@ -1473,10 +1508,10 @@ impl WASMTransitionCircuit {
     let write_val = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.Y)), switch)?;
     let new_sp = pre_sp.push(
       cs.namespace(|| "push memory size"),
-      switch,
       &write_val,
       &one,
-      &self.WS[0],
+      0,
+      switchboard_vars,
     )?;
     self.next_instr(
       cs.namespace(|| "next instr"),
@@ -1510,7 +1545,7 @@ impl WASMTransitionCircuit {
       || Ok(F::from((self.vm.pre_sp - 1) as u64)),
       switch,
     )?;
-    let _ = Self::read(cs.namespace(|| "Y"), &last_addr, &self.RS[0], switch)?;
+    let _ = Self::read(cs.namespace(|| "Y"), &last_addr, 0, switchboard_vars)?;
 
     // write result
     let res = Self::alloc_num(&mut cs, || "write val", || Ok(F::from(self.vm.P)), switch)?;
@@ -1518,8 +1553,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "set memory.grow write"),
       &last_addr,
       &res,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
     self.next_instr(
       cs.namespace(|| "next instr"),
@@ -1541,17 +1576,17 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryFill }.index_j();
-    let (switch, pre_pc, pre_sp, one, minus_one) =
+    let (_, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let (_, size_addr) = pre_sp.pop(
       cs.namespace(|| "pop condition"),
-      switch,
       &minus_one,
-      &self.RS[0],
+      0,
+      switchboard_vars,
     )?;
-    let (_, val_addr) = size_addr.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[1])?;
+    let (_, val_addr) = size_addr.pop(cs.namespace(|| "pop Y"), &minus_one, 1, switchboard_vars)?;
     let (_, offset_addr) =
-      val_addr.pop(cs.namespace(|| "pop X"), switch, &minus_one, &self.RS[2])?;
+      val_addr.pop(cs.namespace(|| "pop X"), &minus_one, 2, switchboard_vars)?;
     self.next_instr(
       cs.namespace(|| "next instr"),
       &pre_pc,
@@ -1585,8 +1620,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "perform write"),
       &write_addr,
       &write_val,
-      &self.WS[0],
-      switch,
+      0,
+      switchboard_vars,
     )?;
     switchboard_vars.push_pc(pre_pc);
     switchboard_vars.push_sp(pre_sp);
@@ -1604,17 +1639,17 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     let J: u64 = { Instr::MemoryCopy }.index_j();
-    let (switch, pre_pc, pre_sp, one, minus_one) =
+    let (_, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let (_, bytes_addr) = pre_sp.pop(
       cs.namespace(|| "pop condition"),
-      switch,
       &minus_one,
-      &self.RS[0],
+      0,
+      switchboard_vars,
     )?;
     let (_, src_addr) =
-      bytes_addr.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[1])?;
-    let (_, dest_addr) = src_addr.pop(cs.namespace(|| "pop X"), switch, &minus_one, &self.RS[2])?;
+      bytes_addr.pop(cs.namespace(|| "pop Y"), &minus_one, 1, switchboard_vars)?;
+    let (_, dest_addr) = src_addr.pop(cs.namespace(|| "pop X"), &minus_one, 2, switchboard_vars)?;
     self.next_instr(
       cs.namespace(|| "next instr"),
       &pre_pc,
@@ -1647,8 +1682,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "perform write"),
       &write_addr,
       &write_val,
-      &self.WS[0],
-      switch,
+      0,
+      switchboard_vars,
     )?;
     switchboard_vars.push_pc(pre_pc);
     switchboard_vars.push_sp(pre_sp);
@@ -1671,7 +1706,7 @@ impl WASMTransitionCircuit {
     let (switch, pre_pc, pre_sp, one, _) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
     let I = Self::alloc_num(&mut cs, || "I", || Ok(F::from(self.vm.I)), switch)?;
-    let new_sp = pre_sp.push(cs.namespace(|| "push imm"), switch, &I, &one, &self.WS[0])?;
+    let new_sp = pre_sp.push(cs.namespace(|| "push imm"), &I, &one, 0, switchboard_vars)?;
     self.next_instr(
       cs.namespace(|| "next instr"),
       &pre_pc,
@@ -1748,7 +1783,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I32DivU }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (quotient, rem) = div_rem_u_32(
       cs.namespace(|| "div_rem_u_32"),
@@ -1778,8 +1818,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -1805,7 +1845,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I32DivS }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (quotient, rem) = div_rem_s_32(
       cs.namespace(|| "div_rem_s_32"),
@@ -1835,8 +1880,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -1862,7 +1907,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I32And }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (and, xor, or) = bitops_32(cs.namespace(|| "bitops_32"), &X, &Y)?;
     let Z = Self::alloc_num(
@@ -1881,8 +1931,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -1908,7 +1958,7 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I32Popcnt }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
+    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), &minus_one, 0, switchboard_vars)?;
 
     let (popcnt, clz, ctz) = unary_ops_32(
       cs.namespace(|| "unary_ops_32"),
@@ -1937,8 +1987,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &Y_addr, // pre_sp - 1
       &Z,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -1964,7 +2014,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I32LtS }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (lt, ge, lt_s, ge_s) = lt_ge_s_32(
       cs.namespace(|| "lt_ge_s"),
@@ -1992,8 +2047,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2019,7 +2074,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I32LeS }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (le, gt, le_s, gt_s) = le_gt_s_32(
       cs.namespace(|| "le_gt_s"),
@@ -2047,8 +2107,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2074,7 +2134,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I32Shl }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (_, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (_, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (shl, shr_u, shr_s, rotr, rotl) =
       shift_rotate_32(cs.namespace(|| "shift_rotate_32"), &X, self.vm.Y as usize)?;
@@ -2097,8 +2162,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2178,7 +2243,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64DivU }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (quotient, rem) = div_rem_u_64(
       cs.namespace(|| "div_rem_u_64"),
@@ -2208,8 +2278,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2235,7 +2305,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64DivS }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (quotient, rem) = div_rem_s_64(
       cs.namespace(|| "div_rem_s_64"),
@@ -2265,8 +2340,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2292,7 +2367,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64And }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (and, xor, or) = bitops_64(cs.namespace(|| "bitops_64"), &X, &Y)?;
     let Z = Self::alloc_num(
@@ -2311,8 +2391,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2338,7 +2418,7 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64Popcnt }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
+    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), &minus_one, 0, switchboard_vars)?;
 
     let (popcnt, clz, ctz) = unary_ops_64(cs.namespace(|| "unary_ops_64"), &Y, self.vm.Y, switch)?;
 
@@ -2362,8 +2442,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &Y_addr, // pre_sp - 1
       &Z,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2389,7 +2469,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64LtS }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (lt, ge, lt_s, ge_s) = lt_ge_s(
       cs.namespace(|| "lt_ge_s"),
@@ -2417,8 +2502,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2444,7 +2529,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64LeS }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (le, gt, le_s, gt_s) = le_gt_s(
       cs.namespace(|| "le_gt_s"),
@@ -2472,8 +2562,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2499,7 +2589,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64Shl }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (_, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (_, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let (shl, shr_u, shr_s, rotr, rotl) =
       shift_rotate_64(cs.namespace(|| "shift_rotate_64"), &X, self.vm.Y as usize)?;
@@ -2522,8 +2617,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2549,7 +2644,7 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64Eqz }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
+    let (Y, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), &minus_one, 0, switchboard_vars)?;
 
     let Z = eqz(cs.namespace(|| "eqz"), &Y, switch)?;
 
@@ -2557,8 +2652,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &Y_addr, // pre_sp - 1
       &Z,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2584,7 +2679,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64Eq }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let Z = eq(cs.namespace(|| "X == Y"), &X, &Y, switch)?;
 
@@ -2592,8 +2692,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2619,7 +2719,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::I64Ne }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let Z = alu::ne(cs.namespace(|| "X != Y"), &X, &Y, switch)?;
 
@@ -2627,8 +2732,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2654,7 +2759,7 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::F32Abs }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (_, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, &minus_one, &self.RS[0])?;
+    let (_, Y_addr) = pre_sp.pop(cs.namespace(|| "pop Y"), &minus_one, 0, switchboard_vars)?;
 
     let Z = Self::alloc_num(&mut cs, || "unary_op(Y)", || Ok(F::from(self.vm.Z)), switch)?;
 
@@ -2662,8 +2767,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &Y_addr, // pre_sp - 1
       &Z,
-      &self.WS[1],
-      switch,
+      1,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2689,7 +2794,12 @@ impl WASMTransitionCircuit {
     let J: u64 = { Instr::F32Eq }.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (_, sp, _, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (_, sp, _, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     let Z = Self::alloc_num(&mut cs, || "Z", || Ok(F::from(self.vm.Z)), switch)?;
 
@@ -2697,8 +2807,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2734,7 +2844,12 @@ impl WASMTransitionCircuit {
     let J: u64 = instruction.index_j();
     let (switch, pre_pc, pre_sp, one, minus_one) =
       self.allocate_opcode_vars(&mut cs, J, switchboard_vars)?;
-    let (Y, sp, X, X_addr) = self.top_2(cs.namespace(|| "top_2"), pre_sp, switch, &minus_one)?;
+    let (Y, sp, X, X_addr) = self.top_2(
+      cs.namespace(|| "top_2"),
+      pre_sp,
+      &minus_one,
+      switchboard_vars,
+    )?;
 
     // Compute Z = binary_op(X, Y)
     // & push Z on the stack
@@ -2743,8 +2858,8 @@ impl WASMTransitionCircuit {
       cs.namespace(|| "push Z on stack"),
       &X_addr, // pre_sp - 2
       &Z,
-      &self.WS[2],
-      switch,
+      2,
+      switchboard_vars,
     )?;
 
     // Push final stack pointer and program counter
@@ -2762,8 +2877,8 @@ impl WASMTransitionCircuit {
     &self,
     mut cs: CS,
     pre_sp: AllocatedStackPtr<F>,
-    switch: F,
     minus_one: &AllocatedNum<F>,
+    switchboard_vars: &SwitchBoardCircuitVars<F>,
   ) -> Result<
     (
       AllocatedNum<F>,
@@ -2778,11 +2893,11 @@ impl WASMTransitionCircuit {
     CS: ConstraintSystem<F>,
   {
     // pop Y of the stack
-    let (Y, sp) = pre_sp.pop(cs.namespace(|| "pop Y"), switch, minus_one, &self.RS[0])?;
+    let (Y, sp) = pre_sp.pop(cs.namespace(|| "pop Y"), minus_one, 0, switchboard_vars)?;
 
     // Get X of from the stack
     let X_addr = sp.dec_by(cs.namespace(|| "sp - 1"), minus_one)?;
-    let X = X_addr.get(cs.namespace(|| "get X"), &self.RS[1], switch)?;
+    let X = X_addr.get(cs.namespace(|| "get X"), 1, switchboard_vars)?;
     Ok((Y, sp, X, X_addr))
   }
 }
@@ -2793,7 +2908,7 @@ impl WASMTransitionCircuit {
     vm: WitnessVM,
     RS: Vec<(usize, u64, u64)>,
     WS: Vec<(usize, u64, u64)>,
-    IS_sizes: ISMemSizes,
+    IS_sizes: MemorySize,
   ) -> Self {
     Self {
       vm,
@@ -2808,10 +2923,10 @@ impl Default for WASMTransitionCircuit {
   fn default() -> Self {
     Self {
       vm: WitnessVM::default(),
-      // max memory ops per recursive step is 8
-      RS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
-      WS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP / 2],
-      IS_sizes: ISMemSizes::default(),
+      // max memory ops per recursive step is 4
+      RS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP],
+      WS: vec![(0, 0, 0); MEMORY_OPS_PER_STEP],
+      IS_sizes: MemorySize::default(),
     }
   }
 }
@@ -2844,12 +2959,13 @@ where
     Ok(z)
   }
 
-  fn non_deterministic_advice(&self) -> Vec<F> {
-    self
+  fn advice(&self) -> (Vec<F>, Vec<F>) {
+    let advice0 = self
       .circuits
       .iter()
-      .flat_map(|circuit| circuit.non_deterministic_advice())
-      .collect()
+      .flat_map(|circuit| circuit.advice().0)
+      .collect_vec();
+    (advice0, vec![])
   }
 }
 
@@ -2881,9 +2997,9 @@ where
   fn pop<CS>(
     &self,
     mut cs: CS,
-    switch: F,
     minus_one: &AllocatedNum<F>,
-    advice: &(usize, u64, u64),
+    advice_idx: usize,
+    switchboard_vars: &SwitchBoardCircuitVars<F>,
   ) -> Result<
     (AllocatedNum<F>, AllocatedStackPtr<F>), // value, sp
     SynthesisError,
@@ -2892,22 +3008,33 @@ where
     CS: ConstraintSystem<F>,
   {
     let popped_sp = self.dec_by(cs.namespace(|| "dec by"), minus_one)?;
-    let X = WASMTransitionCircuit::read(cs.namespace(|| "X"), &popped_sp, advice, switch)?;
+    let X = WASMTransitionCircuit::read(
+      cs.namespace(|| "X"),
+      &popped_sp,
+      advice_idx,
+      switchboard_vars,
+    )?;
     Ok((X, popped_sp))
   }
 
   fn push<CS>(
     &self,
     mut cs: CS,
-    switch: F,
     val: &AllocatedNum<F>,
     one: &AllocatedNum<F>,
-    advice: &(usize, u64, u64),
+    advice_idx: usize,
+    switchboard_vars: &SwitchBoardCircuitVars<F>,
   ) -> Result<AllocatedStackPtr<F>, SynthesisError>
   where
     CS: ConstraintSystem<F>,
   {
-    WASMTransitionCircuit::write(cs.namespace(|| "X"), self, val, advice, switch)?;
+    WASMTransitionCircuit::write(
+      cs.namespace(|| "X"),
+      self,
+      val,
+      advice_idx,
+      switchboard_vars,
+    )?;
     let new_sp = self.inc_by(cs.namespace(|| "inc by"), one)?;
     Ok(new_sp)
   }
@@ -2915,13 +3042,13 @@ where
   fn get<CS>(
     &self,
     mut cs: CS,
-    advice: &(usize, u64, u64),
-    switch: F,
+    advice_idx: usize,
+    switchboard_vars: &SwitchBoardCircuitVars<F>,
   ) -> Result<AllocatedNum<F>, SynthesisError>
   where
     CS: ConstraintSystem<F>,
   {
-    WASMTransitionCircuit::read(cs.namespace(|| "val"), self, advice, switch)
+    WASMTransitionCircuit::read(cs.namespace(|| "val"), self, advice_idx, switchboard_vars)
   }
 
   fn dec_by<CS>(
@@ -2969,20 +3096,45 @@ where
   stack_pointers: Vec<AllocatedStackPtr<F>>,
   pre_pc: AllocatedNum<F>,
   pre_sp: AllocatedStackPtr<F>,
+  RS: Vec<(AllocatedNum<F>, AllocatedNum<F>, AllocatedNum<F>)>,
+  WS: Vec<(AllocatedNum<F>, AllocatedNum<F>, AllocatedNum<F>)>,
 }
 
 impl<F> SwitchBoardCircuitVars<F>
 where
   F: PrimeField,
 {
-  fn new(pre_pc: AllocatedNum<F>, pre_sp: AllocatedStackPtr<F>) -> Self {
-    Self {
+  fn new<CS>(
+    mut cs: CS,
+    pre_pc: AllocatedNum<F>,
+    pre_sp: AllocatedStackPtr<F>,
+    RS: &[(usize, u64, u64)],
+    WS: &[(usize, u64, u64)],
+  ) -> Result<Self, SynthesisError>
+  where
+    CS: ConstraintSystem<F>,
+  {
+    let mut allocated_RS = Vec::with_capacity(MEMORY_OPS_PER_STEP);
+    let mut allocated_WS = Vec::with_capacity(MEMORY_OPS_PER_STEP);
+    for i in 0..MEMORY_OPS_PER_STEP {
+      allocated_RS.push(WASMTransitionCircuit::alloc_avt(
+        cs.namespace(|| format!("RS_{i}")),
+        RS[i],
+      )?);
+      allocated_WS.push(WASMTransitionCircuit::alloc_avt(
+        cs.namespace(|| format!("WS_{i}")),
+        WS[i],
+      )?);
+    }
+    Ok(Self {
       switches: Vec::new(),
       program_counters: Vec::new(),
       stack_pointers: Vec::new(),
       pre_pc,
       pre_sp,
-    }
+      RS: allocated_RS,
+      WS: allocated_WS,
+    })
   }
 
   fn push_switch(&mut self, switch: AllocatedNum<F>) {
