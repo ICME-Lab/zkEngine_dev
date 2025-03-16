@@ -159,7 +159,7 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
   Ok(())
 }
 
-#[test]
+#[test_log::test]
 fn test_integer_hash() {
   let step_size = StepSize::new(2_500).set_memory_step_size(50_000);
   init_logger();

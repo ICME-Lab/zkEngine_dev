@@ -583,7 +583,6 @@ where
 }
 
 /// popcount
-#[tracing::instrument(skip_all, name = "popcount")]
 pub fn popcount_32<F, CS>(
   mut cs: CS,
   a: &AllocatedNum<F>,
@@ -606,7 +605,6 @@ where
 
 /// Adds a constraint to CS, enforcing that the addition of the allocated numbers in vector `v`
 /// is equal to the value of the variable, `sum`.
-#[tracing::instrument(skip_all, name = "popcount_equal")]
 pub(crate) fn popcount_equal<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   v: &[Boolean],
@@ -624,7 +622,6 @@ pub(crate) fn popcount_equal<F: PrimeField, CS: ConstraintSystem<F>>(
 }
 
 /// Creates a linear combination representing the popcount (sum of one bits) of `v`.
-#[tracing::instrument(skip_all, name = "popcount_lc")]
 pub(crate) fn popcount_lc<F: PrimeField, CS: ConstraintSystem<F>>(
   v: &[Boolean],
 ) -> LinearCombination<F> {
@@ -645,7 +642,6 @@ pub(crate) fn add_to_lc<F: PrimeField, CS: ConstraintSystem<F>>(
   }
 }
 
-#[tracing::instrument(skip_all, name = "to_u32_le_bits")]
 fn to_u32_le_bits<F, CS>(mut cs: CS, a: &AllocatedNum<F>) -> Result<Vec<Boolean>, SynthesisError>
 where
   F: PrimeField,
@@ -684,7 +680,6 @@ where
   Some(u64::from_le_bytes(byte_array) as u32)
 }
 
-#[tracing::instrument(skip_all, name = "u64_le_bits_to_num")]
 fn u32_le_bits_to_num<F, CS>(
   mut cs: CS,
   bits: &[Boolean],
@@ -780,7 +775,6 @@ where
 }
 
 /// Gadget to perform bitwise shl operation.
-#[tracing::instrument(skip_all, name = "shl_bits_32")]
 pub fn shl_bits_32<F: PrimeField, CS: ConstraintSystem<F>>(
   mut cs: CS,
   bits: &[Boolean],
