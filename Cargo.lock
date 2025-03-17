@@ -781,7 +781,7 @@ dependencies = [
 [[package]]
 name = "nova-snark"
 version = "0.40.0"
-source = "git+https://github.com/ICME-Lab/Nova/?branch=feat%2Fnebula-cross-term#d5eb88ad6865099b21919ae6a9266426456ea71f"
+source = "git+https://github.com/ICME-Lab/Nova/?branch=test%2Fcross-term#c8bfbd783844d86faf9cf0a9b1a2db6a36fc8de2"
 dependencies = [
  "bincode",
  "bitvec",
