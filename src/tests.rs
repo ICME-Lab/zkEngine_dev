@@ -159,8 +159,9 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
   Ok(())
 }
 
-#[test_log::test]
+#[test]
 fn test_integer_hash() {
+  init_logger();
   let step_size = StepSize::new(2_500).set_memory_step_size(50_000);
   init_logger();
   let wasm_args = WASMArgsBuilder::default()
