@@ -1,3 +1,0 @@
-[submodule "nova"]
-	path = nova
-	url = https://github.com/ICME-Lab/Nova
