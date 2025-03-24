@@ -300,7 +300,7 @@ fn test_energy_consumption() {
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
-#[test]
+#[test_log::test]
 fn test_toy_rsa() {
   init_logger();
   let step_size = StepSize::new(1000).set_memory_step_size(50_000);
