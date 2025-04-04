@@ -2926,10 +2926,10 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
                 }
             }
 
-            let instruction = unsafe { &*self.ip.ptr };
+            let instruction = &{*self.ip.get(&self.code_map)};
 
             // Copy the instruction for post instruction execution tracing
-            let instruction_copy = instruction.clone();
+            let instruction_copy = instruction;
 
             // Get the pre status of the instruction execution
             let pre_status = self.execute_instruction_pre(&instruction);
@@ -3633,7 +3633,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     fn fetch_drop_keep(&self, offset: usize) -> DropKeep {
         let mut addr: InstructionPtr = self.ip;
         addr.add(offset);
-        match addr.get() {
+        match addr.get(&self.code_map) {
             Instruction::Return(drop_keep) => *drop_keep,
             _ => unreachable!("expected Return instruction word at this point"),
         }
@@ -3652,7 +3652,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     fn fetch_table_idx(&self, offset: usize) -> TableIdx {
         let mut addr: InstructionPtr = self.ip;
         addr.add(offset);
-        match addr.get() {
+        match addr.get(&self.code_map) {
             Instruction::TableGet(table_idx) => *table_idx,
             _ => unreachable!("expected TableGet instruction word at this point"),
         }
