@@ -203,7 +203,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
         use Instruction as Instr;
         // "Fetch, Decode, Execute" loop
         loop {
-            let instr = unsafe { &*self.ip.ptr };
+            let instr = &{*self.ip.get(&self.code_map)};
 
             // Get the pre-execution VM state at this timestamp
             let mut vm = if self.tracer.is_some() {
@@ -923,7 +923,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     fn fetch_drop_keep(&self, offset: usize) -> DropKeep {
         let mut addr: InstructionPtr = self.ip;
         addr.add(offset);
-        match addr.get() {
+        match addr.get(&self.code_map) {
             Instruction::Return(drop_keep) => *drop_keep,
             _ => unreachable!("expected Return instruction word at this point"),
         }
@@ -942,7 +942,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     fn fetch_table_idx(&self, offset: usize) -> TableIdx {
         let mut addr: InstructionPtr = self.ip;
         addr.add(offset);
-        match addr.get() {
+        match addr.get(&self.code_map) {
             Instruction::TableGet(table_idx) => *table_idx,
             _ => unreachable!("expected TableGet instruction word at this point"),
         }
@@ -1707,7 +1707,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
     fn execute_instr_pre(&self, pre_sp: usize, pc: usize) -> WitnessVM {
         use Instruction as Instr;
         let mut vm = WitnessVM::default();
-        let instruction = unsafe { &*self.ip.ptr };
+        let instruction = &{*self.ip.get(&self.code_map)};
         vm.pre_sp = pre_sp;
         vm.pc = pc;
 
@@ -2406,11 +2406,7 @@ impl<'ctx, 'engine> Executor<'ctx, 'engine> {
 
     /// Get `usize` value for the pc
     fn pc(&self) -> usize {
-        let base_ptr = self.code_map.instrs.as_ptr();
-        // SAFETY: Within Wasm bytecode execution we are guaranteed by
-        //         Wasm validation and `wasmi` codegen to never run out
-        //         of valid bounds using this method.
-        (unsafe { self.ip.ptr.offset_from(base_ptr) }) as usize
+        self.ip.pc()
     }
 
     /// Get 'usize' value for the sp

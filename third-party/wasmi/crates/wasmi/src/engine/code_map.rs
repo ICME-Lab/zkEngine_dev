@@ -199,7 +199,7 @@ impl CodeMap {
     /// Returns an [`InstructionPtr`] to the instruction at [`InstructionsRef`].
     #[inline]
     pub fn instr_ptr(&self, iref: InstructionsRef) -> InstructionPtr {
-        InstructionPtr::new(self.instrs[iref.to_usize()..].as_ptr())
+        InstructionPtr::new(iref.to_usize())
     }
 
     /// Returns the [`FuncHeader`] of the [`CompiledFunc`].
@@ -233,8 +233,8 @@ impl CodeMap {
 /// The instruction pointer to the instruction of a function on the call stack.
 #[derive(Debug, Copy, Clone)]
 pub struct InstructionPtr {
-    /// The pointer to the instruction.
-    pub ptr: *const Instruction,
+    /// The start index in the instructions array.
+    index: usize,
 }
 
 /// It is safe to send an [`InstructionPtr`] to another thread.
@@ -250,8 +250,8 @@ unsafe impl Send for InstructionPtr {}
 impl InstructionPtr {
     /// Creates a new [`InstructionPtr`] for `instr`.
     #[inline]
-    pub fn new(ptr: *const Instruction) -> Self {
-        Self { ptr }
+    pub fn new(index: usize) -> Self {
+        Self { index }
     }
 
     /// Offset the [`InstructionPtr`] by the given value.
@@ -263,18 +263,12 @@ impl InstructionPtr {
     /// bounds of the instructions of the same compiled Wasm function.
     #[inline(always)]
     pub fn offset(&mut self, by: isize) {
-        // SAFETY: Within Wasm bytecode execution we are guaranteed by
-        //         Wasm validation and `wasmi` codegen to never run out
-        //         of valid bounds using this method.
-        self.ptr = unsafe { self.ptr.offset(by) };
+        self.index = self.index.checked_add_signed(by).unwrap();
     }
 
     #[inline(always)]
     pub fn add(&mut self, delta: usize) {
-        // SAFETY: Within Wasm bytecode execution we are guaranteed by
-        //         Wasm validation and `wasmi` codegen to never run out
-        //         of valid bounds using this method.
-        self.ptr = unsafe { self.ptr.add(delta) };
+        self.index += delta;
     }
 
     /// Returns a shared reference to the currently pointed at [`Instruction`].
@@ -285,10 +279,11 @@ impl InstructionPtr {
     /// guaranteed that the [`InstructionPtr`] is validly pointing inside
     /// the boundaries of its associated compiled Wasm function.
     #[inline(always)]
-    pub fn get(&self) -> &Instruction {
-        // SAFETY: Within Wasm bytecode execution we are guaranteed by
-        //         Wasm validation and `wasmi` codegen to never run out
-        //         of valid bounds using this method.
-        unsafe { &*self.ptr }
+    pub fn get<'a>(&self, code: &'a CodeMap) -> &'a Instruction {
+        &code.instrs[self.index]
+    }
+
+    pub fn pc(&self) -> usize {
+        self.index
     }
 }
