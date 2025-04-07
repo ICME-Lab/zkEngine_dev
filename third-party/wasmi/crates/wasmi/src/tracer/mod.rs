@@ -1,8 +1,10 @@
 #![allow(non_snake_case)]
 
-use crate::{engine::bytecode::Instruction, AsContext, Global, Memory};
 use core::cmp;
+
 use wasmi_core::UntypedValue;
+
+use crate::{engine::bytecode::Instruction, AsContext, Global, Memory};
 
 #[derive(Debug, Clone, Default)]
 /// Hold the execution trace from VM execution and manages other miscellaneous
@@ -81,8 +83,8 @@ impl Tracer {
         self.IS_mem.len()
     }
 
-    /// Getter for initial zkvm memory
-    pub fn init_memory(&self) -> Vec<(usize, u64, u64)> {
+    /// Getter for IS
+    pub fn IS(&self) -> Vec<(usize, u64, u64)> {
         let mut IS = self.IS_stack();
         let stack_len = IS.len();
         let linear_mem_len = self.IS_mem.len();
@@ -177,7 +179,7 @@ impl Tracer {
 }
 
 /// The VM state at each step of execution
-#[derive(Clone, Debug, Default, Copy)]
+#[derive(Clone, Debug, Default)]
 pub struct WitnessVM {
     /// Stack pointer before execution
     pub pre_sp: usize,
