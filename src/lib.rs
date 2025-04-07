@@ -2,9 +2,9 @@
 #![allow(clippy::type_complexity)]
 #![allow(non_snake_case)]
 #![deny(missing_docs)]
-// pub mod aggregation;
+pub mod aggregation;
 pub mod error;
-// pub mod sharding;
+pub mod sharding;
 pub mod utils;
 pub mod wasm_ctx;
 pub mod wasm_snark;

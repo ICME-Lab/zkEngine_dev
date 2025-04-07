@@ -1,4 +1,5 @@
-use crate::{wasm_ctx::MemorySize, wasm_snark::MEMORY_OPS_PER_STEP};
+use crate::{wasm_ctx::ISMemSizes, wasm_snark::MEMORY_OPS_PER_STEP};
+use ff::PrimeField;
 use wasmi::{Instruction as Instr, WitnessVM};
 
 /// Get the RS & WS for a single execution step. A RS (read-set) & a WS (write-set) are of the form
@@ -8,18 +9,18 @@ use wasmi::{Instruction as Instr, WitnessVM};
 ///
 /// It is ok to have `FS` and `global_ts` as mutable references since they are used to represent an
 /// untrusted memory which inherently is mutable.
-pub fn memory_ops_trace(
+pub fn step_RS_WS(
   vm: &WitnessVM,
   FS: &mut [(usize, u64, u64)],
   global_ts: &mut u64,
-  IS_sizes: MemorySize,
+  IS_sizes: &ISMemSizes,
 ) -> (
   Vec<(usize, u64, u64)>, // RS
   Vec<(usize, u64, u64)>, // WS
 ) {
   let instr: Instr = vm.instr;
-  let mut RS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP);
-  let mut WS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP);
+  let mut RS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP / 2);
+  let mut WS: Vec<(usize, u64, u64)> = Vec::with_capacity(MEMORY_OPS_PER_STEP / 2);
 
   // Construct RS & WS based on the instruction. The RS & WS are constructed as follows:
   match instr {
@@ -354,7 +355,7 @@ pub fn memory_ops_trace(
 
   // If the number of memory operations is not equal to MEMORY_OPS_PER_STEP, then we need to pad
   // the RS & WS with dummy values
-  for _ in RS.len()..MEMORY_OPS_PER_STEP {
+  for _ in RS.len()..MEMORY_OPS_PER_STEP / 2 {
     read_op(0, global_ts, FS, &mut RS, &mut WS);
   }
 
@@ -414,4 +415,12 @@ fn write_op(
 
   // 5. WS ← WS ∪ {(a,v',ts)}.
   WS.push((addr, val, *global_ts));
+}
+
+/// Converts an addr, val, ts tuple `(usize, u64, u64)` to a `Vec<Scalar>`
+pub fn avt_tuple_to_scalar_vec<F>((addr, val, ts): (usize, u64, u64)) -> Vec<F>
+where
+  F: PrimeField,
+{
+  vec![F::from(addr as u64), F::from(val), F::from(ts)]
 }

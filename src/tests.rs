@@ -8,26 +8,26 @@ use crate::utils::{
   macros::{start_timer, stop_timer},
 };
 use nova::{
-  provider::{hyperkzg, ipa_pc, Bn256EngineKZG, GrumpkinEngine},
-  spartan::snark::RelaxedR1CSSNARK,
+  provider::{ipa_pc, Bn256EngineIPA},
+  spartan,
+  traits::Dual,
 };
 use std::{num::NonZeroUsize, path::PathBuf, time::Instant};
 
 /// Curve Cycle to prove/verify on
-type E1 = Bn256EngineKZG;
-type E2 = GrumpkinEngine;
-type EE1 = hyperkzg::EvaluationEngine<E1>;
-type EE2 = ipa_pc::EvaluationEngine<E2>;
-type S1 = RelaxedR1CSSNARK<E1, EE1>;
-type S2 = RelaxedR1CSSNARK<E2, EE2>;
+pub type E = Bn256EngineIPA;
+pub type EE1 = ipa_pc::EvaluationEngine<E>;
+pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
+pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
+pub type S2 = spartan::snark::RelaxedR1CSSNARK<Dual<E>, EE2>;
 
 fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result<(), ZKWASMError> {
   let pp_timer = start_timer!("Producing Public Parameters");
-  let pp = WasmSNARK::<E1, E2, S1, S2>::setup(step_size).unwrap();
+  let pp = WasmSNARK::<E, S1, S2>::setup(step_size);
   stop_timer!(pp_timer);
 
   let proving_timer = start_timer!("Producing RecursiveWasmSNARK");
-  let (rs_snark, U) = WasmSNARK::<E1, E2, S1, S2>::prove(&pp, &wasm_ctx, step_size)?;
+  let (rs_snark, U) = WasmSNARK::<E, S1, S2>::prove(&pp, &wasm_ctx, step_size)?;
   stop_timer!(proving_timer);
 
   let verification_timer = start_timer!("Verifying RecursiveWasmSNARK");
