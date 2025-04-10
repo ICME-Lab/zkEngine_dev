@@ -182,10 +182,10 @@ pub trait ZKWASMCtx {
   type T;
 
   /// create store
-  fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T>;
+  fn create_store(&self, engine: &wasmi::Engine) -> wasmi::Store<Self::T>;
 
   /// create linker
-  fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError>;
+  fn create_linker(&self, engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError>;
 
   /// Getter for WASM args
   fn args(&self) -> &WASMArgs;
@@ -200,8 +200,8 @@ pub trait ZKWASMCtx {
     let module = wasmi::Module::new(&engine, &self.args().program[..])?;
 
     // Create a new store and linker
-    let mut store = Self::create_store(&engine);
-    let linker = Self::create_linker(&engine)?;
+    let mut store = self.create_store(&engine);
+    let linker = self.create_linker(&engine)?;
 
     // Instantiate the module and trace WASM linear memory and global memory initializations
     let instance = linker
@@ -276,11 +276,11 @@ impl WASMCtx {
 impl ZKWASMCtx for WASMCtx {
   type T = ();
 
-  fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
+  fn create_store(&self, engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
     wasmi::Store::new(engine, ())
   }
 
-  fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+  fn create_linker(&self, engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
     Ok(<wasmi::Linker<()>>::new(engine))
   }
 
@@ -318,12 +318,12 @@ pub mod wasi {
       &self.args
     }
 
-    fn create_store(engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
+    fn create_store(&self, engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
       let wasi = WasiCtx::new(zkvm_random_ctx(), clocks_ctx(), sched_ctx(), Table::new());
       wasmi::Store::new(engine, wasi)
     }
 
-    fn create_linker(engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+    fn create_linker(&self, engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
       let mut linker = <wasmi::Linker<WasiCtx>>::new(engine);
       wasmi_wasi::add_to_linker(&mut linker, |ctx| ctx)?;
       Ok(linker)
