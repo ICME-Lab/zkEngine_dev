@@ -185,7 +185,11 @@ pub trait ZKWASMCtx {
   fn create_store(&self, engine: &wasmi::Engine) -> wasmi::Store<Self::T>;
 
   /// create linker
-  fn create_linker(&self, engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError>;
+  fn create_linker(
+    &self,
+    engine: &wasmi::Engine,
+    module: &wasmi::Module,
+  ) -> Result<wasmi::Linker<Self::T>, ZKWASMError>;
 
   /// Getter for WASM args
   fn args(&self) -> &WASMArgs;
@@ -201,7 +205,7 @@ pub trait ZKWASMCtx {
 
     // Create a new store and linker
     let mut store = self.create_store(&engine);
-    let linker = self.create_linker(&engine)?;
+    let linker = self.create_linker(&engine, &module)?;
 
     // Instantiate the module and trace WASM linear memory and global memory initializations
     let instance = linker
@@ -280,7 +284,11 @@ impl ZKWASMCtx for WASMCtx {
     wasmi::Store::new(engine, ())
   }
 
-  fn create_linker(&self, engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+  fn create_linker(
+    &self,
+    engine: &wasmi::Engine,
+    _module: &wasmi::Module,
+  ) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
     Ok(<wasmi::Linker<()>>::new(engine))
   }
 
@@ -323,7 +331,11 @@ pub mod wasi {
       wasmi::Store::new(engine, wasi)
     }
 
-    fn create_linker(&self, engine: &wasmi::Engine) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+    fn create_linker(
+      &self,
+      engine: &wasmi::Engine,
+      _module: &wasmi::Module,
+    ) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
       let mut linker = <wasmi::Linker<WasiCtx>>::new(engine);
       wasmi_wasi::add_to_linker(&mut linker, |ctx| ctx)?;
       Ok(linker)
