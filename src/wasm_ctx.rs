@@ -227,7 +227,12 @@ pub trait ZKWASMCtx {
     let mut func_results = prepare_func_results(&ty);
 
     // Call the function to invoke.
-    func.call_with_trace(&mut store, &func_args, &mut func_results, tracer.clone())?;
+    match func.call_with_trace(&mut store, &func_args, &mut func_results, tracer.clone()) {
+      Ok(()) => {}
+      // Permit exit(0) to end execution early and continue proving.
+      Err(wasmi::Error::Trap(t)) if t.i32_exit_status() == Some(0) => {}
+      Err(e) => return Err(e.into()),
+    }
     tracing::debug!("wasm func res: {:#?}", func_results);
 
     // Extract the execution trace produced from WASM execution.
