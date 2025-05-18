@@ -13,6 +13,7 @@ pub struct Game {
     snake: Snake,
     prev_gamepad: u8,
     fruit: Point,
+    score: u32,
 }
 
 impl Game {
@@ -28,6 +29,7 @@ impl Game {
                 y: rng.i32(0..20),
             },
             rng,
+            score: 0,
         }
     }
 
@@ -65,12 +67,15 @@ impl Game {
                     x: self.rng.i32(0..20),
                     y: self.rng.i32(0..20),
                 };
+                self.score = 0;
             }
 
             if self.snake.body[0] == self.fruit {
                 if let Some(last_pos) = dropped_pos {
                     self.snake.body.push(last_pos);
                 }
+
+                self.score += 1;
 
                 self.rng.seed(self.frame_count.into());
                 self.fruit.x = self.rng.i32(0..20);
@@ -89,5 +94,10 @@ impl Game {
             8,
             wasm4::BLIT_2BPP,
         );
+
+        // Display score
+        set_draw_color(0x04);
+        wasm4::text("Score: ", 2, 2);
+        wasm4::text(&self.score.to_string(), 50, 2);
     }
 }
