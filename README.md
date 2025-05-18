@@ -230,3 +230,66 @@ fn main() -> Result<(), ZKWASMError> {
   Ok(())
 }
 ```
+
+#### Tic-Tac-Toe example
+
+The game from [christopher-kleine/tic-tac-toe-wasm4](https://github.com/christopher-kleine/tic-tac-toe-wasm4) can be proven in the same manner. Compile the project for the `wasm32-unknown-unknown` target and place the resulting `tic_tac_toe.wasm` under `wasm/use_cases/`.
+
+```bash
+git clone https://github.com/christopher-kleine/tic-tac-toe-wasm4
+cd tic-tac-toe-wasm4
+cargo build --release --target wasm32-unknown-unknown
+cp target/wasm32-unknown-unknown/release/tic_tac_toe.wasm \
+  path/to/zkEngine_dev/wasm/use_cases/
+```
+
+Run the example with:
+
+```bash
+RUST_LOG=debug cargo run --release --example tic_tac_toe
+```
+
+```rust
+use std::path::PathBuf;
+use zk_engine::{
+  nova::{
+    provider::{ipa_pc, Bn256EngineIPA},
+    spartan,
+    traits::Dual,
+  },
+  utils::logging::init_logger,
+  {
+    error::ZKWASMError,
+    wasm_ctx::{WASMArgsBuilder, WASMCtx},
+    wasm_snark::{StepSize, WasmSNARK},
+  },
+};
+
+// Curve Cycle to prove/verify on
+pub type E = Bn256EngineIPA;
+pub type EE1 = ipa_pc::EvaluationEngine<E>;
+pub type EE2 = ipa_pc::EvaluationEngine<Dual<E>>;
+pub type S1 = spartan::batched::BatchedRelaxedR1CSSNARK<E, EE1>;
+pub type S2 = spartan::batched::BatchedRelaxedR1CSSNARK<Dual<E>, EE2>;
+
+fn main() -> Result<(), ZKWASMError> {
+  init_logger();
+
+  let step_size = StepSize::new(10);
+  let pp = WasmSNARK::<E, S1, S2>::setup(step_size);
+
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/use_cases/tic_tac_toe.wasm"))
+    .unwrap()
+    .invoke("start")
+    .func_args(vec![])
+    .build();
+  let wasm_ctx = WASMCtx::new(wasm_args);
+
+  let (snark, instance) = WasmSNARK::<E, S1, S2>::prove(&pp, &wasm_ctx, step_size)?;
+
+  snark.verify(&pp, &instance)?;
+
+  Ok(())
+}
+```
