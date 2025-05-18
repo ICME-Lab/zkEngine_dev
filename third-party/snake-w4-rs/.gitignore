@@ -1,0 +1,24 @@
+.vscode/*
+!.vscode/settings.json
+
+/target/*
+node_modules
+
+DS_Store
+
+# Ignore log files
+*.log
+
+# MacOS generated files
+.DS_Store
+.DS_Store?
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+# vim temp files
+*.swp
+*.swo
