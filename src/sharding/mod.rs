@@ -45,19 +45,35 @@ where
   S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// provides a reference to a ProverKey suitable for producing a CompressedProof
-  pub fn pk(&self) -> &ProverKey<E, S1, S2> {
-    let (pk, _vk) = self
+  pub async fn pk(&self) -> &ProverKey<E, S1, S2> {
+    let m = self
       .pk_and_vk
-      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(&self.pp).unwrap());
-    pk
+      .get();
+
+    match m {
+      Some(m) => &m.0,
+      None => {
+        let (pk, vk) = CompressedSNARK::<E, S1, S2>::setup(&self.pp).await.unwrap();
+        self.pk_and_vk.set((pk, vk));
+        &self.pk_and_vk.get().unwrap().0
+      }
+    }
   }
 
   /// provides a reference to a VerifierKey suitable for verifying a CompressedProof
-  pub fn vk(&self) -> &VerifierKey<E, S1, S2> {
-    let (_pk, vk) = self
-      .pk_and_vk
-      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(&self.pp).unwrap());
-    vk
+  pub async fn vk(&self) -> &VerifierKey<E, S1, S2> {
+    let m = self
+    .pk_and_vk
+    .get();
+
+  match m {
+    Some(m) => &m.1,
+    None => {
+        let (pk, vk) = CompressedSNARK::<E, S1, S2>::setup(&self.pp).await.unwrap();
+        self.pk_and_vk.set((pk, vk));
+        &self.pk_and_vk.get().unwrap().1
+      }
+    }
   }
 
   /// Get the inner public parameters
@@ -101,14 +117,14 @@ where
   /// # Note
   ///
   /// Input first shard here
-  pub fn new(
+  pub async fn new(
     pp: &ShardingPublicParams<E, S1, S2>,
     wasm_snark: &WasmSNARK<E, S1, S2>,
     U: &ZKWASMInstance<E>,
   ) -> Result<Self, ZKWASMError> {
     match wasm_snark {
       WasmSNARK::Recursive(wasm_snark) => {
-        let rs = ShardingRecursiveSNARK::new(pp.inner(), wasm_snark.as_ref(), U)?;
+        let rs = ShardingRecursiveSNARK::new(pp.inner(), wasm_snark.as_ref(), U).await?;
         Ok(Self {
           rs,
           _s1: PhantomData,
@@ -128,7 +144,7 @@ where
   /// # Note
   ///
   /// Order of shards inputted here matter.
-  pub fn prove_sharding(
+  pub async fn prove_sharding(
     &mut self,
     pp: &ShardingPublicParams<E, S1, S2>,
     wasm_snarks: &[WasmSNARK<E, S1, S2>],
@@ -137,7 +153,7 @@ where
     for (snark, U) in wasm_snarks.iter().zip_eq(U.iter()) {
       match snark {
         WasmSNARK::Recursive(wasm_snark) => {
-          self.rs.prove_step(pp.inner(), wasm_snark.as_ref(), U)?;
+          self.rs.prove_step(pp.inner(), wasm_snark.as_ref(), U).await?;
         }
         WasmSNARK::Compressed(_) => return Err(ZKWASMError::NotRecursive),
       }
@@ -147,17 +163,18 @@ where
   }
 
   /// Verify the [`ShardingSNARK`]
-  pub fn verify(&self, pp: &ShardingPublicParams<E, S1, S2>) -> Result<(), ZKWASMError> {
-    self.rs.verify(pp.inner())?;
+  pub async fn verify(&self, pp: &ShardingPublicParams<E, S1, S2>) -> Result<(), ZKWASMError> {
+    self.rs.verify(pp.inner()).await?;
     Ok(())
   }
 
   /// Apply Spartan on top of the[`ShardingSNARK`]
-  pub fn compress(
+  pub async fn compress(
     &self,
     pp: &ShardingPublicParams<E, S1, S2>,
   ) -> Result<CompressedSNARK<E, S1, S2>, ZKWASMError> {
-    let snark = CompressedSNARK::prove(pp.inner(), pp.pk(), &self.rs)?;
+    let pk = pp.pk().await;
+    let snark = CompressedSNARK::prove(pp.inner(), pk, &self.rs).await?;
     Ok(snark)
   }
 }

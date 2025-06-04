@@ -31,7 +31,14 @@ mod gadgets;
 mod mcc;
 mod switchboard;
 use switchboard::{BatchedWasmTransitionCircuit, WASMTransitionCircuit};
+use wasm_bindgen::prelude::*;
+use web_sys::console;
 
+#[wasm_bindgen]
+extern "C" {
+  #[wasm_bindgen(js_namespace = performance)]
+  fn now() -> f64;
+}
 /// Maximum number of memory ops allowed per step of the zkVM
 pub const MEMORY_OPS_PER_STEP: usize = 8;
 
@@ -59,19 +66,35 @@ where
   S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// provides a reference to a ProverKey suitable for producing a CompressedProof
-  pub fn pk(&self) -> &ProverKey<E, S1, S2> {
-    let (pk, _vk) = self
+  pub async fn pk(&self) -> &ProverKey<E, S1, S2> {
+    let m = self
       .pk_and_vk
-      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(self).unwrap());
-    pk
+      .get();
+
+    match m {
+      Some(m) => &m.0,
+      None => {
+        let (pk, vk) = CompressedSNARK::<E, S1, S2>::setup(self).await.unwrap();
+        self.pk_and_vk.set((pk, vk));
+        &self.pk_and_vk.get().unwrap().0
+      }
+    }
   }
 
   /// provides a reference to a VerifierKey suitable for verifying a CompressedProof
-  pub fn vk(&self) -> &VerifierKey<E, S1, S2> {
-    let (_pk, vk) = self
+  pub async fn vk(&self) -> &VerifierKey<E, S1, S2> {
+    let m = self
       .pk_and_vk
-      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(self).unwrap());
-    vk
+      .get();
+
+    match m {
+      Some(m) => &m.1,
+      None => {
+        let (pk, vk) = CompressedSNARK::<E, S1, S2>::setup(self).await.unwrap();
+        self.pk_and_vk.set((pk, vk));
+        &self.pk_and_vk.get().unwrap().1
+      }
+    }
   }
 }
 
@@ -135,21 +158,25 @@ where
   /// Fn used to obtain setup material for producing succinct arguments for
   /// WASM program executions
   pub fn setup(step_size: StepSize) -> WASMPublicParams<E, S1, S2> {
+    console::log_1(&format!("Setting up WASM SNARK with step size: {:?}", step_size).into());
     let execution_pp = PublicParams::<E>::setup(
       &BatchedWasmTransitionCircuit::empty(step_size.execution),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
+    console::log_1(&format!("Execution pp").into());
     let ops_pp = PublicParams::<E>::setup(
       &BatchedOpsCircuit::empty(step_size.execution),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
+    console::log_1(&format!("Ops pp").into());
     let scan_pp = AuditPublicParams::<E>::setup(
       &ScanCircuit::empty(step_size.memory),
       &*default_ck_hint(),
       &*default_ck_hint(),
     );
+    console::log_1(&format!("Scan pp").into());
     WASMPublicParams {
       execution_pp,
       ops_pp,
@@ -160,11 +187,12 @@ where
 
   #[tracing::instrument(skip_all, name = "WasmSNARK::prove")]
   /// Produce a SNARK for WASM program input
-  pub fn prove(
+  pub async fn prove(
     pp: &WASMPublicParams<E, S1, S2>,
     program: &impl ZKWASMCtx,
     step_size: StepSize,
   ) -> Result<(Self, ZKWASMInstance<E>), ZKWASMError> {
+    console::log_1(&format!("Proving WASM SNARK").into());
     // Run the vm and get the execution trace of the program.
     //
     // # Note:
@@ -175,8 +203,9 @@ where
     // We do not slice the execution trace at `TraceSliceValues` `start` value because we need the
     // values of the execution trace from *opcode 0 to opcode `start`* to construct the IS for
     // memory checking in continuations/sharding
+    console::log_1(&format!("Start execution trace").into());
     let (start_execution_trace, mut IS, IS_sizes) = program.execution_trace()?;
-
+    console::log_1(&format!("End execution trace").into());
     /*
      * Construct IS multiset
      */
@@ -184,8 +213,9 @@ where
     // Split the execution trace at `TraceSliceValues` `start` value. Use the first half to
     // construct IS and use the second half for the actual proving of the shard
     let start = program.args().start();
+    console::log_1(&format!("Start: {:?}", start).into());
     let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
-
+    console::log_1(&format!("End split execution trace").into());
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
     let mut global_ts = 0;
@@ -193,6 +223,7 @@ where
     // If we are proving a shard of a WASM program: calculate shard size & construct correct shard IS
     let is_sharded = program.args().is_sharded();
     let shard_size = program.args().shard_size().unwrap_or(execution_trace.len());
+    console::log_1(&format!("Constructing IS").into());
     construct_IS(
       shard_size,
       step_size,
@@ -202,7 +233,7 @@ where
       &mut global_ts,
       &IS_sizes,
     );
-
+    console::log_1(&format!("End constructing IS").into());
     // Get the highest timestamp in the IS
     let IS_gts = global_ts;
 
@@ -241,6 +272,7 @@ where
 
     // Build the WASMTransitionCircuit from each traced execution frame and then batch them into
     // size `step_size`
+    console::log_1(&format!("Building WASMTransitionCircuit").into());
     let circuits: Vec<WASMTransitionCircuit> = execution_trace
       .into_iter()
       .map(|vm| {
@@ -250,11 +282,13 @@ where
         WASMTransitionCircuit::new(vm, step_rs, step_ws, IS_sizes)
       })
       .collect();
+    console::log_1(&format!("End building WASMTransitionCircuit").into());
+    console::log_1(&format!("Batching WASMTransitionCircuit").into());
     let circuits = circuits
       .chunks(step_size.execution)
       .map(|chunk| BatchedWasmTransitionCircuit::new(chunk.to_vec()))
       .collect::<Vec<_>>();
-
+    console::log_1(&format!("End batching WASMTransitionCircuit").into());
     /*
      * ************** WASM Transition Circuit Proving **************
      */
@@ -265,21 +299,29 @@ where
     let z0 = vec![pc, sp];
     let mut IC_i = E::Scalar::ZERO;
     let execution_pp = pp.F();
+    console::log_1(&format!("Proving execution").into());
     let mut rs = RecursiveSNARK::new(
       execution_pp,
       circuits.first().ok_or(ZKWASMError::NoCircuit)?,
       &z0,
-    )?;
+    ).await?;
+    console::log_1(&format!("End proving execution").into());
+    let start = now();
+    console::log_1(&format!("Proving steps").into());
     for (i, circuit) in circuits.iter().enumerate() {
-      tracing::debug!("Proving step {}/{}", i + 1, circuits.len());
-      rs.prove_step(execution_pp, circuit, IC_i)?;
-      IC_i = rs.increment_commitment(execution_pp, circuit);
+      // tracing::debug!("Proving step {}/{}", i + 1, circuits.len());
+      console::log_1(&format!("Proving step {}/{}", i + 1, circuits.len()).into());
+      rs.prove_step(execution_pp, circuit, IC_i).await?;
+      IC_i = rs.increment_commitment(execution_pp, circuit).await;
     }
-
+    console::log_1(&format!("End proving steps").into());
+    let end = now();
+    console::log_1(&format!("Time taken: {:?}", end - start).into());
     // Do an internal check on the final recursive SNARK
     let num_steps = rs.num_steps();
-    rs.verify(execution_pp, num_steps, &z0, IC_i)?;
-
+    console::log_1(&format!("Verifying execution").into());
+    rs.verify(execution_pp, num_steps, &z0, IC_i).await?;
+    console::log_1(&format!("End verifying execution").into());
     /*
      * ************** Prove grand products for MCC **************
      */
@@ -289,16 +331,19 @@ where
     let scan_pp = pp.scan();
 
     // Build ops circuits
+    console::log_1(&format!("Building ops circuits").into());
     let ops_circuits = RS
       .into_iter()
       .zip_eq(WS.into_iter())
       .map(|(rs, ws)| OpsCircuit::new(rs, ws))
       .collect::<Vec<_>>();
+    console::log_1(&format!("End building ops circuits").into());
+    console::log_1(&format!("Batching ops circuits").into());
     let ops_circuits = ops_circuits
       .chunks(step_size.execution)
       .map(|chunk| BatchedOpsCircuit::new(chunk.to_vec()))
       .collect::<Vec<_>>();
-
+    console::log_1(&format!("End batching ops circuits").into());
     // Pad IS and FS , so length is a multiple of step_size
     {
       let len = IS.len();
@@ -324,6 +369,7 @@ where
       .chunks(step_size.memory)
       .zip_eq(FS.chunks(step_size.memory))
     {
+      console::log_1(&format!("Computing IC_IS").into());
       IC_IS = IC::<E>::commit(
         &scan_pp.ck_primary,
         &scan_pp.ro_consts,
@@ -332,7 +378,9 @@ where
           .iter()
           .flat_map(|avt| avt_tuple_to_scalar_vec(*avt))
           .collect(),
-      );
+      ).await;
+      console::log_1(&format!("End computing IC_IS").into());
+      console::log_1(&format!("Computing IC_FS").into());
       IC_FS = IC::<E>::commit(
         &scan_pp.ck_primary,
         &scan_pp.ro_consts,
@@ -341,11 +389,14 @@ where
           .iter()
           .flat_map(|avt| avt_tuple_to_scalar_vec(*avt))
           .collect(),
-      );
+      ).await;
+      console::log_1(&format!("End computing IC_FS").into());
+      console::log_1(&format!("Building scan circuit").into());
       let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
       scan_circuits.push(scan_circuit);
+      console::log_1(&format!("End building scan circuit").into());
     }
-
+    console::log_1(&format!("Computing gamma and alpha").into());
     // Get gamma and alpha
     let mut keccak = E::TE::new(b"compute MCC challenges");
     keccak.absorb(b"C_n", &IC_i);
@@ -353,11 +404,10 @@ where
     keccak.absorb(b"IC_FS", &IC_FS);
     let gamma = keccak.squeeze(b"gamma")?;
     let alpha = keccak.squeeze(b"alpha")?;
-
+    console::log_1(&format!("End computing gamma and alpha").into());
     /*
      * Grand product checks for RS & WS
      */
-
     // z0 <- [gamma, alpha, ts=gts, h_RS=1, h_WS=1]
     let ops_z0 = vec![
       gamma,
@@ -368,21 +418,30 @@ where
       E::Scalar::from((MEMORY_OPS_PER_STEP / 2) as u64),
     ];
     let mut ops_IC_i = E::Scalar::ZERO;
-    tracing::debug!("Proving MCC ops circuits");
+    // tracing::debug!("Proving MCC ops circuits");
+    // console::log_1(&format!("Proving ops circuits").into());
+    // let start = now();
     let mut ops_rs = RecursiveSNARK::new(
       ops_pp,
       ops_circuits.first().ok_or(ZKWASMError::NoCircuit)?,
       &ops_z0,
-    )?;
+    )
+    .await?;
     for (i, ops_circuit) in ops_circuits.iter().enumerate() {
-      tracing::debug!("Proving step {}/{}", i + 1, ops_circuits.len());
-      ops_rs.prove_step(ops_pp, ops_circuit, ops_IC_i)?;
-      ops_IC_i = ops_rs.increment_commitment(ops_pp, ops_circuit);
+      // tracing::debug!("Proving step {}/{}", i + 1, ops_circuits.len());
+      console::log_1(&format!("Proving step {}/{}", i + 1, ops_circuits.len()).into());
+      ops_rs.prove_step(ops_pp, ops_circuit, ops_IC_i).await?;
+      ops_IC_i = ops_rs.increment_commitment(ops_pp, ops_circuit).await;
     }
-
+    console::log_1(&format!("End proving ops circuits").into());
+    let end = now();
+    console::log_1(&format!("Time taken: {:?}", end - start).into());
     // internal check
-    ops_rs.verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
-
+    console::log_1(&format!("Verifying ops circuits").into());
+    ops_rs
+      .verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)
+      .await?;
+    console::log_1(&format!("End verifying ops circuits").into());
     /*
      * Grand product checks for IS & FS
      */
@@ -395,23 +454,35 @@ where
       E::Scalar::ONE,
       E::Scalar::from(step_size.memory as u64),
     ];
+    console::log_1(&format!("Building scan rs").into());
     let mut scan_rs = AuditRecursiveSNARK::new(
       scan_pp,
       scan_circuits.first().ok_or(ZKWASMError::NoCircuit)?,
       &scan_z0,
-    )?;
-    tracing::debug!("Proving MCC audit circuits");
-    for (i, scan_circuit) in scan_circuits.iter().enumerate() {
-      tracing::debug!("Proving step {}/{}", i + 1, scan_circuits.len());
-      scan_rs.prove_step(scan_pp, scan_circuit, scan_IC_i)?;
-      scan_IC_i = scan_rs.increment_commitment(scan_pp, scan_circuit);
-    }
+    )
+    .await?;
+    console::log_1(&format!("End building scan rs").into());
 
+    // tracing::debug!("Proving MCC audit circuits");
+    console::log_1(&format!("Proving scan circuits").into());
+    let start = now();
+    for (i, scan_circuit) in scan_circuits.iter().enumerate() {
+      // tracing::debug!("Proving step {}/{}", i + 1, scan_circuits.len());
+      console::log_1(&format!("Proving step {}/{}", i + 1, scan_circuits.len()).into());
+      scan_rs.prove_step(scan_pp, scan_circuit, scan_IC_i).await?;
+      scan_IC_i = scan_rs.increment_commitment(scan_pp, scan_circuit).await;
+    }
+    console::log_1(&format!("End proving scan circuits").into());
+    let end = now();
+    console::log_1(&format!("Time taken: {:?}", end - start).into());
     // internal check
-    scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
+    console::log_1(&format!("Verifying scan circuits").into());
+    scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i).await?;
+    console::log_1(&format!("End verifying scan circuits").into());
     debug_assert_eq!(scan_IC_i, (IC_IS, IC_FS));
 
     // Instance for [`WasmSNARK`]
+    console::log_1(&format!("Building zkwasm instance").into());
     let U = ZKWASMInstance {
       execution_z0: z0,
       IC_i,
@@ -420,7 +491,7 @@ where
       scan_z0,
       scan_IC_i,
     };
-
+    console::log_1(&format!("End building zkwasm instance").into());
     Ok((
       Self::Recursive(Box::new(RecursiveWasmSNARK {
         execution_rs: rs,
@@ -432,24 +503,24 @@ where
   }
 
   /// Apply Spartan on top of the Nebula IVC proofs
-  pub fn compress(
+  pub async fn compress(
     &self,
     pp: &WASMPublicParams<E, S1, S2>,
     U: &ZKWASMInstance<E>,
   ) -> Result<Self, ZKWASMError> {
     match self {
-      Self::Recursive(rs) => Ok(Self::Compressed(Box::new(CompressedSNARK::prove(
-        pp,
-        pp.pk(),
-        rs.as_ref(),
-        U.into(),
-      )?))),
+      Self::Recursive(rs) => {
+        let pk = pp.pk().await;
+        Ok(Self::Compressed(Box::new(
+          CompressedSNARK::prove(pp, &pk, rs.as_ref(), U.into()).await?,
+        )))
+      }
       Self::Compressed(..) => Err(ZKWASMError::NotRecursive),
     }
   }
 
   /// Verify the [`WasmSNARK`]
-  pub fn verify(
+  pub async fn verify(
     &self,
     pp: &WASMPublicParams<E, S1, S2>,
     U: &ZKWASMInstance<E>,
@@ -458,17 +529,20 @@ where
       Self::Recursive(rs) => {
         // verify F
         rs.execution_rs
-          .verify(pp.F(), rs.execution_rs.num_steps(), &U.execution_z0, U.IC_i)?;
+          .verify(pp.F(), rs.execution_rs.num_steps(), &U.execution_z0, U.IC_i)
+          .await?;
 
         // verify F_ops
         let ops_zi = rs
           .ops_rs
-          .verify(pp.ops(), rs.ops_rs.num_steps(), &U.ops_z0, U.ops_IC_i)?;
+          .verify(pp.ops(), rs.ops_rs.num_steps(), &U.ops_z0, U.ops_IC_i)
+          .await?;
 
         // verify F_scan
-        let scan_zi =
-          rs.scan_rs
-            .verify(pp.scan(), rs.scan_rs.num_steps(), &U.scan_z0, U.scan_IC_i)?;
+        let scan_zi = rs
+          .scan_rs
+          .verify(pp.scan(), rs.scan_rs.num_steps(), &U.scan_z0, U.scan_IC_i)
+          .await?;
 
         // 1. check h_IS = h_RS = h_WS = h_FS = 1 // initial values are correct
         let (init_h_is, init_h_rs, init_h_ws, init_h_fs) =
@@ -507,7 +581,11 @@ where
           return Err(ZKWASMError::MultisetVerificationError);
         }
       }
-      Self::Compressed(snark) => snark.verify(pp, pp.vk())?,
+
+      Self::Compressed(snark) => {
+        let vk = pp.vk().await;
+        snark.verify(pp, &vk).await?;
+      }
     }
 
     Ok(())
