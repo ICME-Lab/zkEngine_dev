@@ -59,19 +59,35 @@ where
   S2: RelaxedR1CSSNARKTrait<Dual<E>>,
 {
   /// provides a reference to a ProverKey suitable for producing a CompressedProof
-  pub fn pk(&self) -> &ProverKey<E, S1, S2> {
-    let (pk, _vk) = self
+  pub async fn pk(&self) -> &ProverKey<E, S1, S2> {
+    let m = self
       .pk_and_vk
-      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(self).unwrap());
-    pk
+      .get();
+
+    match m {
+      Some(m) => &m.0,
+      None => {
+        let (pk, vk) = CompressedSNARK::<E, S1, S2>::setup(self).await.unwrap();
+        self.pk_and_vk.set((pk, vk));
+        &self.pk_and_vk.get().unwrap().0
+      }
+    }
   }
 
   /// provides a reference to a VerifierKey suitable for verifying a CompressedProof
-  pub fn vk(&self) -> &VerifierKey<E, S1, S2> {
-    let (_pk, vk) = self
+  pub async fn vk(&self) -> &VerifierKey<E, S1, S2> {
+    let m = self
       .pk_and_vk
-      .get_or_init(|| CompressedSNARK::<E, S1, S2>::setup(self).unwrap());
-    vk
+      .get();
+
+    match m {
+      Some(m) => &m.1,
+      None => {
+        let (pk, vk) = CompressedSNARK::<E, S1, S2>::setup(self).await.unwrap();
+        self.pk_and_vk.set((pk, vk));
+        &self.pk_and_vk.get().unwrap().1
+      }
+    }
   }
 }
 
@@ -160,7 +176,7 @@ where
 
   #[tracing::instrument(skip_all, name = "WasmSNARK::prove")]
   /// Produce a SNARK for WASM program input
-  pub fn prove(
+  pub async fn prove(
     pp: &WASMPublicParams<E, S1, S2>,
     program: &impl ZKWASMCtx,
     step_size: StepSize,
@@ -176,7 +192,6 @@ where
     // values of the execution trace from *opcode 0 to opcode `start`* to construct the IS for
     // memory checking in continuations/sharding
     let (start_execution_trace, mut IS, IS_sizes) = program.execution_trace()?;
-
     /*
      * Construct IS multiset
      */
@@ -185,7 +200,6 @@ where
     // construct IS and use the second half for the actual proving of the shard
     let start = program.args().start();
     let (IS_execution_trace, mut execution_trace) = split_vector(start_execution_trace, start);
-
     // We maintain a timestamp counter `globa_ts` that is initialized to
     // the highest timestamp value in IS.
     let mut global_ts = 0;
@@ -202,7 +216,6 @@ where
       &mut global_ts,
       &IS_sizes,
     );
-
     // Get the highest timestamp in the IS
     let IS_gts = global_ts;
 
@@ -254,7 +267,6 @@ where
       .chunks(step_size.execution)
       .map(|chunk| BatchedWasmTransitionCircuit::new(chunk.to_vec()))
       .collect::<Vec<_>>();
-
     /*
      * ************** WASM Transition Circuit Proving **************
      */
@@ -269,17 +281,15 @@ where
       execution_pp,
       circuits.first().ok_or(ZKWASMError::NoCircuit)?,
       &z0,
-    )?;
+    ).await?;
     for (i, circuit) in circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, circuits.len());
-      rs.prove_step(execution_pp, circuit, IC_i)?;
-      IC_i = rs.increment_commitment(execution_pp, circuit);
+      rs.prove_step(execution_pp, circuit, IC_i).await?;
+      IC_i = rs.increment_commitment(execution_pp, circuit).await;
     }
-
     // Do an internal check on the final recursive SNARK
     let num_steps = rs.num_steps();
-    rs.verify(execution_pp, num_steps, &z0, IC_i)?;
-
+    rs.verify(execution_pp, num_steps, &z0, IC_i).await?;
     /*
      * ************** Prove grand products for MCC **************
      */
@@ -298,7 +308,6 @@ where
       .chunks(step_size.execution)
       .map(|chunk| BatchedOpsCircuit::new(chunk.to_vec()))
       .collect::<Vec<_>>();
-
     // Pad IS and FS , so length is a multiple of step_size
     {
       let len = IS.len();
@@ -332,7 +341,7 @@ where
           .iter()
           .flat_map(|avt| avt_tuple_to_scalar_vec(*avt))
           .collect(),
-      );
+      ).await;
       IC_FS = IC::<E>::commit(
         &scan_pp.ck_primary,
         &scan_pp.ro_consts,
@@ -341,11 +350,10 @@ where
           .iter()
           .flat_map(|avt| avt_tuple_to_scalar_vec(*avt))
           .collect(),
-      );
+      ).await;
       let scan_circuit = ScanCircuit::new(IS_chunk.to_vec(), FS_chunk.to_vec());
       scan_circuits.push(scan_circuit);
     }
-
     // Get gamma and alpha
     let mut keccak = E::TE::new(b"compute MCC challenges");
     keccak.absorb(b"C_n", &IC_i);
@@ -353,11 +361,9 @@ where
     keccak.absorb(b"IC_FS", &IC_FS);
     let gamma = keccak.squeeze(b"gamma")?;
     let alpha = keccak.squeeze(b"alpha")?;
-
     /*
      * Grand product checks for RS & WS
      */
-
     // z0 <- [gamma, alpha, ts=gts, h_RS=1, h_WS=1]
     let ops_z0 = vec![
       gamma,
@@ -373,16 +379,17 @@ where
       ops_pp,
       ops_circuits.first().ok_or(ZKWASMError::NoCircuit)?,
       &ops_z0,
-    )?;
+    )
+    .await?;
     for (i, ops_circuit) in ops_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, ops_circuits.len());
-      ops_rs.prove_step(ops_pp, ops_circuit, ops_IC_i)?;
-      ops_IC_i = ops_rs.increment_commitment(ops_pp, ops_circuit);
+      ops_rs.prove_step(ops_pp, ops_circuit, ops_IC_i).await?;
+      ops_IC_i = ops_rs.increment_commitment(ops_pp, ops_circuit).await;
     }
-
     // internal check
-    ops_rs.verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)?;
-
+    ops_rs
+      .verify(ops_pp, ops_rs.num_steps(), &ops_z0, ops_IC_i)
+      .await?;
     /*
      * Grand product checks for IS & FS
      */
@@ -399,16 +406,17 @@ where
       scan_pp,
       scan_circuits.first().ok_or(ZKWASMError::NoCircuit)?,
       &scan_z0,
-    )?;
-    tracing::debug!("Proving MCC audit circuits");
+    )
+    .await?;
+
+    // tracing::debug!("Proving MCC audit circuits");
     for (i, scan_circuit) in scan_circuits.iter().enumerate() {
       tracing::debug!("Proving step {}/{}", i + 1, scan_circuits.len());
-      scan_rs.prove_step(scan_pp, scan_circuit, scan_IC_i)?;
-      scan_IC_i = scan_rs.increment_commitment(scan_pp, scan_circuit);
+      scan_rs.prove_step(scan_pp, scan_circuit, scan_IC_i).await?;
+      scan_IC_i = scan_rs.increment_commitment(scan_pp, scan_circuit).await;
     }
-
     // internal check
-    scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i)?;
+    scan_rs.verify(scan_pp, scan_rs.num_steps(), &scan_z0, scan_IC_i).await?;
     debug_assert_eq!(scan_IC_i, (IC_IS, IC_FS));
 
     // Instance for [`WasmSNARK`]
@@ -420,7 +428,6 @@ where
       scan_z0,
       scan_IC_i,
     };
-
     Ok((
       Self::Recursive(Box::new(RecursiveWasmSNARK {
         execution_rs: rs,
@@ -432,24 +439,24 @@ where
   }
 
   /// Apply Spartan on top of the Nebula IVC proofs
-  pub fn compress(
+  pub async fn compress(
     &self,
     pp: &WASMPublicParams<E, S1, S2>,
     U: &ZKWASMInstance<E>,
   ) -> Result<Self, ZKWASMError> {
     match self {
-      Self::Recursive(rs) => Ok(Self::Compressed(Box::new(CompressedSNARK::prove(
-        pp,
-        pp.pk(),
-        rs.as_ref(),
-        U.into(),
-      )?))),
+      Self::Recursive(rs) => {
+        let pk = pp.pk().await;
+        Ok(Self::Compressed(Box::new(
+          CompressedSNARK::prove(pp, &pk, rs.as_ref(), U.into()).await?,
+        )))
+      }
       Self::Compressed(..) => Err(ZKWASMError::NotRecursive),
     }
   }
 
   /// Verify the [`WasmSNARK`]
-  pub fn verify(
+  pub async fn verify(
     &self,
     pp: &WASMPublicParams<E, S1, S2>,
     U: &ZKWASMInstance<E>,
@@ -458,17 +465,20 @@ where
       Self::Recursive(rs) => {
         // verify F
         rs.execution_rs
-          .verify(pp.F(), rs.execution_rs.num_steps(), &U.execution_z0, U.IC_i)?;
+          .verify(pp.F(), rs.execution_rs.num_steps(), &U.execution_z0, U.IC_i)
+          .await?;
 
         // verify F_ops
         let ops_zi = rs
           .ops_rs
-          .verify(pp.ops(), rs.ops_rs.num_steps(), &U.ops_z0, U.ops_IC_i)?;
+          .verify(pp.ops(), rs.ops_rs.num_steps(), &U.ops_z0, U.ops_IC_i)
+          .await?;
 
         // verify F_scan
-        let scan_zi =
-          rs.scan_rs
-            .verify(pp.scan(), rs.scan_rs.num_steps(), &U.scan_z0, U.scan_IC_i)?;
+        let scan_zi = rs
+          .scan_rs
+          .verify(pp.scan(), rs.scan_rs.num_steps(), &U.scan_z0, U.scan_IC_i)
+          .await?;
 
         // 1. check h_IS = h_RS = h_WS = h_FS = 1 // initial values are correct
         let (init_h_is, init_h_rs, init_h_ws, init_h_fs) =
@@ -507,7 +517,11 @@ where
           return Err(ZKWASMError::MultisetVerificationError);
         }
       }
-      Self::Compressed(snark) => snark.verify(pp, pp.vk())?,
+
+      Self::Compressed(snark) => {
+        let vk = pp.vk().await;
+        snark.verify(pp, &vk).await?;
+      }
     }
 
     Ok(())
