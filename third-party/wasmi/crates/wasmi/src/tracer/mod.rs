@@ -147,7 +147,9 @@ impl Tracer {
             .max();
 
         // Truncate to the largest 8-byte chunk that can accommodate the used highest address.
-        let new_len = highest_address.map_or(0, |addr| (addr / 7) + 1);
+        let new_len = highest_address.map_or(0, |addr| (addr / 8) + 1);
+        // Add an extra slot because reads and writes also access the next chunk (Q)
+        let new_len = new_len + 1;
         self.IS_mem.truncate(new_len as usize);
     }
 
