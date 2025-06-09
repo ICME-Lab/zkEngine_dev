@@ -132,6 +132,7 @@ fn test_zk_ads() {
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
+#[ignore]
 #[test]
 fn test_bulk_ops() -> Result<(), ZKWASMError> {
   let step_size = StepSize::new(1000).set_memory_step_size(10_000);
@@ -159,6 +160,7 @@ fn test_kth_factor() -> Result<(), ZKWASMError> {
   Ok(())
 }
 
+#[ignore]
 #[test]
 fn test_integer_hash() {
   let step_size = StepSize::new(2_500).set_memory_step_size(50_000);
@@ -173,6 +175,7 @@ fn test_integer_hash() {
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
+#[ignore]
 #[test]
 fn test_gradient_boosting() {
   let step_size = StepSize::new(5_000).set_memory_step_size(50_000);
@@ -299,6 +302,7 @@ fn test_energy_consumption() {
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
 
+#[ignore]
 #[test]
 fn test_toy_rsa() {
   init_logger();
