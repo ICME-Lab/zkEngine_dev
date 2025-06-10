@@ -24,9 +24,6 @@ tracing-texray = "0.2.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
-rustyline = { version = "13.0", features = [
-  "derive",
-], default-features = false }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 wasmi_wasi = { path = "./third-party/wasmi/crates/wasi" }
