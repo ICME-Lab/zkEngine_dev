@@ -146,13 +146,13 @@ impl Tracer {
             })
             .max();
 
-        self.execution_trace.retain(|vm| {
-            vm.instr != Instruction::HostCallStep || (vm.Y * 8) <= highest_address.unwrap_or(0)
-        });
-
         // Truncate to the largest 8-byte chunk that can accommodate the used highest address.
         let new_len = highest_address.map_or(0, |addr| (addr / 7) + 1);
+
         self.IS_mem.truncate(new_len as usize);
+
+        self.execution_trace
+            .retain(|vm| vm.instr != Instruction::HostCallStep || vm.Y < new_len);
     }
 
     /// Push initial heap/linear WASM memory to tracer for MCC
