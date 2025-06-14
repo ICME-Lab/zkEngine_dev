@@ -61,6 +61,6 @@ jobs:
           # keep the runner alive and then run just this one ignored test
           timeout 21600 bash -c '
             while true; do echo "🟢 still running..."; sleep 60; done &
-            RUST_LOG=debug cargo test --package zk-engine --lib \
+            RUST_LOG=debug cargo test --release --package zk-engine --lib \
               -- tests::${{ matrix.test_name }} --exact --show-output --ignored
           '
