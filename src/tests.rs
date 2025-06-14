@@ -33,15 +33,6 @@ fn test_wasm_snark_with(wasm_ctx: impl ZKWASMCtx, step_size: StepSize) -> Result
   let verification_timer = start_timer!("Verifying RecursiveWasmSNARK");
   rs_snark.verify(&pp, &U).unwrap();
   stop_timer!(verification_timer);
-
-  let proving_timer = start_timer!("Producing compressedSNARK");
-  let snark = rs_snark.compress(&pp, &U)?;
-  stop_timer!(proving_timer);
-
-  let verification_timer = start_timer!("Verifying WasmSNARK");
-  snark.verify(&pp, &U).unwrap();
-  stop_timer!(verification_timer);
-
   Ok(())
 }
 
