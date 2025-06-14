@@ -452,3 +452,53 @@ fn test_smart_contract_audit() {
   let wasm_ctx = WASMCtx::new(wasm_args);
   test_wasm_snark_with(wasm_ctx, step_size).unwrap();
 }
+
+#[test]
+fn test_memory_truncation_with_host_call() {
+  pub struct CustomWasmCtx {
+    wasm_args: crate::wasm_ctx::WASMArgs,
+  }
+
+  impl ZKWASMCtx for CustomWasmCtx {
+    type T = ();
+
+    fn create_store(&self, engine: &wasmi::Engine) -> wasmi::Store<Self::T> {
+      wasmi::Store::new(engine, ())
+    }
+
+    fn create_linker(
+      &self,
+      engine: &wasmi::Engine,
+      _module: &wasmi::Module,
+    ) -> Result<wasmi::Linker<Self::T>, ZKWASMError> {
+      let mut linker = wasmi::Linker::<Self::T>::new(engine);
+
+      linker
+        .func_wrap(
+          "host",
+          "call",
+          |_caller: wasmi::Caller<()>, i: u32| -> u32 { i },
+        )
+        .unwrap();
+
+      Ok(linker)
+    }
+
+    fn args(&self) -> &crate::wasm_ctx::WASMArgs {
+      &self.wasm_args
+    }
+  }
+
+  init_logger();
+  let step_size = StepSize::new(1000).set_memory_step_size(1000);
+
+  let wasm_args = WASMArgsBuilder::default()
+    .file_path(PathBuf::from("wasm/host_call_test.wat"))
+    .unwrap()
+    .func_args(vec![])
+    .invoke("test")
+    .build();
+
+  let wasm_ctx = CustomWasmCtx { wasm_args };
+  test_wasm_snark_with(wasm_ctx, step_size).unwrap();
+}
