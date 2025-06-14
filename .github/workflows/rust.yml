@@ -11,7 +11,6 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -34,9 +33,18 @@ jobs:
 
       - name: Build for WASM
         run: cargo build --target wasm32-unknown-unknown
+
   tests:
-    runs-on: ubuntu-latest
     needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      matrix:
+        test_name:
+          - test_gradient_boosting
+          - test_integer_hash
+          - test_bulk_ops
+          - test_toy_rsa
 
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +56,11 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Run tests
-        run: cargo test -r -- --ignored
-
-
+      - name: Run ${{ matrix.test_name }}
+        run: |
+          # keep the runner alive and then run just this one ignored test
+          timeout 21600 bash -c '
+            while true; do echo "🟢 still running..."; sleep 60; done &
+            RUST_LOG=debug cargo test --release --package zk-engine --lib \
+              -- tests::${{ matrix.test_name }} --exact --show-output --ignored
+          '
