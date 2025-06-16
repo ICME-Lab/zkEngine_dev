@@ -323,7 +323,7 @@ impl Stack {
         let post_sp = self.values.stack_ptr();
         let post_sp = post_sp.offset_from(self.values.base_ptr()) as usize;
 
-        for i in 1..=max_inout {
+        for i in 1..=len_outputs {
             let mut vm = stack_witness_vm.clone();
             vm.pre_sp = post_sp - i;
             vm.P = self.values.stack_ptr().nth_back(i).to_bits();
@@ -333,7 +333,7 @@ impl Stack {
         // We add a dummy write to indicate to tracer that a host function was called
         if stack_vms.is_empty() {
             let mut vm = stack_witness_vm.clone();
-            vm.pre_sp = post_sp - 1;
+            vm.pre_sp = post_sp.saturating_sub(1);
             vm.P = self.values.stack_ptr().nth_back(1).to_bits();
             stack_vms.push(vm);
         }
