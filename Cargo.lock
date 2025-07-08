@@ -2144,7 +2144,6 @@ dependencies = [
  "anyhow",
  "arecibo",
  "ff",
- "getrandom",
  "itertools 0.12.1",
  "rand",
  "serde",
