@@ -12,7 +12,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -47,7 +47,7 @@ jobs:
           - test_toy_rsa
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
