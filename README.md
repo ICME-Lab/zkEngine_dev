@@ -7,6 +7,10 @@ local verifiable compute and privacy on a large array of devices.
 
 The zkEngine is the backend for the [NovaNet](https://novanet.xyz) incentive and prover network. 
 
+Made with ❤️ by [ICME Labs](https://blog.icme.io/).
+
+<img width="983" height="394" alt="icme_labs" src="https://github.com/user-attachments/assets/ffc334ed-c301-4ce6-8ca3-a565328904fe" />
+
 ## Usage: as Rust dependency
 
 ### Cargo
